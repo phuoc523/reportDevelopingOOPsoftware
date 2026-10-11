@@ -1,164 +1,108 @@
-PHÂN CÔNG CÔNG VIỆC DỰ ÁN SCENTSTATION
-Tên dự án: ScentStation – Hệ thống máy bán nước hoa thông minh ứng dụng IoT.
-Mục tiêu: Xây dựng hệ thống gồm giao diện khách hàng, giao diện quản trị, backend, quản lý thanh toán và kết nối thiết bị IoT. Nhóm có 5 thành viên, mỗi người phụ trách một nhóm chức năng riêng và phối hợp tích hợp thành hệ thống hoàn chỉnh.
-1. Bảng phân công tổng thể
-Phân công theo module, có phạm vi công việc và sản phẩm bàn giao cụ thể.
-Thành viên	Vai trò phụ trách	Phạm vi chính
-Thành viên 1	Identity & Platform	Đăng nhập, tài khoản, phân quyền, cấu hình nền tảng
-Thành viên 2	Catalog & Operation	Sản phẩm, tồn kho, nạp hàng, bảo trì, nhật ký vận hành
-Thành viên 3	Order & Payment	Đơn hàng, thanh toán, xác nhận giao dịch, trạng thái đơn
-Thành viên 4	Machine & IoT	Quản lý máy, MQTT, nhận lệnh, phản hồi thiết bị, mô phỏng máy
-Thành viên 5	Frontend & Integration	Giao diện khách hàng, giao diện quản trị, báo cáo, tích hợp và kiểm thử hệ thống
-2. Phân công chi tiết từng thành viên
+1. Bảng phân công mới cho 5 thành viên
+Phương án đề xuất: chia theo 5 nhóm công việc, giới hạn phạm vi tính năng nâng cao và phân bổ trách nhiệm tích hợp cho cả nhóm.
+Thành viên	Phụ trách	Thư mục chính
+Người 1	Identity, API Gateway và nền tảng chung	identity-service/, api-gateway/
+Người 2	Catalog và Inventory	catalog-service/, phần tồn kho trong operation-service/
+Người 3	Order và Payment	order-service/
+Người 4	Machine và IoT	machine-service/, device/
+Người 5	Frontend và Reporting	customer-web/, admin-web/, reporting-service/
 
-Thành viên 1 – Identity & Platform
-Phụ trách xác thực và phân quyền người dùng
+Tiêu chí hỗ trợ lẫn nhau chỉ phân nhánh riêng chỉ làm trong thời gian ngắn của 1/10 thời gian
+2. Chi tiết công việc từng người
 
+Người 1 – Identity & Platform
 
-Nhiệm vụ chính
-- Xây dựng chức năng đăng ký, đăng nhập, đăng xuất.
-- Quản lý tài khoản, thông tin người dùng và trạng thái tài khoản.
-- Xây dựng cơ chế xác thực và phân quyền Admin, Staff, Customer.
-- Bảo vệ API, kiểm soát quyền truy cập và dữ liệu giữa các tenant.
-- Phối hợp thống nhất cơ chế xác thực để các service khác sử dụng.
-- Hỗ trợ thiết lập cấu hình API Gateway và quy ước giao tiếp chung ở mức nền tảng.
-Phạm vi code
-- services/identity-service/
-- services/api-gateway/ (phối hợp nếu nhóm tách Gateway thành service riêng)
-Sản phẩm bàn giao
-- API xác thực và phân quyền.
-- Cơ sở dữ liệu người dùng.
-- Tài liệu API và hướng dẫn cấu hình xác thực.
-- Test các trường hợp đăng nhập hợp lệ, sai thông tin và không đủ quyền.
+Nhiệm vụ
+- Đăng ký, đăng nhập, đăng xuất.
+- Quản lý tài khoản và phân quyền Admin, Staff, Customer.
+- Xác thực và bảo vệ API.
+- Thiết lập API Gateway, định tuyến request và cấu hình CORS cơ bản.
+- Thống nhất cấu hình chung, cách xác thực và quy ước lỗi API với các thành viên.
+Bàn giao: Identity Service, Gateway chạy được, tài liệu xác thực và test quyền truy cập.
+Giới hạn: Không phụ trách Docker toàn hệ thống hoặc tích hợp toàn bộ ứng dụng.
 
 
 
-Thành viên 2 – Catalog & Operation
-Phụ trách danh mục sản phẩm và nghiệp vụ vận hành
+Người 2 – Catalog & Inventory
 
-
-Nhiệm vụ chính
-- Xây dựng chức năng quản lý nước hoa, thương hiệu, hình ảnh, giá bán và thông tin sản phẩm.
-- Quản lý danh mục, trạng thái kinh doanh và dữ liệu sản phẩm.
-- Xây dựng nghiệp vụ tồn kho và số lượng nước hoa trong từng slot.
+Nhiệm vụ
+- Quản lý nước hoa, thương hiệu, hình ảnh và giá bán.
+- Xây dựng API thêm, sửa, xóa, xem sản phẩm.
+- Quản lý tồn kho và số lượng nước hoa trong từng slot ở góc độ nghiệp vụ.
 - Ghi nhận nạp hàng, điều chỉnh tồn kho và lịch sử thay đổi.
-- Xây dựng chức năng quản lý bảo trì, cảnh báo và nhật ký vận hành.
-- Ghi nhận thao tác quan trọng để phục vụ kiểm tra và truy vết.
-Phạm vi code
-- services/catalog-service/
-- services/operation-service/
-Sản phẩm bàn giao
-- API quản lý sản phẩm và nghiệp vụ vận hành.
-- Mô hình dữ liệu sản phẩm, tồn kho và bảo trì.
-- Quy tắc cập nhật tồn kho, ghi nhật ký và phân quyền thao tác.
-- Test CRUD, cập nhật tồn kho và các trường hợp dữ liệu không hợp lệ.
+- Cung cấp dữ liệu sản phẩm, tồn kho cho frontend và báo cáo.
+- Phối hợp với người 4 về thông tin slot và trạng thái thiết bị.
+Thư mục: services/catalog-service/ và phần tồn kho được thống nhất trong services/operation-service/.
+Bàn giao: API sản phẩm, API tồn kho, dữ liệu mẫu và test cập nhật số lượng.
+Giới hạn: Chỉ phụ trách nghiệp vụ tồn kho; không xây dựng MQTT hoặc logic điều khiển máy.
 
 
 
-Thành viên 3 – Order & Payment
-Phụ trách đơn hàng và xử lý thanh toán
+Người 3 – Order & Payment
 
-
-Nhiệm vụ chính
-- Xây dựng quy trình tạo và quản lý đơn hàng.
-- Lưu sản phẩm, số lượng, giá tại thời điểm đặt hàng và tổng tiền.
-- Tích hợp cổng thanh toán QR hoặc mô phỏng thanh toán nếu không có cổng thật.
-- Xác nhận thanh toán dựa trên phản hồi đáng tin cậy từ backend/cổng thanh toán.
-- Quản lý trạng thái đơn: chờ thanh toán, đã thanh toán, đang xử lý, hoàn tất, thất bại hoặc cần đối soát.
-- Xử lý webhook, chống xác nhận giao dịch trùng và hỗ trợ quy trình hoàn tiền nếu nằm trong phạm vi dự án.
-- Phối hợp với Machine Service để yêu cầu thực hiện đơn đã được xác nhận thanh toán.
-Phạm vi code
-- services/order-service/
-Sản phẩm bàn giao
-- API tạo đơn, truy vấn đơn và theo dõi trạng thái.
-- Cơ sở dữ liệu đơn hàng và giao dịch.
-- Cơ chế xác nhận thanh toán và xử lý yêu cầu trùng.
-- Quy trình phối hợp với Machine Service và test các trạng thái thanh toán.
+Nhiệm vụ
+- Tạo và quản lý đơn hàng.
+- Lưu giá sản phẩm tại thời điểm đặt hàng và tổng tiền.
+- Xây dựng thanh toán QR mô phỏng hoặc tích hợp phương thức thanh toán được nhóm thống nhất.
+- Xác nhận thanh toán ở backend, xử lý callback và yêu cầu trùng.
+- Quản lý trạng thái đơn hàng.
+- Gửi yêu cầu thực hiện đơn đã thanh toán sang Machine Service qua API hoặc message contract đã thống nhất.
+Thư mục: services/order-service/
+Bàn giao: API đơn hàng, xử lý thanh toán, sơ đồ trạng thái và test các trường hợp thành công/thất bại.
+Giới hạn: Chưa cần xây dựng hệ thống hoàn tiền phức tạp nếu đề bài không bắt buộc.
 
 
 
-Thành viên 4 – Machine & IoT
-Phụ trách quản lý máy và giao tiếp với thiết bị
+Người 4 – Machine & IoT
 
-
-Nhiệm vụ chính
-- Xây dựng chức năng quản lý máy, slot và trạng thái thiết bị.
-- Tích hợp giao tiếp MQTT giữa backend và máy.
-- Tiếp nhận heartbeat, telemetry, trạng thái và phản hồi lệnh từ thiết bị.
-- Xây dựng cơ chế gửi lệnh xịt sau khi kiểm tra yêu cầu hợp lệ.
-- Kiểm tra trạng thái máy, cửa máy, slot, bảo trì và lỗi phần cứng trước khi thực hiện lệnh.
-- Chống xử lý lệnh trùng, lệnh hết hạn hoặc lệnh gửi sai thiết bị.
-- Ghi nhận kết quả xịt; xử lý trường hợp kết quả không xác định bằng trạng thái cần đối soát, không tự động xịt lại.
-- Xây dựng Device Simulator nếu nhóm không có phần cứng thật.
-Phạm vi code
-- services/machine-service/
-- device/
-Sản phẩm bàn giao
-- API quản lý máy và điều khiển lệnh.
-- MQTT topics, định dạng message và cơ chế ACK.
-- Device Simulator hoặc chương trình kết nối thiết bị thật.
-- Test kết nối, máy ngoại tuyến, lệnh trùng, slot trống và lỗi thiết bị.
+Nhiệm vụ
+- Quản lý thông tin máy, slot và trạng thái thiết bị.
+- Thiết lập giao tiếp MQTT và các message contract.
+- Xử lý heartbeat, nhận lệnh và phản hồi ACK.
+- Xây dựng Device Simulator nếu không có máy thật.
+- Kiểm tra các điều kiện trước khi xịt: máy ngoại tuyến, đang bảo trì, slot trống hoặc có lỗi phần cứng.
+- Chống thực hiện lệnh trùng; kết quả không xác định phải chuyển sang đối soát, không tự động xịt lại.
+Thư mục: services/machine-service/, device/.
+Bàn giao: API quản lý máy, MQTT, Device Simulator và test các trường hợp lỗi chính.
+Giới hạn: Chỉ triển khai giao thức và mô phỏng cần thiết cho demo; không mở rộng sang hệ thống IoT giám sát nâng cao.
 
 
 
-Thành viên 5 – Frontend & Integration
-Phụ trách giao diện và ghép nối toàn hệ thống
+Người 5 – Frontend & Reporting
+
+Nhiệm vụ
+- Xây dựng Customer Web: danh sách sản phẩm, chi tiết sản phẩm, giỏ hàng hoặc lựa chọn sản phẩm, tạo đơn và xem trạng thái.
+- Xây dựng Admin Web: quản lý sản phẩm, đơn hàng, máy và tồn kho thông qua API.
+- Kết nối frontend với API của các thành viên.
+- Xây dựng Dashboard và báo cáo cơ bản từ dữ liệu API.
+- Viết test giao diện và kiểm thử các luồng người dùng chính.
+Thư mục: frontend/customer-web/, frontend/admin-web/, services/reporting-service/.
+Bàn giao: Hai giao diện hoạt động, Dashboard cơ bản, hướng dẫn sử dụng và kết quả test luồng người dùng.
+Giới hạn: Không phải người duy nhất chịu trách nhiệm tích hợp toàn hệ thống; mỗi thành viên phải tự kiểm thử và cung cấp hướng dẫn chạy module của mình.
 
 
-Nhiệm vụ chính
-- Xây dựng Customer Web: xem danh sách nước hoa, xem chi tiết, chọn sản phẩm, tạo đơn và theo dõi thanh toán.
-- Xây dựng Admin Web: quản lý sản phẩm, đơn hàng, máy và các nghiệp vụ được cấp quyền.
-- Kết nối giao diện với API của các thành viên backend.
-- Xây dựng Dashboard và báo cáo cơ bản dựa trên API có sẵn.
-- Phối hợp thiết lập Docker Compose và cấu hình môi trường chạy tích hợp.
-- Kiểm thử luồng nghiệp vụ đầu cuối và tổng hợp lỗi tích hợp.
-- Hoàn thiện README, hướng dẫn cài đặt, chạy dự án và demo.
-Phạm vi code
-- frontend/customer-web/
-- frontend/admin-web/
-- services/reporting-service/ (chỉ triển khai báo cáo cơ bản nếu còn đủ nguồn lực)
-- infra/, docker-compose.yml (phối hợp với cả nhóm)
-Sản phẩm bàn giao
-- Hai giao diện web có thể sử dụng.
-- Dashboard và báo cáo cơ bản.
-- Hướng dẫn chạy toàn hệ thống.
-- Kịch bản demo hoàn chỉnh từ chọn sản phẩm đến nhận kết quả xịt.
-
-
-3. Quy ước GitHub và phạm vi sở hữu code
-Mỗi thành viên có branch riêng và chịu trách nhiệm chính với các thư mục đã được giao.
-Thành viên	Branch đề xuất
-Thành viên 1	feature/identity-platform
-Thành viên 2	feature/catalog-operation
-Thành viên 3	feature/order-payment
-Thành viên 4	feature/machine-iot
-Thành viên 5	feature/frontend-integration
-Quy trình làm việc thống nhất:
-1. Lấy code mới nhất từ main trước khi bắt đầu công việc.
-2. Phát triển trên branch cá nhân, commit thường xuyên với nội dung rõ ràng.
-3. Tạo Pull Request (PR) khi hoàn thành một chức năng.
-4. Thành viên khác kiểm tra code, API và khả năng chạy trước khi merge.
-5. Không tự ý thay đổi cấu trúc thư mục hoặc file cấu hình chung khi chưa thống nhất.
-6. Mỗi module cần có README ngắn, API contract và hướng dẫn chạy/test.
-4. Nguyên tắc phối hợp giữa các thành viên
-Để tránh tình trạng mỗi người làm một kiểu rồi không ghép được, nhóm cần thống nhất những nguyên tắc sau:
-- API contract trước, code song song sau: Thống nhất endpoint, request, response, trạng thái và mã lỗi trước khi triển khai.
-- Mỗi service sở hữu dữ liệu riêng: Service khác giao tiếp qua API hoặc message contract, không truy vấn trực tiếp database của nhau.
-- Thanh toán và điều khiển máy tách biệt: Order Service xác nhận thanh toán và quản lý đơn; Machine Service chịu trách nhiệm gửi lệnh, kiểm tra thiết bị và ghi nhận kết quả xịt.
-- Tồn kho được cập nhật theo sự kiện phù hợp: Chỉ trừ tồn kho bán hàng khi kết quả xịt được xác nhận thành công; thao tác kiểm tra thiết bị phải được ghi nhận riêng.
-- Thay đổi quan trọng phải có nhật ký: Nạp hàng, điều chỉnh tồn kho, thay đổi giá, bảo trì và thao tác vận hành cần được truy vết.
-- Tích hợp sớm: Không chờ tất cả hoàn thành mới ghép hệ thống; nên tích hợp từng luồng nhỏ ngay khi API cơ bản sẵn sàng.
-5. Lộ trình triển khai đề xuất
-Giai đoạn	Công việc	Người tham gia
-Giai đoạn 1	Thống nhất kiến trúc, cấu trúc repo, API contract và database	Cả nhóm
-Giai đoạn 2	Xây dựng các service và giao diện theo phạm vi đã giao	Thành viên 1–5
-Giai đoạn 3	Kết nối đăng nhập, sản phẩm, đơn hàng, thanh toán và thiết bị	Thành viên 1–5
-Giai đoạn 4	Kiểm thử tích hợp, xử lý lỗi và hoàn thiện báo cáo	Cả nhóm
-Giai đoạn 5	Chuẩn bị tài liệu, demo và phân chia phần thuyết trình	Cả nhóm
-6. Tiêu chí hoàn thành công việc
-Mỗi thành viên chỉ được xem là hoàn thành khi có đủ:
-- Code nằm đúng thư mục và đã merge sau khi được review.
-- API hoặc giao diện chạy được theo hướng dẫn.
-- Có dữ liệu mẫu và test các tình huống chính.
-- Có tài liệu bàn giao để thành viên khác sử dụng.
-- Không làm hỏng chức năng của module khác khi tích hợp.
+3. Chia trách nhiệm tích hợp để không dồn việc cho người 5
+Đây là thay đổi quan trọng nhất để cân bằng công việc.
+Công việc chung	Người chịu trách nhiệm chính
+Cấu trúc repository, quy ước API và xác thực	Người 1 điều phối
+Tích hợp sản phẩm và tồn kho	Người 2
+Tích hợp thanh toán và trạng thái đơn	Người 3
+Tích hợp MQTT và Device Simulator	Người 4
+Tích hợp giao diện và báo cáo	Người 5
+Docker Compose	Người 1 phụ trách cấu hình Gateway; cả nhóm cung cấp cấu hình chạy module, một người được nhóm thống nhất ghép file Compose
+Kiểm thử đầu cuối	Cả 5 người cùng thực hiện
+Người 5 không cần tự sửa lỗi backend thay cho các thành viên khác. Người phụ trách từng module phải chịu trách nhiệm sửa lỗi trong phần của mình.
+4. Quy ước GitHub cho cả nhóm
+Mỗi thành viên làm việc trên branch riêng:
+Thành viên	Branch
+Người 1	feature/identity-platform
+Người 2	feature/catalog-inventory
+Người 3	feature/order-payment
+Người 4	feature/machine-iot
+Người 5	feature/frontend-reporting
+Quy tắc bắt buộc:
+- Không commit trực tiếp lên main.
+- Mỗi tính năng được phát triển trên branch phụ trách.
+- Tạo Pull Request và review trước khi merge.
+- Thống nhất API contract trước khi code song song.
+- Mỗi người có trách nhiệm viết test, cập nhật tài liệu và sửa lỗi thuộc module của mình.
