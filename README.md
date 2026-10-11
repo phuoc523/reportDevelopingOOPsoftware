@@ -7,7 +7,10 @@ Thành Viên
 - Hoàng Đình Phùng - 064205007188
 - Phương
 - Phước
+## Team Responsibilities
 
+See [Team Responsibilities](docs/TEAM_RESPONSIBILITIES.md)
+for the roles, responsibilities, and deliverables of all five team members.
 **ScentStation** là nền tảng IoT đa thương hiệu cho kiosk trải nghiệm nước hoa. Hệ thống hướng đến việc hỗ trợ khách hàng chọn nước hoa, thanh toán QR và theo dõi trạng thái xịt; đồng thời hỗ trợ nhân sự quản lý máy, sản phẩm, tồn kho, bảo trì, cảnh báo và báo cáo vận hành.
 
 > **Trạng thái dự án:** Đang trong quá trình phân tích, thiết kế và phát triển. Công nghệ và cấu trúc bên dưới phản ánh định hướng trong tài liệu dự án; hãy đối chiếu với các file cấu hình thực tế trước khi chạy.
