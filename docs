@@ -1,0 +1,164 @@
+PHÂN CÔNG CÔNG VIỆC DỰ ÁN SCENTSTATION
+Tên dự án: ScentStation – Hệ thống máy bán nước hoa thông minh ứng dụng IoT.
+Mục tiêu: Xây dựng hệ thống gồm giao diện khách hàng, giao diện quản trị, backend, quản lý thanh toán và kết nối thiết bị IoT. Nhóm có 5 thành viên, mỗi người phụ trách một nhóm chức năng riêng và phối hợp tích hợp thành hệ thống hoàn chỉnh.
+1. Bảng phân công tổng thể
+Phân công theo module, có phạm vi công việc và sản phẩm bàn giao cụ thể.
+Thành viên	Vai trò phụ trách	Phạm vi chính
+Thành viên 1	Identity & Platform	Đăng nhập, tài khoản, phân quyền, cấu hình nền tảng
+Thành viên 2	Catalog & Operation	Sản phẩm, tồn kho, nạp hàng, bảo trì, nhật ký vận hành
+Thành viên 3	Order & Payment	Đơn hàng, thanh toán, xác nhận giao dịch, trạng thái đơn
+Thành viên 4	Machine & IoT	Quản lý máy, MQTT, nhận lệnh, phản hồi thiết bị, mô phỏng máy
+Thành viên 5	Frontend & Integration	Giao diện khách hàng, giao diện quản trị, báo cáo, tích hợp và kiểm thử hệ thống
+2. Phân công chi tiết từng thành viên
+
+Thành viên 1 – Identity & Platform
+Phụ trách xác thực và phân quyền người dùng
+
+
+Nhiệm vụ chính
+- Xây dựng chức năng đăng ký, đăng nhập, đăng xuất.
+- Quản lý tài khoản, thông tin người dùng và trạng thái tài khoản.
+- Xây dựng cơ chế xác thực và phân quyền Admin, Staff, Customer.
+- Bảo vệ API, kiểm soát quyền truy cập và dữ liệu giữa các tenant.
+- Phối hợp thống nhất cơ chế xác thực để các service khác sử dụng.
+- Hỗ trợ thiết lập cấu hình API Gateway và quy ước giao tiếp chung ở mức nền tảng.
+Phạm vi code
+- services/identity-service/
+- services/api-gateway/ (phối hợp nếu nhóm tách Gateway thành service riêng)
+Sản phẩm bàn giao
+- API xác thực và phân quyền.
+- Cơ sở dữ liệu người dùng.
+- Tài liệu API và hướng dẫn cấu hình xác thực.
+- Test các trường hợp đăng nhập hợp lệ, sai thông tin và không đủ quyền.
+
+
+
+Thành viên 2 – Catalog & Operation
+Phụ trách danh mục sản phẩm và nghiệp vụ vận hành
+
+
+Nhiệm vụ chính
+- Xây dựng chức năng quản lý nước hoa, thương hiệu, hình ảnh, giá bán và thông tin sản phẩm.
+- Quản lý danh mục, trạng thái kinh doanh và dữ liệu sản phẩm.
+- Xây dựng nghiệp vụ tồn kho và số lượng nước hoa trong từng slot.
+- Ghi nhận nạp hàng, điều chỉnh tồn kho và lịch sử thay đổi.
+- Xây dựng chức năng quản lý bảo trì, cảnh báo và nhật ký vận hành.
+- Ghi nhận thao tác quan trọng để phục vụ kiểm tra và truy vết.
+Phạm vi code
+- services/catalog-service/
+- services/operation-service/
+Sản phẩm bàn giao
+- API quản lý sản phẩm và nghiệp vụ vận hành.
+- Mô hình dữ liệu sản phẩm, tồn kho và bảo trì.
+- Quy tắc cập nhật tồn kho, ghi nhật ký và phân quyền thao tác.
+- Test CRUD, cập nhật tồn kho và các trường hợp dữ liệu không hợp lệ.
+
+
+
+Thành viên 3 – Order & Payment
+Phụ trách đơn hàng và xử lý thanh toán
+
+
+Nhiệm vụ chính
+- Xây dựng quy trình tạo và quản lý đơn hàng.
+- Lưu sản phẩm, số lượng, giá tại thời điểm đặt hàng và tổng tiền.
+- Tích hợp cổng thanh toán QR hoặc mô phỏng thanh toán nếu không có cổng thật.
+- Xác nhận thanh toán dựa trên phản hồi đáng tin cậy từ backend/cổng thanh toán.
+- Quản lý trạng thái đơn: chờ thanh toán, đã thanh toán, đang xử lý, hoàn tất, thất bại hoặc cần đối soát.
+- Xử lý webhook, chống xác nhận giao dịch trùng và hỗ trợ quy trình hoàn tiền nếu nằm trong phạm vi dự án.
+- Phối hợp với Machine Service để yêu cầu thực hiện đơn đã được xác nhận thanh toán.
+Phạm vi code
+- services/order-service/
+Sản phẩm bàn giao
+- API tạo đơn, truy vấn đơn và theo dõi trạng thái.
+- Cơ sở dữ liệu đơn hàng và giao dịch.
+- Cơ chế xác nhận thanh toán và xử lý yêu cầu trùng.
+- Quy trình phối hợp với Machine Service và test các trạng thái thanh toán.
+
+
+
+Thành viên 4 – Machine & IoT
+Phụ trách quản lý máy và giao tiếp với thiết bị
+
+
+Nhiệm vụ chính
+- Xây dựng chức năng quản lý máy, slot và trạng thái thiết bị.
+- Tích hợp giao tiếp MQTT giữa backend và máy.
+- Tiếp nhận heartbeat, telemetry, trạng thái và phản hồi lệnh từ thiết bị.
+- Xây dựng cơ chế gửi lệnh xịt sau khi kiểm tra yêu cầu hợp lệ.
+- Kiểm tra trạng thái máy, cửa máy, slot, bảo trì và lỗi phần cứng trước khi thực hiện lệnh.
+- Chống xử lý lệnh trùng, lệnh hết hạn hoặc lệnh gửi sai thiết bị.
+- Ghi nhận kết quả xịt; xử lý trường hợp kết quả không xác định bằng trạng thái cần đối soát, không tự động xịt lại.
+- Xây dựng Device Simulator nếu nhóm không có phần cứng thật.
+Phạm vi code
+- services/machine-service/
+- device/
+Sản phẩm bàn giao
+- API quản lý máy và điều khiển lệnh.
+- MQTT topics, định dạng message và cơ chế ACK.
+- Device Simulator hoặc chương trình kết nối thiết bị thật.
+- Test kết nối, máy ngoại tuyến, lệnh trùng, slot trống và lỗi thiết bị.
+
+
+
+Thành viên 5 – Frontend & Integration
+Phụ trách giao diện và ghép nối toàn hệ thống
+
+
+Nhiệm vụ chính
+- Xây dựng Customer Web: xem danh sách nước hoa, xem chi tiết, chọn sản phẩm, tạo đơn và theo dõi thanh toán.
+- Xây dựng Admin Web: quản lý sản phẩm, đơn hàng, máy và các nghiệp vụ được cấp quyền.
+- Kết nối giao diện với API của các thành viên backend.
+- Xây dựng Dashboard và báo cáo cơ bản dựa trên API có sẵn.
+- Phối hợp thiết lập Docker Compose và cấu hình môi trường chạy tích hợp.
+- Kiểm thử luồng nghiệp vụ đầu cuối và tổng hợp lỗi tích hợp.
+- Hoàn thiện README, hướng dẫn cài đặt, chạy dự án và demo.
+Phạm vi code
+- frontend/customer-web/
+- frontend/admin-web/
+- services/reporting-service/ (chỉ triển khai báo cáo cơ bản nếu còn đủ nguồn lực)
+- infra/, docker-compose.yml (phối hợp với cả nhóm)
+Sản phẩm bàn giao
+- Hai giao diện web có thể sử dụng.
+- Dashboard và báo cáo cơ bản.
+- Hướng dẫn chạy toàn hệ thống.
+- Kịch bản demo hoàn chỉnh từ chọn sản phẩm đến nhận kết quả xịt.
+
+
+3. Quy ước GitHub và phạm vi sở hữu code
+Mỗi thành viên có branch riêng và chịu trách nhiệm chính với các thư mục đã được giao.
+Thành viên	Branch đề xuất
+Thành viên 1	feature/identity-platform
+Thành viên 2	feature/catalog-operation
+Thành viên 3	feature/order-payment
+Thành viên 4	feature/machine-iot
+Thành viên 5	feature/frontend-integration
+Quy trình làm việc thống nhất:
+1. Lấy code mới nhất từ main trước khi bắt đầu công việc.
+2. Phát triển trên branch cá nhân, commit thường xuyên với nội dung rõ ràng.
+3. Tạo Pull Request (PR) khi hoàn thành một chức năng.
+4. Thành viên khác kiểm tra code, API và khả năng chạy trước khi merge.
+5. Không tự ý thay đổi cấu trúc thư mục hoặc file cấu hình chung khi chưa thống nhất.
+6. Mỗi module cần có README ngắn, API contract và hướng dẫn chạy/test.
+4. Nguyên tắc phối hợp giữa các thành viên
+Để tránh tình trạng mỗi người làm một kiểu rồi không ghép được, nhóm cần thống nhất những nguyên tắc sau:
+- API contract trước, code song song sau: Thống nhất endpoint, request, response, trạng thái và mã lỗi trước khi triển khai.
+- Mỗi service sở hữu dữ liệu riêng: Service khác giao tiếp qua API hoặc message contract, không truy vấn trực tiếp database của nhau.
+- Thanh toán và điều khiển máy tách biệt: Order Service xác nhận thanh toán và quản lý đơn; Machine Service chịu trách nhiệm gửi lệnh, kiểm tra thiết bị và ghi nhận kết quả xịt.
+- Tồn kho được cập nhật theo sự kiện phù hợp: Chỉ trừ tồn kho bán hàng khi kết quả xịt được xác nhận thành công; thao tác kiểm tra thiết bị phải được ghi nhận riêng.
+- Thay đổi quan trọng phải có nhật ký: Nạp hàng, điều chỉnh tồn kho, thay đổi giá, bảo trì và thao tác vận hành cần được truy vết.
+- Tích hợp sớm: Không chờ tất cả hoàn thành mới ghép hệ thống; nên tích hợp từng luồng nhỏ ngay khi API cơ bản sẵn sàng.
+5. Lộ trình triển khai đề xuất
+Giai đoạn	Công việc	Người tham gia
+Giai đoạn 1	Thống nhất kiến trúc, cấu trúc repo, API contract và database	Cả nhóm
+Giai đoạn 2	Xây dựng các service và giao diện theo phạm vi đã giao	Thành viên 1–5
+Giai đoạn 3	Kết nối đăng nhập, sản phẩm, đơn hàng, thanh toán và thiết bị	Thành viên 1–5
+Giai đoạn 4	Kiểm thử tích hợp, xử lý lỗi và hoàn thiện báo cáo	Cả nhóm
+Giai đoạn 5	Chuẩn bị tài liệu, demo và phân chia phần thuyết trình	Cả nhóm
+6. Tiêu chí hoàn thành công việc
+Mỗi thành viên chỉ được xem là hoàn thành khi có đủ:
+- Code nằm đúng thư mục và đã merge sau khi được review.
+- API hoặc giao diện chạy được theo hướng dẫn.
+- Có dữ liệu mẫu và test các tình huống chính.
+- Có tài liệu bàn giao để thành viên khác sử dụng.
+- Không làm hỏng chức năng của module khác khi tích hợp.
