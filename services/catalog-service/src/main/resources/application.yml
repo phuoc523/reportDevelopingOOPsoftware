@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: catalog-service
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+  datasource:
+    url: ${CATALOG_DB_URL:jdbc:mysql://localhost:3306/scentstation_catalog}
+    username: ${CATALOG_DB_USERNAME:}
+    password: ${CATALOG_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+server:
+  port: ${CATALOG_SERVICE_PORT:8082}
