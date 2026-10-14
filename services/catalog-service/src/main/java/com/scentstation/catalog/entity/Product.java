@@ -2,7 +2,10 @@ package com.scentstation.catalog.entity;
 
 import jakarta.persistence.*;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.math.BigDecimal;
@@ -12,6 +15,9 @@ import java.time.LocalDateTime;
 @Table(name = "products")
 @Getter
 @Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Product {
 
     @Id
@@ -35,6 +41,7 @@ public class Product {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal defaultPrice;
 
+    @Builder.Default
     @Column(nullable = false)
     private Boolean available = true;
 

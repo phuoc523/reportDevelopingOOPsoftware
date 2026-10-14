@@ -1,10 +1,7 @@
 spring:
   application:
     name: catalog-service
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+
   datasource:
     url: ${CATALOG_DB_URL:jdbc:mysql://localhost:3306/scentstation_catalog}
     username: ${CATALOG_DB_USERNAME:}
