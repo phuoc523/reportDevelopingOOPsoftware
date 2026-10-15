@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class ProductMapper {
 
+    // Chuyển dữ liệu yêu cầu tạo sản phẩm thành entity để lưu vào cơ sở dữ liệu.
     public Product toEntity(CreateProductRequest request) {
         return Product.builder()
                 .tenantId(request.getTenantId())
@@ -22,6 +23,7 @@ public class ProductMapper {
                 .build();
     }
 
+    // Chuyển entity sản phẩm thành dữ liệu phản hồi gửi cho client.
     public ProductResponse toResponse(Product product) {
         return ProductResponse.builder()
                 .id(product.getId())
@@ -37,6 +39,7 @@ public class ProductMapper {
                 .build();
     }
 
+    // Sao chép các giá trị được phép cập nhật từ request vào sản phẩm hiện có.
     public void updateEntity(
             UpdateProductRequest request,
             Product product

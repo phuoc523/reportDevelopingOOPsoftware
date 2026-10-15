@@ -20,6 +20,7 @@ public class ProductController {
 
     private final ProductService productService;
 
+    // Tiếp nhận yêu cầu tạo sản phẩm mới và trả về sản phẩm đã được lưu.
     @PostMapping
     public ResponseEntity<ProductResponse> createProduct(
             @Valid @RequestBody CreateProductRequest request
@@ -31,11 +32,13 @@ public class ProductController {
                 .body(response);
     }
 
+    // Trả về danh sách tất cả sản phẩm trong catalog.
     @GetMapping
     public ResponseEntity<List<ProductResponse>> getProducts() {
         return ResponseEntity.ok(productService.getProducts());
     }
 
+    // Tìm và trả về một sản phẩm theo mã định danh.
     @GetMapping("/{id}")
     public ResponseEntity<ProductResponse> getProductById(
             @PathVariable Long id
@@ -43,6 +46,7 @@ public class ProductController {
         return ResponseEntity.ok(productService.getProductById(id));
     }
 
+    // Cập nhật trạng thái có sẵn của một sản phẩm.
     @PatchMapping("/{id}/availability")
     public ResponseEntity<ProductResponse> changeAvailability(
             @PathVariable Long id,
@@ -51,6 +55,7 @@ public class ProductController {
         return ResponseEntity.ok(productService.changeAvailability(id, request));
     }
 
+    // Cập nhật giá mặc định của một sản phẩm.
     @PatchMapping("/{id}/price")
     public ResponseEntity<ProductResponse> updatePrice(
             @PathVariable Long id,
