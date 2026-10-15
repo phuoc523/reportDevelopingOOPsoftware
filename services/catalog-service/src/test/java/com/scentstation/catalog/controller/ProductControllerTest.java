@@ -13,11 +13,14 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-
+import com.scentstation.catalog.dto.request.UpdateProductAvailabilityRequest;
+import com.scentstation.catalog.dto.request.UpdateProductPriceRequest;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -74,6 +77,112 @@ class ProductControllerTest {
                 .andExpect(jsonPath("$.defaultPrice").value(20000))
                 .andExpect(jsonPath("$.available").value(true));
     }
+
+        @Test
+        void shouldUpdateProductPrice() throws Exception {
+        UpdateProductPriceRequest request =
+                UpdateProductPriceRequest.builder()
+                        .defaultPrice(new BigDecimal("25000"))
+                        .build();
+
+        ProductResponse response = ProductResponse.builder()
+                .id(1L)
+                .tenantId(1L)
+                .name("Scent Sample")
+                .defaultPrice(new BigDecimal("25000"))
+                .available(true)
+                .build();
+
+        when(productService.updatePrice(
+                any(Long.class),
+                any(UpdateProductPriceRequest.class)
+        )).thenReturn(response);
+
+        mockMvc.perform(
+                        patch("/api/products/1/price")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.defaultPrice").value(25000));
+        }
+
+        @Test
+        void shouldReturn400WhenPriceIsNegative() throws Exception {
+        UpdateProductPriceRequest request =
+                UpdateProductPriceRequest.builder()
+                        .defaultPrice(new BigDecimal("-1000"))
+                        .build();
+
+        mockMvc.perform(
+                        patch("/api/products/1/price")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+        }
+
+        @Test
+        void shouldReturn400WhenPriceIsMissing() throws Exception {
+        String requestBody = """
+                {}
+                """;
+
+        mockMvc.perform(
+                        patch("/api/products/1/price")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+        }
+
+        @Test
+        void shouldChangeProductAvailability() throws Exception {
+        UpdateProductAvailabilityRequest request =
+                UpdateProductAvailabilityRequest.builder()
+                        .available(false)
+                        .build();
+
+        ProductResponse response = ProductResponse.builder()
+                .id(1L)
+                .tenantId(1L)
+                .name("Scent Sample")
+                .defaultPrice(new BigDecimal("20000"))
+                .available(false)
+                .build();
+
+        when(productService.changeAvailability(
+                any(Long.class),
+                any(UpdateProductAvailabilityRequest.class)
+        )).thenReturn(response);
+
+        mockMvc.perform(
+                        patch("/api/products/1/availability")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.available").value(false));
+        }
+
+        @Test
+        void shouldReturn400WhenAvailabilityIsMissing() throws Exception {
+        String requestBody = """
+                {}
+                """;
+
+        mockMvc.perform(
+                        patch("/api/products/1/availability")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestBody)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+        }
 
     @Test
     void shouldReturnAllProducts() throws Exception {

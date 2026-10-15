@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.scentstation.catalog.dto.request.UpdateProductAvailabilityRequest;
+import com.scentstation.catalog.dto.request.UpdateProductPriceRequest;
 
 import java.util.List;
 
@@ -39,5 +41,21 @@ public class ProductController {
             @PathVariable Long id
     ) {
         return ResponseEntity.ok(productService.getProductById(id));
+    }
+
+    @PatchMapping("/{id}/availability")
+    public ResponseEntity<ProductResponse> changeAvailability(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateProductAvailabilityRequest request
+    ) {
+        return ResponseEntity.ok(productService.changeAvailability(id, request));
+    }
+
+    @PatchMapping("/{id}/price")
+    public ResponseEntity<ProductResponse> updatePrice(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateProductPriceRequest request
+    ) {
+        return ResponseEntity.ok(productService.updatePrice(id, request));
     }
 }

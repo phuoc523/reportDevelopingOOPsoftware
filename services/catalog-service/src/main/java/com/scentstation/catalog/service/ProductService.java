@@ -9,6 +9,8 @@ import com.scentstation.catalog.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.scentstation.catalog.dto.request.UpdateProductAvailabilityRequest;
+import com.scentstation.catalog.dto.request.UpdateProductPriceRequest;
 
 import java.util.List;
 
@@ -41,6 +43,24 @@ public class ProductService {
         Product product = findProductById(id);
 
         return productMapper.toResponse(product);
+    }
+
+    @Transactional
+    public ProductResponse changeAvailability(Long id, UpdateProductAvailabilityRequest request) {
+        Product product = findProductById(id);
+        product.setAvailable(request.getAvailable());
+        Product updatedProduct = productRepository.save(product);
+
+        return productMapper.toResponse(updatedProduct);
+    }
+
+    @Transactional 
+    public ProductResponse updatePrice(Long id, UpdateProductPriceRequest request) {
+        Product product = findProductById(id);
+        product.setDefaultPrice(request.getDefaultPrice());
+        Product updatedProduct = productRepository.save(product);
+
+        return productMapper.toResponse(updatedProduct);
     }
 
     private Product findProductById(Long id) {
