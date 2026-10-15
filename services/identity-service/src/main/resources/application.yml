@@ -1,0 +1,22 @@
+﻿server:
+  port: 8081
+spring:
+  application:
+    name: identity-service
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/scentstation_identity?createDatabaseIfNotExist=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:password}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+security:
+  jwt:
+    # Replace this development key with a strong secret from an environment variable in real deployments.
+    secret: ${JWT_SECRET:U2NlbnRTdGF0aW9uRGV2ZWxvcG1lbnRLZXlGb3JKV1QyMDI2IQ==}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
