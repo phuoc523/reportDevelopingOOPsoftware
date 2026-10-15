@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: operation-service
+
+  datasource:
+    url: ${OPERATION_DB_URL:jdbc:mysql://localhost:3306/scentstation_operation}
+    username: ${OPERATION_DB_USERNAME:}
+    password: ${OPERATION_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+server:
+  port: ${OPERATION_SERVICE_PORT:8085}
