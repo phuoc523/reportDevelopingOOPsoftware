@@ -53,6 +53,7 @@ public class Product {
     @Setter(AccessLevel.NONE)
     private LocalDateTime updatedAt;
 
+    // Gán thời điểm tạo và cập nhật ban đầu trước khi sản phẩm được lưu lần đầu.
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
@@ -60,6 +61,7 @@ public class Product {
         updatedAt = now;
     }
 
+    // Làm mới thời điểm cập nhật trước khi thay đổi sản phẩm được lưu.
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();

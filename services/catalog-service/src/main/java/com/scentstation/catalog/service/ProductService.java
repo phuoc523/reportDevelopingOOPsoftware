@@ -21,6 +21,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
 
+    // Tạo và lưu một sản phẩm mới từ dữ liệu đầu vào.
     @Transactional
     public ProductResponse createProduct(CreateProductRequest request) {
         Product product = productMapper.toEntity(request);
@@ -30,6 +31,7 @@ public class ProductService {
         return productMapper.toResponse(savedProduct);
     }
 
+    // Lấy toàn bộ sản phẩm và chuyển chúng sang dữ liệu phản hồi.
     @Transactional(readOnly = true)
     public List<ProductResponse> getProducts() {
         return productRepository.findAll()
@@ -38,6 +40,7 @@ public class ProductService {
                 .toList();
     }
 
+    // Lấy thông tin một sản phẩm theo mã định danh.
     @Transactional(readOnly = true)
     public ProductResponse getProductById(Long id) {
         Product product = findProductById(id);
@@ -45,6 +48,7 @@ public class ProductService {
         return productMapper.toResponse(product);
     }
 
+    // Thay đổi trạng thái có sẵn của sản phẩm và lưu kết quả.
     @Transactional
     public ProductResponse changeAvailability(Long id, UpdateProductAvailabilityRequest request) {
         Product product = findProductById(id);
@@ -54,6 +58,7 @@ public class ProductService {
         return productMapper.toResponse(updatedProduct);
     }
 
+    // Thay đổi giá mặc định của sản phẩm và lưu kết quả.
     @Transactional 
     public ProductResponse updatePrice(Long id, UpdateProductPriceRequest request) {
         Product product = findProductById(id);
@@ -63,6 +68,7 @@ public class ProductService {
         return productMapper.toResponse(updatedProduct);
     }
 
+    // Tìm entity sản phẩm hoặc báo lỗi nếu mã định danh không tồn tại.
     private Product findProductById(Long id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException(id));
