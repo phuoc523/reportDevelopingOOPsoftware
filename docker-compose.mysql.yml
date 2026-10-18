@@ -1,0 +1,23 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: scentstation-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_local_dev_only}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-scentstation_catalog}
+      MYSQL_USER: ${MYSQL_USER:-scentstation_app}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-scentstation_local_dev}
+    ports:
+      - "3306:3306"
+    volumes:
+      - scentstation_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "--password=$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  scentstation_mysql_data:
