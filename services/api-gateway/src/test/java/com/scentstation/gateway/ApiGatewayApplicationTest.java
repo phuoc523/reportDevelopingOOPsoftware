@@ -1,28 +1,90 @@
 package com.scentstation.gateway;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
+import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.cloud.gateway.route.RouteDefinitionLocator;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.reactive.server.WebTestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.MOCK,
-        properties = {
-                "server.port=0",
-                "management.endpoints.web.exposure.include=health,info"
-        }
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "management.endpoints.web.exposure.include=health,info"
 )
+@AutoConfigureWebTestClient
 class ApiGatewayApplicationTest {
+
+    private static HttpServer backend;
+    private static final AtomicReference<String> lastBackendRequest =
+            new AtomicReference<>("");
+
+    static {
+        try {
+            backend = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            backend.createContext("/", exchange -> {
+                String authorization =
+                        exchange.getRequestHeaders().getFirst("Authorization");
+                String body = "path=" + exchange.getRequestURI().getPath()
+                        + ";authorization=" + authorization;
+
+                lastBackendRequest.set(body);
+                byte[] response = body.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", "text/plain");
+                exchange.sendResponseHeaders(200, response.length);
+                try (var output = exchange.getResponseBody()) {
+                    output.write(response);
+                }
+            });
+            backend.start();
+        } catch (IOException exception) {
+            throw new ExceptionInInitializerError(exception);
+        }
+    }
 
     @Autowired
     private RouteDefinitionLocator routeDefinitionLocator;
+
+    @Autowired
+    private WebTestClient webTestClient;
+
+    @LocalServerPort
+    private int gatewayPort;
+
+    @org.junit.jupiter.api.BeforeEach
+    void configureWebTestClient() {
+        webTestClient = WebTestClient.bindToServer()
+                .baseUrl("http://127.0.0.1:" + gatewayPort)
+                .build();
+    }
+
+    @DynamicPropertySource
+    static void configureBackend(DynamicPropertyRegistry registry) {
+        registry.add(
+                "IDENTITY_SERVICE_URL",
+                () -> "http://127.0.0.1:" + backend.getAddress().getPort()
+        );
+    }
+
+    @AfterAll
+    static void stopMockIdentityService() {
+        if (backend != null) {
+            backend.stop(0);
+        }
+    }
 
     @Test
     void applicationContextLoads() {
@@ -30,7 +92,7 @@ class ApiGatewayApplicationTest {
     }
 
     @Test
-    void identityRouteUsesConfiguredDefaultUriAndApiPaths() {
+    void identityRouteUsesConfiguredUriAndApiPaths() {
         List<RouteDefinition> routes =
                 routeDefinitionLocator.getRouteDefinitions().collectList().block();
 
@@ -42,15 +104,15 @@ class ApiGatewayApplicationTest {
                 .orElseThrow();
 
         assertThat(identityRoute.getUri().toString())
-                .isEqualTo("http://localhost:8081");
+                .startsWith("http://127.0.0.1:");
 
-        String predicateArguments = identityRoute.getPredicates().stream()
+        String predicates = identityRoute.getPredicates().stream()
                 .filter(predicate -> "Path".equals(predicate.getName()))
                 .flatMap(predicate -> predicate.getArgs().values().stream())
                 .map(Object::toString)
                 .reduce("", (left, right) -> left + " " + right);
 
-        assertThat(predicateArguments)
+        assertThat(predicates)
                 .contains("/api/auth/**")
                 .contains("/api/admin/**")
                 .contains("/api/staff/**")
@@ -58,20 +120,40 @@ class ApiGatewayApplicationTest {
     }
 
     @Test
-    void corsConfigurationContainsExpectedOriginsAndMethods() throws Exception {
-        String configuration = Files.readString(
-                Path.of("src/main/resources/application.yml"));
+    void forwardsRequestPathAndAuthorizationHeader() {
+        webTestClient.get()
+                .uri("/api/auth/health")
+                .header("Authorization", "Bearer gateway-test-token")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> {
+                    assertThat(body).contains("path=/api/auth/health");
+                    assertThat(body)
+                            .contains("authorization=Bearer gateway-test-token");
+                });
 
-        assertThat(configuration)
-                .contains("globalcors:")
-                .contains("allowedOrigins:")
-                .contains("http://localhost:3000")
-                .contains("http://localhost:5173")
-                .contains("allowCredentials: true");
+        assertThat(lastBackendRequest.get())
+                .contains("authorization=Bearer gateway-test-token");
+    }
 
-        for (String method : List.of(
-                "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")) {
-            assertThat(configuration).contains("- " + method);
-        }
+    @Test
+    void allowsCorsPreflightFromConfiguredFrontend() {
+        webTestClient.options()
+                .uri("/api/auth/health")
+                .header("Origin", "http://localhost:3000")
+                .header("Access-Control-Request-Method", "GET")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader()
+                .valueEquals("Access-Control-Allow-Origin", "http://localhost:3000");
+    }
+
+    @Test
+    void returnsNotFoundForUnroutedPath() {
+        webTestClient.get()
+                .uri("/not-routed")
+                .exchange()
+                .expectStatus().isNotFound();
     }
 }
