@@ -9,7 +9,7 @@ Current scope: repository structure only. Business logic is not implemented yet.
 - SOA and microservices
 - Docker-based local infrastructure
 - API Gateway in front of backend services
-- Java and Spring Boot for backend services
+- Java 25 LTS and Spring Boot for backend services
 - React for frontend applications
 - MySQL, Redis, Apache NiFi, and Mosquitto as infrastructure components
 - Device Simulator before real hardware is available
