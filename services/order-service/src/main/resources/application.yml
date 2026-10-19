@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: order-service
+
+server:
+  port: ${ORDER_SERVICE_PORT:8083}
