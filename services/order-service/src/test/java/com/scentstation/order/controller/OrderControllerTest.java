@@ -138,6 +138,14 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.status").value(404));
     }
 
+    @Test
+    void returnsJsonErrorWhenOrderIdIsNotNumeric() throws Exception {
+        mockMvc.perform(get("/api/orders/$($order.id)/status"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.message").value("Invalid value for 'id': a numeric ID is required"));
+    }
+
     private long createOrder() throws Exception {
         String response = mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)

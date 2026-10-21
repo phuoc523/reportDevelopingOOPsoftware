@@ -6,10 +6,13 @@ import com.scentstation.order.dto.response.OrderResponse;
 import com.scentstation.order.dto.response.OrderStatusResponse;
 import com.scentstation.order.entity.Order;
 import com.scentstation.order.entity.OrderStatus;
+import com.scentstation.order.entity.PaymentStatus;
 import com.scentstation.order.exception.InvalidOrderStatusTransitionException;
 import com.scentstation.order.exception.OrderNotFoundException;
+import com.scentstation.order.exception.PaidOrderCancellationException;
 import com.scentstation.order.mapper.OrderMapper;
 import com.scentstation.order.repository.OrderRepository;
+import com.scentstation.order.repository.PaymentRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.EnumSet;
@@ -30,10 +33,16 @@ public class OrderService {
     );
 
     private final OrderRepository orderRepository;
+    private final PaymentRepository paymentRepository;
     private final OrderMapper orderMapper;
 
-    public OrderService(OrderRepository orderRepository, OrderMapper orderMapper) {
+    public OrderService(
+            OrderRepository orderRepository,
+            PaymentRepository paymentRepository,
+            OrderMapper orderMapper
+    ) {
         this.orderRepository = orderRepository;
+        this.paymentRepository = paymentRepository;
         this.orderMapper = orderMapper;
     }
 
@@ -65,8 +74,29 @@ public class OrderService {
             if (!ALLOWED_TRANSITIONS.get(currentStatus).contains(requestedStatus)) {
                 throw new InvalidOrderStatusTransitionException(currentStatus, requestedStatus);
             }
+            if (requestedStatus == OrderStatus.CANCELLED
+                    && paymentRepository.findByOrderId(id)
+                    .map(payment -> payment.getStatus() == PaymentStatus.PAID)
+                    .orElse(false)) {
+                throw new PaidOrderCancellationException(id);
+            }
             order.setStatus(requestedStatus);
             return orderMapper.toStatusResponse(orderRepository.save(order));
+        }
+    }
+
+    public void confirmOrderAfterPayment(Long id, Runnable markPaymentPaid) {
+        Order order = findOrderById(id);
+        synchronized (order) {
+            if (order.getStatus() != OrderStatus.CONFIRMED
+                    && !ALLOWED_TRANSITIONS.get(order.getStatus()).contains(OrderStatus.CONFIRMED)) {
+                throw new InvalidOrderStatusTransitionException(order.getStatus(), OrderStatus.CONFIRMED);
+            }
+            if (order.getStatus() != OrderStatus.CONFIRMED) {
+                order.setStatus(OrderStatus.CONFIRMED);
+                orderRepository.save(order);
+            }
+            markPaymentPaid.run();
         }
     }
 

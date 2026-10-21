@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -23,9 +24,33 @@ public class GlobalExceptionHandler {
         return errorResponse(HttpStatus.NOT_FOUND, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(PaymentNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handlePaymentNotFound(
+            PaymentNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(HttpStatus.NOT_FOUND, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(InvalidOrderStatusTransitionException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidStatusTransition(
             InvalidOrderStatusTransitionException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(PaymentNotAvailableException.class)
+    public ResponseEntity<ApiErrorResponse> handlePaymentNotAvailable(
+            PaymentNotAvailableException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(PaidOrderCancellationException.class)
+    public ResponseEntity<ApiErrorResponse> handlePaidOrderCancellation(
+            PaidOrderCancellationException exception,
             HttpServletRequest request
     ) {
         return errorResponse(HttpStatus.CONFLICT, exception.getMessage(), request);
@@ -50,6 +75,18 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return errorResponse(HttpStatus.BAD_REQUEST, "Request body is invalid", request);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> handleArgumentTypeMismatch(
+            MethodArgumentTypeMismatchException exception,
+            HttpServletRequest request
+    ) {
+        String message = "Invalid value for '" + exception.getName() + "'";
+        if (exception.getRequiredType() == Long.class) {
+            message += ": a numeric ID is required";
+        }
+        return errorResponse(HttpStatus.BAD_REQUEST, message, request);
     }
 
     private ResponseEntity<ApiErrorResponse> errorResponse(
