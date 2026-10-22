@@ -1,5 +1,9 @@
 package com.scentstation.identity.entity;
 
 public enum Role {
-    ADMIN, STAFF, CUSTOMER
+    PLATFORM_SUPER_ADMIN,
+    BRAND_ADMIN,
+    ADMIN,
+    STAFF,
+    CUSTOMER
 }
