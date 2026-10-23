@@ -24,12 +24,15 @@ import java.util.Set;
 public class OrderService {
 
     private static final Map<OrderStatus, Set<OrderStatus>> ALLOWED_TRANSITIONS = Map.of(
-            OrderStatus.PENDING, EnumSet.of(OrderStatus.CONFIRMED, OrderStatus.CANCELLED),
+            OrderStatus.PENDING, EnumSet.of(
+                    OrderStatus.CONFIRMED, OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.FAILED),
             OrderStatus.CONFIRMED, EnumSet.of(OrderStatus.PROCESSING, OrderStatus.CANCELLED),
             OrderStatus.PROCESSING, EnumSet.of(OrderStatus.SHIPPED, OrderStatus.CANCELLED),
             OrderStatus.SHIPPED, EnumSet.of(OrderStatus.DELIVERED),
             OrderStatus.DELIVERED, EnumSet.noneOf(OrderStatus.class),
-            OrderStatus.CANCELLED, EnumSet.noneOf(OrderStatus.class)
+            OrderStatus.CANCELLED, EnumSet.noneOf(OrderStatus.class),
+            OrderStatus.EXPIRED, EnumSet.noneOf(OrderStatus.class),
+            OrderStatus.FAILED, EnumSet.noneOf(OrderStatus.class)
     );
 
     private final OrderRepository orderRepository;
@@ -71,6 +74,11 @@ public class OrderService {
         synchronized (order) {
             OrderStatus currentStatus = order.getStatus();
             OrderStatus requestedStatus = request.status();
+            if (requestedStatus == OrderStatus.CONFIRMED
+                    || requestedStatus == OrderStatus.EXPIRED
+                    || requestedStatus == OrderStatus.FAILED) {
+                throw new InvalidOrderStatusTransitionException(currentStatus, requestedStatus);
+            }
             if (!ALLOWED_TRANSITIONS.get(currentStatus).contains(requestedStatus)) {
                 throw new InvalidOrderStatusTransitionException(currentStatus, requestedStatus);
             }
@@ -97,6 +105,28 @@ public class OrderService {
                 orderRepository.save(order);
             }
             markPaymentPaid.run();
+        }
+    }
+
+    public void expireOrderAfterPayment(Long id) {
+        Order order = findOrderById(id);
+        synchronized (order) {
+            if (order.getStatus() == OrderStatus.PENDING) {
+                order.setStatus(OrderStatus.EXPIRED);
+                orderRepository.save(order);
+            }
+        }
+    }
+
+    public void failOrderAfterPayment(Long id, Runnable markPaymentFailed) {
+        Order order = findOrderById(id);
+        synchronized (order) {
+            if (order.getStatus() != OrderStatus.PENDING) {
+                throw new InvalidOrderStatusTransitionException(order.getStatus(), OrderStatus.FAILED);
+            }
+            order.setStatus(OrderStatus.FAILED);
+            orderRepository.save(order);
+            markPaymentFailed.run();
         }
     }
 

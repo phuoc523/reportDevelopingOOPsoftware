@@ -4,3 +4,7 @@ spring:
 
 server:
   port: ${ORDER_SERVICE_PORT:8083}
+
+payment:
+  qr-expiration: ${PAYMENT_QR_EXPIRATION:PT15M}
+  callback-token: ${PAYMENT_CALLBACK_TOKEN:local-mock-callback-token}

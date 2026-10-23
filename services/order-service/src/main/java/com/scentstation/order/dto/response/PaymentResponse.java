@@ -9,9 +9,11 @@ public record PaymentResponse(
         String reference,
         Long orderId,
         BigDecimal amount,
+        String currency,
         PaymentStatus status,
         String qrPayload,
         LocalDateTime createdAt,
+        LocalDateTime expiresAt,
         LocalDateTime paidAt
 ) {
 }

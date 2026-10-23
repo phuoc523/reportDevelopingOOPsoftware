@@ -48,6 +48,14 @@ public class GlobalExceptionHandler {
         return errorResponse(HttpStatus.CONFLICT, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(PaymentVerificationException.class)
+    public ResponseEntity<ApiErrorResponse> handlePaymentVerification(
+            PaymentVerificationException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(exception.getStatus(), exception.getMessage(), request);
+    }
+
     @ExceptionHandler(PaidOrderCancellationException.class)
     public ResponseEntity<ApiErrorResponse> handlePaidOrderCancellation(
             PaidOrderCancellationException exception,
@@ -96,7 +104,7 @@ public class GlobalExceptionHandler {
     ) {
         ApiErrorResponse response = new ApiErrorResponse(
                 status.value(),
-                status.getReasonPhrase(),
+                status.name(),
                 message,
                 request.getRequestURI(),
                 LocalDateTime.now()

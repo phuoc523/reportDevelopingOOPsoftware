@@ -1,6 +1,7 @@
 package com.scentstation.order.repository;
 
 import com.scentstation.order.entity.Payment;
+import com.scentstation.order.entity.PaymentCallbackEvent;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -12,6 +13,7 @@ public class InMemoryPaymentRepository implements PaymentRepository {
 
     private final ConcurrentMap<String, Payment> paymentsByReference = new ConcurrentHashMap<>();
     private final ConcurrentMap<Long, String> referencesByOrderId = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, PaymentCallbackEvent> callbackEvents = new ConcurrentHashMap<>();
 
     @Override
     public synchronized Payment saveIfAbsent(Payment payment) {
@@ -37,8 +39,19 @@ public class InMemoryPaymentRepository implements PaymentRepository {
     }
 
     @Override
+    public Optional<PaymentCallbackEvent> findCallbackEvent(String eventId) {
+        return Optional.ofNullable(callbackEvents.get(eventId));
+    }
+
+    @Override
+    public void saveCallbackEvent(PaymentCallbackEvent event) {
+        callbackEvents.putIfAbsent(event.eventId(), event);
+    }
+
+    @Override
     public synchronized void deleteAll() {
         paymentsByReference.clear();
         referencesByOrderId.clear();
+        callbackEvents.clear();
     }
 }

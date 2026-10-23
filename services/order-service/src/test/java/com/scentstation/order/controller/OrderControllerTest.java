@@ -82,7 +82,23 @@ class OrderControllerTest {
     void updatesOrderStatusWhenTransitionIsAllowed() throws Exception {
         long orderId = createOrder();
 
-        for (String nextStatus : new String[]{"CONFIRMED", "PROCESSING", "SHIPPED", "DELIVERED"}) {
+        mockMvc.perform(patch("/api/orders/{id}/status", orderId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status": "CONFIRMED"}
+                                """))
+                .andExpect(status().isConflict());
+
+        String paymentResponse = mockMvc.perform(post("/api/orders/{id}/payments/qr", orderId))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String reference = objectMapper.readTree(paymentResponse).get("reference").asText();
+        mockMvc.perform(post("/api/payments/{reference}/simulate", reference))
+                .andExpect(status().isOk());
+
+        for (String nextStatus : new String[]{"PROCESSING", "SHIPPED", "DELIVERED"}) {
             mockMvc.perform(patch("/api/orders/{id}/status", orderId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(
@@ -101,7 +117,8 @@ class OrderControllerTest {
                                 {"customerId": 7, "items": []}
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400));
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
 
         mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -119,7 +136,8 @@ class OrderControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.status").value(400));
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
 
         long orderId = createOrder();
         mockMvc.perform(patch("/api/orders/{id}/status", orderId)
@@ -135,7 +153,8 @@ class OrderControllerTest {
     void returnsNotFoundForUnknownOrder() throws Exception {
         mockMvc.perform(get("/api/orders/999"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404));
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("NOT_FOUND"));
     }
 
     @Test
