@@ -42,7 +42,7 @@ const initialProducts: Product[] = [
     samplePrice: 20000,
     volume: 75,
     remainingVolume: 12,
-    stock: 2,
+    stock: 0,
     image: "https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=900&q=85",
     color: "#ead9d7",
   },
@@ -71,7 +71,7 @@ const initialProducts: Product[] = [
     volume: 75,
     remainingVolume: 43,
     stock: 4,
-    image: "https://images.unsplash.com/photo-1590736969955-71cc94901144?auto=format&fit=crop&w=900&q=85",
+    image: "https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=900&q=85",
     color: "#e5e2cf",
   },
   {
@@ -84,7 +84,7 @@ const initialProducts: Product[] = [
     samplePrice: 20000,
     volume: 100,
     remainingVolume: 31,
-    stock: 3,
+    stock: 2,
     image: "https://images.unsplash.com/photo-1595425970377-c9703cf48b6d?auto=format&fit=crop&w=900&q=85",
     color: "#e8d9c5",
   },
@@ -98,7 +98,7 @@ const initialProducts: Product[] = [
     samplePrice: 18000,
     volume: 75,
     remainingVolume: 25,
-    stock: 2,
+    stock: 5,
     image: "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=900&q=85",
     color: "#d6dfe0",
   },
@@ -151,12 +151,14 @@ function App() {
   }
 
   function continueAction() {
-    if (!selectedProduct || !action) return;
+  if (!selectedProduct || !action) return;
 
-    if (selectedProduct.stock === 0) {
-      setNotice("Sản phẩm hiện đã hết hàng. Vui lòng chọn mùi hương khác.");
-      return;
-    }
+  if (selectedProduct.stock === 0) {
+    setNotice(
+      "Sản phẩm hiện đã hết hàng. Vui lòng chọn mùi hương khác.",
+    );
+    return;
+  }
 
     setNotice(
       action === "try"
@@ -317,34 +319,23 @@ function App() {
                   <h3>{product.name}</h3>
                   <p className="product-notes">{product.notes}</p>
 
+                  
                   <div className="product-meta">
-                    <span>{product.volume} ml / chai</span>
-                    <span>
-                      Còn khoảng {product.remainingVolume} ml
-                    </span>
+                    <span className="volume-label">Dung tích chai</span>
+                    <strong className="volume-value">{product.volume} ml</strong>
                   </div>
-
-                  <div className="volume-track" aria-label="Dung tích còn lại">
-                    <span
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          (product.remainingVolume / product.volume) * 100,
-                        )}%`,
-                      }}
-                    />
-                  </div>
-
+         
                   <div className="price-row">
+                    <div className="sample-price">
+                      <span className="price-label">Phí thử</span>
+                      <strong>{formatPrice(product.samplePrice)}</strong>
+                    </div>
                     <div>
                       <span className="price-label">Giá mua</span>
                       <strong>{formatPrice(product.price)}</strong>
                     </div>
-                    <div className="sample-price">
-                      <span className="price-label">Thử có phí</span>
-                      <strong>{formatPrice(product.samplePrice)}</strong>
-                    </div>
                   </div>
+
 
                   <div className="product-actions">
                     <button

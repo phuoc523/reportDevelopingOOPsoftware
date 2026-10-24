@@ -476,11 +476,37 @@ a {
 
 .product-meta {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 7px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  margin-top: 4px;
+  margin-bottom: 18px;
   color: #777368;
-  font-size: 9px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.product-meta .volume-label {
+  display: block;
+  font-size: 11px;
+  color: #777368;
+}
+
+.product-meta .volume-value {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: #292820;
+}
+
+.price-label {
+  font-size: 10px;
+}
+
+.price-row strong {
+  font-size: 14px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .volume-track {
@@ -498,15 +524,17 @@ a {
 
 .price-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 17px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 0;
+  margin-bottom: 20px;
 }
 
 .price-row > div {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .sample-price {
@@ -516,12 +544,16 @@ a {
 
 .price-label {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .price-row strong {
-  font-size: 13px;
+  color: #292820;
+  font-size: clamp(15px, 1.2vw, 18px);
   font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
 .product-actions {
@@ -966,4 +998,52 @@ a {
   .action-modal {
     padding: 30px 24px;
   }
+
+  
+/* Làm rõ thông tin dung tích chai */
+
+.product-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  margin-bottom: 20px;
+  color: #777368;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.product-meta strong {
+  color: #292820;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+
+/* Tăng độ dễ đọc của phí thử và giá mua */
+.price-row {
+  gap: 16px;
+  margin-top: 8px;
+  margin-bottom: 18px;
+}
+
+.price-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.price-row strong {
+  font-size: 17px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+/* Giữ hai cột giá cân đối */
+.price-row > div {
+  flex: 1;
+  min-width: 0;
+}
 }
