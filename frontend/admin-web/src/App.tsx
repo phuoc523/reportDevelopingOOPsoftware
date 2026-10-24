@@ -8,7 +8,6 @@ type Role =
   | 'Technician'
   | 'Inventory Manager'
   | 'Finance'
-  | 'Viewer'
 
 type Page =
   | 'dashboard'
@@ -26,7 +25,6 @@ const roles: Role[] = [
   'Technician',
   'Inventory Manager',
   'Finance',
-  'Viewer',
 ]
 
 const navigation: {
@@ -45,47 +43,56 @@ const navigation: {
     id: 'products',
     label: 'Sản phẩm',
     icon: '◈',
-    permission: ['Admin', 'Operator', 'Inventory Manager', 'Viewer'],
+    permission: ['Admin', 'Operator', 'Inventory Manager'],
   },
   {
     id: 'inventory',
     label: 'Quản lý tồn kho',
     icon: '▤',
-    permission: ['Admin', 'Inventory Manager', 'Technician', 'Viewer'],
+    permission: ['Admin', 'Inventory Manager', 'Technician'],
   },
   {
     id: 'devices',
     label: 'Máy phun',
     icon: '▣',
-    permission: ['Admin', 'Operator', 'Technician', 'Viewer'],
+    permission: ['Admin', 'Operator', 'Technician'],
   },
   {
     id: 'alerts',
     label: 'Cảnh báo',
     icon: '⚑',
-    permission: ['Admin', 'Operator', 'Technician', 'Viewer'],
+    permission: ['Admin', 'Operator', 'Technician'],
   },
   {
     id: 'maintenance',
     label: 'Bảo trì',
     icon: '⚙',
-    permission: ['Admin', 'Technician', 'Viewer'],
+    permission: ['Admin', 'Technician'],
   },
   {
     id: 'orders',
     label: 'Đơn hàng & thanh toán',
     icon: '▧',
-    permission: ['Admin', 'Operator', 'Finance', 'Viewer'],
+    permission: ['Admin', 'Operator', 'Finance'],
   },
   {
     id: 'audit',
     label: 'Nhật ký hệ thống',
     icon: '≡',
-    permission: ['Admin', 'Finance', 'Viewer'],
+    permission: ['Admin', 'Finance',],
   },
 ]
 
-const products = [
+
+type Product = {
+  name: string
+  category: string
+  price: string
+  stock: number
+  status: string
+}
+
+const initialProducts: Product[] = [
   {
     name: 'Citrus No. 08',
     category: 'Citrus',
@@ -115,7 +122,6 @@ const products = [
     status: 'Hết hàng',
   },
 ]
-
 
 const devices = [
   {
@@ -169,13 +175,18 @@ const pageTitles: Record<Page, string> = {
 
 function App() {
   const [role, setRole] = useState<Role>('Admin')
+  const [products, setProducts] = useState<Product[]>(initialProducts)
   const [page, setPage] = useState<Page>('dashboard')
   const [loggedIn, setLoggedIn] = useState(false)
   const [email, setEmail] = useState('admin@example.com')
   const [password, setPassword] = useState('')
   const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
-  const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [showLoginPassword, setShowLoginPassword] = useState(false) 
+  const [adjustingProduct, setAdjustingProduct] = useState<string | null>(null)
+  const [adjustmentType, setAdjustmentType] = useState<'import' | 'export'>('import')
+  const [adjustmentQuantity, setAdjustmentQuantity] = useState('')
+  const [adjustmentReason, setAdjustmentReason] = useState('')
 
   const can = (permission: string) => {
     const permissions: Record<Role, string[]> = {
@@ -197,7 +208,6 @@ function App() {
       ],
       'Inventory Manager': ['product.manage', 'inventory.adjust'],
       Finance: ['payment.refund', 'audit.view'],
-      Viewer: [],
     }
 
     return permissions[role].includes(permission)
@@ -212,6 +222,19 @@ function App() {
       .toLowerCase()
       .includes(search.toLowerCase()),
   )
+
+  
+  const lowStockThreshold = 10
+
+  const lowStockCount = products.filter(
+    (product) =>
+      product.stock > 0 &&
+      product.stock <= lowStockThreshold,
+  ).length
+
+  const outOfStockCount = products.filter(
+    (product) => product.stock === 0,
+  ).length
 
   const login = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -231,6 +254,85 @@ function App() {
     setPassword('')
     setNotice('')
   }
+
+  
+const openInventoryAdjustment = (productName: string) => {
+  setAdjustingProduct(productName)
+  setAdjustmentType('import')
+  setAdjustmentQuantity('')
+  setAdjustmentReason('')
+  setNotice('')
+}
+
+const closeInventoryAdjustment = () => {
+  setAdjustingProduct(null)
+  setAdjustmentQuantity('')
+  setAdjustmentReason('')
+}
+
+const submitInventoryAdjustment = () => {
+  if (!adjustingProduct) return
+
+  const quantity = Number(adjustmentQuantity)
+
+  if (
+    !Number.isSafeInteger(quantity) ||
+    quantity <= 0
+  ) {
+    setNotice('Số lượng phải là số nguyên lớn hơn 0.')
+    return
+  }
+
+  if (!adjustmentReason.trim()) {
+    setNotice('Vui lòng nhập lý do điều chỉnh tồn kho.')
+    return
+  }
+
+  const product = products.find(
+    (item) => item.name === adjustingProduct,
+  )
+
+  if (!product) {
+    setNotice('Không tìm thấy sản phẩm cần điều chỉnh.')
+    return
+  }
+
+  const newStock =
+    adjustmentType === 'import'
+      ? product.stock + quantity
+      : product.stock - quantity
+
+  if (!Number.isSafeInteger(newStock) || newStock < 0) {
+    setNotice('Số lượng xuất vượt quá tồn kho hiện tại.')
+    return
+  }
+
+  setProducts((currentProducts) =>
+    currentProducts.map((item) =>
+      item.name === adjustingProduct
+        ? {
+            ...item,
+            stock: newStock,
+            status:
+              newStock === 0
+                ? 'Hết hàng'
+                : newStock <= lowStockThreshold
+                  ? 'Sắp hết hàng'
+                  : 'Đang kinh doanh',
+          }
+        : item,
+    ),
+  )
+
+  setNotice(
+    `Đã ${
+      adjustmentType === 'import' ? 'nhập thêm' : 'xuất'
+    } ${quantity} đơn vị ${adjustingProduct}. Tồn kho mới: ${newStock}. Lý do: ${adjustmentReason.trim()}`,
+  )
+
+  closeInventoryAdjustment()
+}
+
 
   if (!loggedIn) {
     return (
@@ -589,7 +691,9 @@ function App() {
     </section>
   )
 
-  const renderInventory = () => (
+
+const renderInventory = () => (
+  <>
     <section className="panel">
       <div className="panel-heading">
         <div>
@@ -597,29 +701,148 @@ function App() {
           <p>Số liệu mẫu, chưa đồng bộ với kho thực tế</p>
         </div>
       </div>
+
       <div className="inventory-summary">
-        <div><span>Tổng mặt hàng</span><strong>24</strong></div>
-        <div><span>Sắp hết hàng</span><strong className="text-orange">3</strong></div>
-        <div><span>Hết hàng</span><strong className="text-red">1</strong></div>
+        <div>
+          <span>Tổng mặt hàng</span>
+          <strong>{products.length}</strong>
+        </div>
+        <div>
+          <span>Sắp hết hàng</span>
+          <strong className="text-orange">{lowStockCount}</strong>
+        </div>
+        <div>
+          <span>Hết hàng</span>
+          <strong className="text-red">{outOfStockCount}</strong>
+        </div>
       </div>
+
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Sản phẩm</th><th>Số lượng</th><th>Ngưỡng cảnh báo</th><th>Trạng thái</th><th>Điều chỉnh</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Sản phẩm</th>
+              <th>Số lượng</th>
+              <th>Ngưỡng cảnh báo</th>
+              <th>Trạng thái</th>
+              <th>Điều chỉnh</th>
+            </tr>
+          </thead>
           <tbody>
             {products.map((product) => (
               <tr key={product.name}>
                 <td><strong>{product.name}</strong></td>
                 <td>{product.stock}</td>
-                <td>10 đơn vị</td>
-                <td><span className={`status-pill ${product.stock === 0 ? 'danger' : product.stock < 10 ? 'warning' : 'success'}`}>{product.stock === 0 ? 'Hết hàng' : product.stock < 10 ? 'Sắp hết' : 'Ổn định'}</span></td>
-                <td>{can('inventory.adjust') ? <button className="small-button" onClick={() => setNotice(`Điều chỉnh tồn kho của ${product.name} cần biểu mẫu lý do và xác nhận ở bước tiếp theo.`)}>Điều chỉnh</button> : <span className="muted">Không có quyền</span>}</td>
+                <td>{lowStockThreshold} đơn vị</td>
+                <td>
+                  <span
+                    className={`status-pill ${
+                      product.stock === 0
+                        ? 'danger'
+                        : product.stock <= lowStockThreshold
+                          ? 'warning'
+                          : 'success'
+                    }`}
+                  >
+                    {product.stock === 0
+                      ? 'Hết hàng'
+                      : product.stock <= lowStockThreshold
+                        ? 'Sắp hết'
+                        : 'Ổn định'}
+                  </span>
+                </td>
+                <td>
+                  {can('inventory.adjust') ? (
+                    <button
+                      className="small-button"
+                      onClick={() => openInventoryAdjustment(product.name)}
+                    >
+                      Điều chỉnh
+                    </button>
+                  ) : (
+                    <span className="muted">Không có quyền</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
     </section>
-  )
+
+    {adjustingProduct !== null && (
+      <section className="panel adjustment-panel">
+        <div className="panel-heading">
+          <div>
+            <h3>Điều chỉnh tồn kho</h3>
+            <p>Sản phẩm: {adjustingProduct}</p>
+          </div>
+          <button
+            className="secondary-button"
+            onClick={closeInventoryAdjustment}
+            type="button"
+          >
+            Đóng
+          </button>
+        </div>
+
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            submitInventoryAdjustment()
+          }}
+        >
+          <label htmlFor="adjustmentType">Loại điều chỉnh</label>
+          <select
+            id="adjustmentType"
+            value={adjustmentType}
+            onChange={(event) =>
+              setAdjustmentType(event.target.value as 'import' | 'export')
+            }
+          >
+            <option value="import">Nhập thêm hàng</option>
+            <option value="export">Xuất bớt hàng</option>
+          </select>
+
+          <label htmlFor="adjustmentQuantity">Số lượng</label>
+          <input
+            id="adjustmentQuantity"
+            type="number"
+            min="1"
+            step="1"
+            value={adjustmentQuantity}
+            onChange={(event) => setAdjustmentQuantity(event.target.value)}
+            placeholder="Nhập số lượng"
+            required
+          />
+
+          <label htmlFor="adjustmentReason">Lý do điều chỉnh</label>
+          <textarea
+            id="adjustmentReason"
+            value={adjustmentReason}
+            onChange={(event) => setAdjustmentReason(event.target.value)}
+            placeholder="Ví dụ: Nhập hàng mới từ nhà cung cấp"
+            required
+          />
+
+          <div className="heading-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={closeInventoryAdjustment}
+            >
+              Hủy
+            </button>
+            <button type="submit" className="primary-button">
+              Xác nhận điều chỉnh
+            </button>
+          </div>
+        </form>
+      </section>
+    )}
+  </>
+)
+
 
   const renderOrders = () => (
     <section className="panel">

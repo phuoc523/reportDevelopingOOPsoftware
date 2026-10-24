@@ -1332,3 +1332,74 @@ td strong {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* Form điều chỉnh tồn kho */
+.adjustment-panel {
+  padding: 24px;
+}
+
+.adjustment-panel form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 560px;
+  margin-top: 20px;
+}
+
+.adjustment-panel label {
+  display: block;
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #344054;
+}
+
+.adjustment-panel input,
+.adjustment-panel select,
+.adjustment-panel textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #fff;
+  color: #344054;
+  font: inherit;
+}
+
+.adjustment-panel textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.adjustment-panel input:focus,
+.adjustment-panel select:focus,
+.adjustment-panel textarea:focus {
+  outline: none;
+  border-color: #6c5ce7;
+  box-shadow: 0 0 0 3px rgb(108 92 231 / 12%);
+}
+
+.adjustment-panel .heading-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+@media (max-width: 600px) {
+  .adjustment-panel {
+    padding: 16px;
+  }
+
+  .adjustment-panel form {
+    max-width: 100%;
+  }
+
+  .adjustment-panel .heading-actions {
+    flex-wrap: wrap;
+  }
+}
+
