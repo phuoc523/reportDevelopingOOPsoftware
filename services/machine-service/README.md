@@ -1,45 +1,117 @@
 # ScentStation Machine Service
-
-Implements the first three tasks assigned to Member 4:
-
 - **P4-01 — Machine Registration, Tenant & Location Management**
 - **P4-02 — Slot Configuration & Availability Management**
 - **P4-03 — Operational Status & Remote Control**
 
-Technology: Java 21, Spring Boot 3.4.5, Spring Web, Spring Data JPA, Bean Validation, MySQL.
 
-## Run locally
+## Create the database
 
-1. Install JDK 21 and Maven.
-2. Create the database by running `database/machine_service.sql` in MySQL Workbench, or create a database named `scentstation_machine`.
-3. Configure environment variables if needed:
-   - `MACHINE_DB_URL` (default `jdbc:mysql://localhost:3306/scentstation_machine?...`)
-   - `MACHINE_DB_USERNAME` (default `root`)
-   - `MACHINE_DB_PASSWORD` (default blank)
-   - `MACHINE_SERVICE_PORT` (default `8084`)
-4. From this directory, run `mvn spring-boot:run`.
-5. Run tests with `mvn clean test`.
+The schema script is [database/scentstation_machine.sql](./database/scentstation_machine.sql). It creates the `scentstation_machine` database and its tables: `machines`, `machine_slots`, `machine_history`, and `machine_locations`.
 
-`spring.jpa.hibernate.ddl-auto=update` is enabled for local development only. The SQL file is provided separately as the database schema reference. For team deployment, use a migration tool and coordinate schema changes.
+Run the script in MySQL Workbench, or from Command Prompt (`cmd`) with the MySQL client:
 
-## Important integration boundaries
+```cmd
+mysql -u root -p < database\scentstation_machine.sql
+```
 
-- `tenantId`, `productId`, and `cartridgeId` are identifiers owned by other services. Machine locations are managed locally by `/api/locations`; no cross-service foreign keys are created.
-- The service does **not** implement authentication/RBAC yet. Protect management endpoints with the shared Identity/API Gateway security contract before integration.
-- `X-Actor-Id` is a temporary development header for history records, not authentication.
-- The API currently accepts `tenantId` in requests for local development. In production, derive/validate tenant scope from the authenticated identity; do not trust a client-provided tenant ID.
-- Slot availability requires an active device, machine status `ONLINE`, enabled slot, `AVAILABLE` slot status, both `productId` and `cartridgeId`, and the current time to be within configured operating hours. If no hours are configured, there is no time restriction.
-- A simple HTTP heartbeat endpoint updates `lastSeenAt`, but MQTT ingestion, device authentication, automatic timeout detection, and actual hardware commands are not implemented yet.
+The script does not drop or recreate an existing database. Its `CREATE TABLE IF NOT EXISTS` statements initialize missing tables but do not migrate existing ones.
 
+The schema intentionally uses external IDs for tenants, products, and cartridges instead of foreign keys to other services. Machine slots and machine history have foreign keys to `machines`.
 
-### Location setup
-Create a location before registering a machine. Use `POST /api/locations` with `locationId`, `tenantId`, `name`, and optional `address`. Listing locations requires `GET /api/locations?tenantId=...`. Machine registration validates that the location exists, is active, and belongs to the selected Tenant.
+Each non-null cartridge ID can be assigned to only one slot across the whole service. For an existing database, first check for reused cartridges with `SELECT cartridge_id, COUNT(*) FROM machine_slots WHERE cartridge_id IS NOT NULL GROUP BY cartridge_id HAVING COUNT(*) > 1;`. Resolve any duplicates before applying `ALTER TABLE machine_slots ADD CONSTRAINT uk_machine_slot_cartridge UNIQUE (cartridge_id);`. MySQL's default case-insensitive collation also prevents case-only duplicate IDs.
 
-### Slot price and audit event
-Slot create/update requests include `price` (decimal, non-negative). Machine history is persisted and a `MachineAuditEvent` Spring application event is published for each history action. A local Spring application event is published; a message-broker/shared-Audit adapter still needs to be connected by the integration layer.
+## Configure and run
 
-### Heartbeat
-`POST /api/machines/{machineId}/heartbeat` updates `lastSeenAt`; an OFFLINE/UNSTABLE active device becomes ONLINE. This demo endpoint does not authenticate device credentials; add device authentication before production.
+The default connection is to `127.0.0.1:3306`, database `scentstation_machine`, with username `root` and a blank password. Override these defaults with environment variables when needed:
 
-### Tests
-Unit tests cover operating-hours rules (including overnight schedules), tenant-scoped listing, and location validation during registration. Run `mvn clean test` from this service folder.
+| Variable | Default | Purpose |
+|---|---|---|
+| `MACHINE_DB_URL` | `jdbc:mysql://127.0.0.1:3306/scentstation_machine?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC` | JDBC connection URL |
+| `MACHINE_DB_USERNAME` | `root` | MySQL username |
+| `MACHINE_DB_PASSWORD` | blank | MySQL password |
+| `MACHINE_SERVICE_PORT` | `8084` | HTTP port |
+| `MACHINE_OPERATING_HOURS_ZONE` | `Asia/Ho_Chi_Minh` | Time zone used to evaluate operating hours |
+
+In PowerShell, for example:
+
+```powershell
+$env:MACHINE_DB_USERNAME = "root"
+$env:MACHINE_DB_PASSWORD = "your-local-password"
+```
+
+From this directory (`services/machine-service`), start the service:
+
+```powershell
+mvn spring-boot:run
+```
+
+The API is available at `http://localhost:8084` by default. Stop it with `Ctrl+C`.
+
+`spring.jpa.hibernate.ddl-auto=update` lets Hibernate update mapped tables during local development; it does not create the MySQL database itself. Create the database first with the SQL script. The SQL file is not run automatically by Maven or Spring so schema initialization remains an explicit operator action.
+
+## Tests
+
+Run the integration tests from this directory:
+
+```powershell
+mvn clean test
+```
+
+Tests start the Spring application on a random port and use an in-memory H2 database. They do not require MySQL and do not touch the development database.
+
+Application source is under `src/com/scentstation`; tests are under `test/com/scentstation`. The Maven configuration keeps these source roots separate.
+
+## Main API routes
+
+All routes return or accept JSON.
+
+| Method | Route | Purpose |
+|---|---|---|
+| `POST` | `/api/locations` | Create a location |
+| `GET` | `/api/locations?tenantId={tenantId}` | List locations for a tenant |
+| `GET` | `/api/locations/{locationId}` | Get a location |
+| `PUT` | `/api/locations/{locationId}` | Update a location without changing its tenant |
+| `PATCH` | `/api/locations/{locationId}/active?active=false` | Activate or deactivate a location |
+| `POST` | `/api/machines` | Register a machine |
+| `GET` | `/api/machines?tenantId={tenantId}` | List machines for a tenant |
+| `GET` | `/api/machines/{machineId}` | Get a machine |
+| `PUT` | `/api/machines/{machineId}` | Update machine details and assignment |
+| `PATCH` | `/api/machines/{machineId}/device-registration-status` | Activate or revoke device registration |
+| `PATCH` | `/api/machines/{machineId}/operational-status` | Update operational status |
+| `PATCH` | `/api/machines/{machineId}/control` | Enable, disable, or enter maintenance |
+| `PUT` | `/api/machines/{machineId}/operating-hours` | Set operating hours |
+| `POST` | `/api/machines/{machineId}/heartbeat` | Record a device heartbeat |
+| `GET` | `/api/machines/{machineId}/availability` | Get machine and slot availability |
+| `GET` | `/api/machines/{machineId}/history` | Get machine history |
+| `POST` | `/api/machines/{machineId}/slots` | Create a slot |
+| `GET` | `/api/machines/{machineId}/slots` | List slots |
+| `GET` | `/api/machines/{machineId}/slots/{slotId}` | Get a slot |
+| `PUT` | `/api/machines/{machineId}/slots/{slotId}` | Update slot configuration |
+| `PATCH` | `/api/machines/{machineId}/slots/{slotId}/enabled` | Enable or disable a slot |
+| `PATCH` | `/api/machines/{machineId}/slots/{slotId}/status?status={status}` | Report a slot status |
+
+For example, after starting the service, check a machine's availability with:
+
+```http
+GET http://localhost:8084/api/machines/1/availability
+```
+
+Register a machine only after creating a location for the same tenant. Requests that change machine or slot data may include an optional `X-Actor-Id` header; it is recorded in history and is not an authentication mechanism.
+
+## Availability rules
+
+A machine is available when its device registration is `ACTIVE`, its operational status is `ONLINE`, and the current time in `MACHINE_OPERATING_HOURS_ZONE` is within its operating hours. The default zone is Vietnam time (`Asia/Ho_Chi_Minh`), independent of the server or container's zone. If both operating-hour values are `null`, there is no time restriction; send both as `null` to the operating-hours endpoint to clear a schedule. Send both times or neither—only one `null` value is rejected.
+
+A slot is available only when the machine is available, the slot is enabled and has status `AVAILABLE`, and both `productId` and `cartridgeId` are assigned. The availability response includes a per-slot `availabilityReason` when a slot is unavailable, as well as the machine-level reason.
+
+Spray-duration requests are capped at 5,000 ms. Treat this as a conservative API limit, not as proof that a real dispenser is safe: validate it against the hardware manufacturer's specifications and test the calibration on the actual device before deployment.
+
+After a machine's device registration is revoked, its slot configuration and status cannot be changed. A machine in `DISABLED` state must be re-enabled through the control endpoint; directly setting it to `ONLINE` or another non-disabled status is rejected.
+
+## Integration limitations
+
+- Authentication and role-based access control are not implemented. Do not expose management endpoints publicly; integrate with the shared Identity/API Gateway security contract before production.
+- `tenantId`, `productId`, and `cartridgeId` are identifiers owned by other services. Tenant IDs are accepted from requests for local development; production tenant scope should come from authenticated identity.
+- The service stores product and cartridge IDs but does not connect to Catalog to confirm that a cartridge contains the product assigned to a slot. That validation requires an agreed Catalog lookup/API contract.
+- The heartbeat endpoint records an HTTP request only. MQTT ingestion, device authentication, automatic offline detection, and actual hardware commands are not implemented.
+- Machine history is persisted and a local Spring `MachineAuditEvent` is published. A message broker or shared Audit service adapter is not included.

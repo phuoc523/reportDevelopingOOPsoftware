@@ -37,10 +37,10 @@ public class MachineService {
     // P4-01: register a device and its initial Tenant/location assignment.
     @Transactional
     public MachineResponse register(CreateMachineRequest request) {
-        String serial = request.serialNumber().trim();
-        String identity = request.deviceIdentity().trim();
+        String serial = request.getSerialNumber().trim();
+        String identity = request.getDeviceIdentity().trim();
 
-        validateLocation(request.locationId(), request.tenantId());
+        validateLocation(request.getLocationId(), request.getTenantId());
         if (machines.existsBySerialNumberIgnoreCase(serial))
             throw new ConflictException("serialNumber already exists");
         if (machines.existsByDeviceIdentityIgnoreCase(identity))
@@ -49,9 +49,9 @@ public class MachineService {
         Machine machine = new Machine();
         machine.setSerialNumber(serial);
         machine.setDeviceIdentity(identity);
-        machine.setTenantId(request.tenantId().trim());
-        machine.setLocationId(request.locationId().trim());
-        machine.setName(request.name().trim());
+        machine.setTenantId(request.getTenantId().trim());
+        machine.setLocationId(request.getLocationId().trim());
+        machine.setName(request.getName().trim());
 
         try {
             Machine saved = machines.saveAndFlush(machine);
@@ -83,15 +83,15 @@ public class MachineService {
         String oldTenant = machine.getTenantId();
         String oldLocation = machine.getLocationId();
         String oldName = machine.getName();
-        validateLocation(request.locationId(), request.tenantId());
+        validateLocation(request.getLocationId(), request.getTenantId());
         if (machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.REVOKED) {
             throw new InvalidOperationException("A revoked device cannot be updated; reactivate it first");
         }
 
-        machine.setTenantId(request.tenantId().trim());
-        machine.setLocationId(request.locationId().trim());
-        machine.setName(request.name().trim());
-        if (!oldTenant.equals(request.tenantId().trim())) {
+        machine.setTenantId(request.getTenantId().trim());
+        machine.setLocationId(request.getLocationId().trim());
+        machine.setName(request.getName().trim());
+        if (!oldTenant.equals(request.getTenantId().trim())) {
             // Prevent product/cartridge assignments from leaking across Tenant ownership.
             for (MachineSlot slot : slots.findAllByMachineIdOrderBySlotNumberAsc(id)) {
                 slot.setProductId(null);
@@ -124,7 +124,7 @@ public class MachineService {
             UpdateDeviceRegistrationStatusRequest request, String actorId) {
         Machine machine = requireMachine(id);
         DeviceRegistrationStatus old = machine.getDeviceRegistrationStatus();
-        DeviceRegistrationStatus next = request.status();
+        DeviceRegistrationStatus next = request.getStatus();
         machine.setDeviceRegistrationStatus(next);
 
         // A revoked device must not remain operationally available.
@@ -151,11 +151,11 @@ public class MachineService {
             UpdateOperationalStatusRequest request, String actorId) {
         Machine machine = requireMachine(id);
         if (machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.REVOKED
-                && request.status() != MachineOperationalStatus.DISABLED) {
+                && request.getStatus() != MachineOperationalStatus.DISABLED) {
             throw new InvalidOperationException("A revoked device cannot be set to an operational status");
         }
         MachineOperationalStatus old = machine.getOperationalStatus();
-        MachineOperationalStatus next = request.status();
+        MachineOperationalStatus next = request.getStatus();
         if (machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.REVOKED
                 && next != MachineOperationalStatus.DISABLED) {
             throw new InvalidOperationException("A revoked device must remain DISABLED");
@@ -164,13 +164,16 @@ public class MachineService {
                 && (old == MachineOperationalStatus.MAINTENANCE || old == MachineOperationalStatus.ERROR)) {
             throw new InvalidOperationException("A machine in MAINTENANCE/ERROR must be checked and enabled before returning ONLINE");
         }
+        if (old == MachineOperationalStatus.DISABLED && next != MachineOperationalStatus.DISABLED) {
+            throw new InvalidOperationException("A disabled machine must be re-enabled through the control endpoint");
+        }
         machine.setOperationalStatus(next);
         Machine saved = machines.save(machine);
-        if (old != request.status()) {
+        if (old != request.getStatus()) {
             saveHistory(saved, MachineHistoryAction.OPERATIONAL_STATUS_CHANGED,
                 saved.getTenantId(), saved.getTenantId(), saved.getLocationId(),
                 saved.getLocationId(), "Operational status changed from " + old + " to "
-                    + request.status(), actorId);
+                    + request.getStatus(), actorId);
         }
         return MachineResponse.from(saved);
     }
@@ -180,7 +183,7 @@ public class MachineService {
         Machine machine = requireMachine(id);
         MachineOperationalStatus old = machine.getOperationalStatus();
         MachineOperationalStatus next;
-        switch (request.action()) {
+        switch (request.getAction()) {
             case ENABLE -> {
                 if (machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.REVOKED)
                     throw new InvalidOperationException("Cannot enable a revoked device");
@@ -209,26 +212,29 @@ public class MachineService {
                     : MachineHistoryAction.MACHINE_ENABLED;
             saveHistory(saved, action, saved.getTenantId(), saved.getTenantId(),
                 saved.getLocationId(), saved.getLocationId(),
-                "Machine control action " + request.action() + ": " + old + " -> " + next, actorId);
+                "Machine control action " + request.getAction() + ": " + old + " -> " + next, actorId);
         }
         return MachineResponse.from(saved);
     }
 
     @Transactional
     public MachineResponse updateOperatingHours(Long id, UpdateOperatingHoursRequest request, String actorId) {
-        if (request.startTime().equals(request.endTime())) {
+        if ((request.getStartTime() == null) != (request.getEndTime() == null)) {
+            throw new InvalidOperationException("Both operating-hours values must be supplied, or both must be null to clear the schedule");
+        }
+        if (request.getStartTime() != null && request.getStartTime().equals(request.getEndTime())) {
             throw new InvalidOperationException("Operating-hours start and end times cannot be equal");
         }
         Machine machine = requireMachine(id);
         LocalTime oldStart = machine.getOperatingHoursStart();
         LocalTime oldEnd = machine.getOperatingHoursEnd();
-        machine.setOperatingHoursStart(request.startTime());
-        machine.setOperatingHoursEnd(request.endTime());
+        machine.setOperatingHoursStart(request.getStartTime());
+        machine.setOperatingHoursEnd(request.getEndTime());
         Machine saved = machines.save(machine);
         saveHistory(saved, MachineHistoryAction.OPERATING_HOURS_CHANGED,
             saved.getTenantId(), saved.getTenantId(), saved.getLocationId(), saved.getLocationId(),
             "Operating hours changed from " + oldStart + "-" + oldEnd + " to "
-                + request.startTime() + "-" + request.endTime(), actorId);
+                + (request.getStartTime() == null ? "24/7" : request.getStartTime() + "-" + request.getEndTime()), actorId);
         return MachineResponse.from(saved);
     }
 

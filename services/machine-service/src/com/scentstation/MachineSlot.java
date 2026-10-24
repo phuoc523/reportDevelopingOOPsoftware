@@ -7,7 +7,8 @@ import java.math.BigDecimal;
 @Entity
 @Table(name = "machine_slots", uniqueConstraints = {
     @UniqueConstraint(name = "uk_machine_slot_number", columnNames = {"machine_id", "slot_number"}),
-    @UniqueConstraint(name = "uk_machine_slot_code", columnNames = {"machine_id", "slot_code"})
+    @UniqueConstraint(name = "uk_machine_slot_code", columnNames = {"machine_id", "slot_code"}),
+    @UniqueConstraint(name = "uk_machine_slot_cartridge", columnNames = "cartridge_id")
 }, indexes = {
     @Index(name = "idx_slot_machine", columnList = "machine_id"),
     @Index(name = "idx_slot_product", columnList = "product_id")

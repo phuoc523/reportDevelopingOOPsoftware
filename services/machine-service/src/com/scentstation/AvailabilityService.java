@@ -3,10 +3,11 @@ package com.scentstation;
 import com.scentstation.MachineResponses.MachineAvailabilityResponse;
 import com.scentstation.MachineResponses.SlotResponse;
 import java.time.LocalTime;
-
-
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -16,15 +17,22 @@ public class AvailabilityService {
     private final MachineService machineService;
     private final SlotService slotService;
     private final MachineSlotRepository slots;
+    private final ZoneId operatingHoursZone;
 
     public AvailabilityService(MachineService machineService, SlotService slotService,
-                               MachineSlotRepository slots) {
+                               MachineSlotRepository slots,
+                               @Value("${machine.operating-hours.zone:Asia/Ho_Chi_Minh}") String operatingHoursZone) {
         this.machineService = machineService;
         this.slotService = slotService;
         this.slots = slots;
+        this.operatingHoursZone = ZoneId.of(operatingHoursZone);
     }
 
-    static boolean isWithinOperatingHours(java.time.LocalTime start, java.time.LocalTime end, LocalTime now) {
+    static LocalTime currentMachineTime(ZoneId zone) {
+        return ZonedDateTime.now(zone).toLocalTime();
+    }
+
+    static boolean isWithinOperatingHours(LocalTime start, LocalTime end, LocalTime now) {
         if (start == null || end == null) return true; // No schedule configured means always allowed.
         if (start.equals(end)) return false;
         if (start.isBefore(end)) return !now.isBefore(start) && now.isBefore(end);
@@ -35,10 +43,11 @@ public class AvailabilityService {
     @Transactional(readOnly = true)
     public MachineAvailabilityResponse getAvailability(Long machineId) {
         Machine machine = machineService.requireMachine(machineId);
+        LocalTime now = currentMachineTime(operatingHoursZone);
         List<SlotResponse> slotResponses = slots.findAllByMachineIdOrderBySlotNumberAsc(machineId)
-            .stream().map(slot -> SlotResponse.from(slot, slotService.isAvailable(machine, slot))).toList();
+            .stream().map(slot -> slotService.toAvailabilityResponse(machine, slot, now)).toList();
 
-        boolean withinHours = isWithinOperatingHours(machine.getOperatingHoursStart(), machine.getOperatingHoursEnd(), LocalTime.now());
+        boolean withinHours = isWithinOperatingHours(machine.getOperatingHoursStart(), machine.getOperatingHoursEnd(), now);
         boolean machineAvailable = machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.ACTIVE
             && machine.getOperationalStatus() == MachineOperationalStatus.ONLINE && withinHours;
         String reason = machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.REVOKED

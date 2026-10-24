@@ -2,6 +2,8 @@ package com.scentstation;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -25,7 +27,23 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ProblemDetail validation(MethodArgumentNotValidException ex) {
+        String details = ex.getBindingResult().getFieldErrors().stream()
+            .map(this::formatFieldError)
+            .distinct()
+            .collect(java.util.stream.Collectors.joining("; "));
+        if (details.isBlank()) {
+            details = "Request validation failed.";
+        }
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, details);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ProblemDetail unreadableRequest(HttpMessageNotReadableException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
-            "Request validation failed. Check required fields and field constraints.");
+            "Request body is invalid or contains an unsupported value.");
+    }
+
+    private String formatFieldError(FieldError error) {
+        return error.getField() + ": " + error.getDefaultMessage();
     }
 }

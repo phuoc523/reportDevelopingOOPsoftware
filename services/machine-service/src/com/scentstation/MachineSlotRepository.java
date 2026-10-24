@@ -9,6 +9,6 @@ public interface MachineSlotRepository extends JpaRepository<MachineSlot, Long> 
     Optional<MachineSlot> findByIdAndMachineId(Long id, Long machineId);
     boolean existsByMachineIdAndSlotNumber(Long machineId, Integer slotNumber);
     boolean existsByMachineIdAndSlotCodeIgnoreCase(Long machineId, String slotCode);
-    boolean existsByMachineIdAndCartridgeIdIgnoreCase(Long machineId, String cartridgeId);
-    boolean existsByMachineIdAndCartridgeIdIgnoreCaseAndIdNot(Long machineId, String cartridgeId, Long id);
+    boolean existsByCartridgeIdIgnoreCase(String cartridgeId);
+    boolean existsByCartridgeIdIgnoreCaseAndIdNot(String cartridgeId, Long id);
 }

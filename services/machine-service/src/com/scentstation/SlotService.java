@@ -6,47 +6,53 @@ import com.scentstation.MachineResponses.*;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.ZoneId;
 import java.util.List;
 
 @Service
 public class SlotService {
     private final MachineService machineService;
     private final MachineSlotRepository slots;
+    private final ZoneId operatingHoursZone;
 
-    public SlotService(MachineService machineService, MachineSlotRepository slots) {
+    public SlotService(MachineService machineService, MachineSlotRepository slots,
+                       @Value("${machine.operating-hours.zone:Asia/Ho_Chi_Minh}") String operatingHoursZone) {
         this.machineService = machineService;
         this.slots = slots;
+        this.operatingHoursZone = ZoneId.of(operatingHoursZone);
     }
 
     @Transactional
     public SlotResponse create(Long machineId, CreateSlotRequest request, String actorId) {
         Machine machine = machineService.requireMachine(machineId);
-        if (slots.existsByMachineIdAndSlotNumber(machineId, request.slotNumber()))
+        ensureDeviceActive(machine);
+        if (slots.existsByMachineIdAndSlotNumber(machineId, request.getSlotNumber()))
             throw new ConflictException("slotNumber already exists for this machine");
-        if (slots.existsByMachineIdAndSlotCodeIgnoreCase(machineId, request.slotCode().trim()))
+        if (slots.existsByMachineIdAndSlotCodeIgnoreCase(machineId, request.getSlotCode().trim()))
             throw new ConflictException("slotCode already exists for this machine");
-        if ((request.productId() == null || request.productId().isBlank())
-                != (request.cartridgeId() == null || request.cartridgeId().isBlank())) {
+        if ((request.getProductId() == null || request.getProductId().isBlank())
+                != (request.getCartridgeId() == null || request.getCartridgeId().isBlank())) {
             throw new InvalidOperationException("productId and cartridgeId must both be supplied or both be empty");
         }
 
-        if (request.productId() != null && !request.productId().isBlank()
-                && slots.existsByMachineIdAndCartridgeIdIgnoreCase(machineId, request.cartridgeId().trim())) {
-            throw new ConflictException("This cartridge is already assigned to another slot on this machine");
+        if (request.getProductId() != null && !request.getProductId().isBlank()
+                && slots.existsByCartridgeIdIgnoreCase(request.getCartridgeId().trim())) {
+            throw new ConflictException("This cartridge is already assigned to another slot");
         }
         MachineSlot slot = new MachineSlot();
         slot.setMachineId(machine.getId());
-        slot.setSlotNumber(request.slotNumber());
-        slot.setSlotCode(request.slotCode().trim());
-        slot.setProductId(blankToNull(request.productId()));
-        slot.setCartridgeId(blankToNull(request.cartridgeId()));
-        slot.setEnabled(request.enabled());
-        slot.setStockThreshold(request.stockThreshold());
-        slot.setCalibratedSprayDurationMs(request.calibratedSprayDurationMs());
-        slot.setDoseMl(request.doseMl());
-        slot.setPrice(request.price());
+        slot.setSlotNumber(request.getSlotNumber());
+        slot.setSlotCode(request.getSlotCode().trim());
+        slot.setProductId(blankToNull(request.getProductId()));
+        slot.setCartridgeId(blankToNull(request.getCartridgeId()));
+        slot.setEnabled(request.getEnabled());
+        slot.setStockThreshold(request.getStockThreshold());
+        slot.setCalibratedSprayDurationMs(request.getCalibratedSprayDurationMs());
+        slot.setDoseMl(request.getDoseMl());
+        slot.setPrice(request.getPrice());
         slot.setStatus(resolveStatus(slot));
         try {
             MachineSlot saved = slots.saveAndFlush(slot);
@@ -55,7 +61,7 @@ public class SlotService {
                 machine.getLocationId(), "Created slot " + saved.getSlotCode(), actorId);
             return toResponse(saved, machine);
         } catch (DataIntegrityViolationException ex) {
-            throw new ConflictException("slotNumber or slotCode already exists for this machine");
+            throw new ConflictException("slotNumber or slotCode already exists for this machine, or the cartridge is assigned elsewhere");
         }
     }
 
@@ -75,6 +81,7 @@ public class SlotService {
     @Transactional
     public SlotResponse update(Long machineId, Long slotId, UpdateSlotRequest request, String actorId) {
         Machine machine = machineService.requireMachine(machineId);
+        ensureDeviceActive(machine);
         MachineSlot slot = requireSlot(machineId, slotId);
         String oldProductId = slot.getProductId();
         String oldCartridgeId = slot.getCartridgeId();
@@ -84,23 +91,30 @@ public class SlotService {
         Double oldDoseMl = slot.getDoseMl();
         boolean oldEnabled = slot.isEnabled();
 
-        if ((request.productId() == null || request.productId().isBlank())
-                != (request.cartridgeId() == null || request.cartridgeId().isBlank())) {
+        if ((request.getProductId() == null || request.getProductId().isBlank())
+                != (request.getCartridgeId() == null || request.getCartridgeId().isBlank())) {
             throw new InvalidOperationException("productId and cartridgeId must both be supplied or both be empty");
         }
-        String nextCartridge = blankToNull(request.cartridgeId());
-        if (nextCartridge != null && slots.existsByMachineIdAndCartridgeIdIgnoreCaseAndIdNot(machineId, nextCartridge, slotId)) {
-            throw new ConflictException("This cartridge is already assigned to another slot on this machine");
+        String nextCartridge = blankToNull(request.getCartridgeId());
+        if (nextCartridge != null && slots.existsByCartridgeIdIgnoreCaseAndIdNot(nextCartridge, slotId)) {
+            throw new ConflictException("This cartridge is already assigned to another slot");
         }
-        slot.setProductId(blankToNull(request.productId()));
+        slot.setProductId(blankToNull(request.getProductId()));
         slot.setCartridgeId(nextCartridge);
-        slot.setEnabled(request.enabled());
-        slot.setStockThreshold(request.stockThreshold());
-        slot.setCalibratedSprayDurationMs(request.calibratedSprayDurationMs());
-        slot.setDoseMl(request.doseMl());
-        slot.setPrice(request.price());
+        slot.setEnabled(request.getEnabled());
+        slot.setStockThreshold(request.getStockThreshold());
+        slot.setCalibratedSprayDurationMs(request.getCalibratedSprayDurationMs());
+        slot.setDoseMl(request.getDoseMl());
+        slot.setPrice(request.getPrice());
         slot.setStatus(resolveStatus(slot));
-        MachineSlot saved = slots.save(slot);
+        MachineSlot saved;
+        try {
+            saved = slots.saveAndFlush(slot);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ConflictException(
+                "Slot configuration violates a uniqueness constraint (slot number, slot code, or cartridge assignment)"
+            );
+        }
 
         if (!equals(oldProductId, saved.getProductId()) || !equals(oldCartridgeId, saved.getCartridgeId())) {
             machineService.saveHistory(machine, MachineHistoryAction.SLOT_PRODUCT_CHANGED,
@@ -143,20 +157,22 @@ public class SlotService {
     @Transactional
     public SlotResponse setEnabled(Long machineId, Long slotId, UpdateSlotEnabledRequest request, String actorId) {
         Machine machine = machineService.requireMachine(machineId);
+        ensureDeviceActive(machine);
         MachineSlot slot = requireSlot(machineId, slotId);
-        slot.setEnabled(request.enabled());
+        slot.setEnabled(request.getEnabled());
         slot.setStatus(resolveStatus(slot));
         MachineSlot saved = slots.save(slot);
-        machineService.saveHistory(machine, request.enabled() ? MachineHistoryAction.SLOT_ENABLED
+        machineService.saveHistory(machine, request.getEnabled() ? MachineHistoryAction.SLOT_ENABLED
                 : MachineHistoryAction.SLOT_DISABLED,
             machine.getTenantId(), machine.getTenantId(), machine.getLocationId(),
-            machine.getLocationId(), "Slot " + saved.getSlotCode() + " enabled=" + request.enabled(), actorId);
+            machine.getLocationId(), "Slot " + saved.getSlotCode() + " enabled=" + request.getEnabled(), actorId);
         return toResponse(saved, machine);
     }
 
     @Transactional
     public SlotResponse updateReportedStatus(Long machineId, Long slotId, SlotStatus status, String actorId) {
         Machine machine = machineService.requireMachine(machineId);
+        ensureDeviceActive(machine);
         MachineSlot slot = requireSlot(machineId, slotId);
         if (status == SlotStatus.AVAILABLE && !slot.isEnabled()) {
             throw new InvalidOperationException("A disabled slot cannot be set to AVAILABLE");
@@ -177,17 +193,53 @@ public class SlotService {
 
     @Transactional(readOnly = true)
     public boolean isAvailable(Machine machine, MachineSlot slot) {
+        return isAvailable(machine, slot, AvailabilityService.currentMachineTime(operatingHoursZone));
+    }
+
+    boolean isAvailable(Machine machine, MachineSlot slot, java.time.LocalTime now) {
         return machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.ACTIVE
             && machine.getOperationalStatus() == MachineOperationalStatus.ONLINE
             && slot.isEnabled()
             && slot.getStatus() == SlotStatus.AVAILABLE
-            && AvailabilityService.isWithinOperatingHours(machine.getOperatingHoursStart(), machine.getOperatingHoursEnd(), java.time.LocalTime.now())
+            && AvailabilityService.isWithinOperatingHours(machine.getOperatingHoursStart(),
+                machine.getOperatingHoursEnd(), now)
             && !blank(slot.getProductId())
             && !blank(slot.getCartridgeId());
     }
 
+    String availabilityReason(Machine machine, MachineSlot slot, java.time.LocalTime now) {
+        if (machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.REVOKED) {
+            return "Device registration has been revoked";
+        }
+        if (machine.getOperationalStatus() != MachineOperationalStatus.ONLINE) {
+            return "Machine operational status is " + machine.getOperationalStatus();
+        }
+        if (!AvailabilityService.isWithinOperatingHours(
+                machine.getOperatingHoursStart(), machine.getOperatingHoursEnd(), now)) {
+            return "Machine is outside operating hours";
+        }
+        if (!slot.isEnabled()) {
+            return "Slot is disabled";
+        }
+        if (slot.getStatus() != SlotStatus.AVAILABLE) {
+            return "Slot status is " + slot.getStatus();
+        }
+        if (blank(slot.getProductId())) {
+            return "No product is assigned to the slot";
+        }
+        if (blank(slot.getCartridgeId())) {
+            return "No cartridge is assigned to the slot";
+        }
+        return null;
+    }
+
     private SlotResponse toResponse(MachineSlot slot, Machine machine) {
-        return SlotResponse.from(slot, isAvailable(machine, slot));
+        return toAvailabilityResponse(machine, slot, AvailabilityService.currentMachineTime(operatingHoursZone));
+    }
+
+    SlotResponse toAvailabilityResponse(Machine machine, MachineSlot slot, java.time.LocalTime now) {
+        String reason = availabilityReason(machine, slot, now);
+        return SlotResponse.from(slot, reason == null, reason);
     }
 
     private MachineSlot requireSlot(Long machineId, Long slotId) {
@@ -201,6 +253,12 @@ public class SlotService {
         if (blank(slot.getProductId()) || blank(slot.getCartridgeId())) return SlotStatus.EMPTY;
         if (slot.getStatus() == SlotStatus.ERROR) return SlotStatus.ERROR;
         return SlotStatus.AVAILABLE;
+    }
+
+    private void ensureDeviceActive(Machine machine) {
+        if (machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.REVOKED) {
+            throw new InvalidOperationException("A revoked device's slots cannot be changed");
+        }
     }
 
     private static String blankToNull(String value) {
