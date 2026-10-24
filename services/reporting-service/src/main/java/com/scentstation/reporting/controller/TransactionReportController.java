@@ -3,6 +3,7 @@ package com.scentstation.reporting.controller;
 
 import com.scentstation.reporting.dto.TransactionSummaryResponse;
 import com.scentstation.reporting.enumtype.ReportPeriod;
+import com.scentstation.reporting.service.ReportDateRangeValidator;
 import com.scentstation.reporting.service.TransactionReportService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -20,20 +21,21 @@ import java.util.Locale;
 public class TransactionReportController {
 
     private final TransactionReportService transactionReportService;
+    private final ReportDateRangeValidator reportDateRangeValidator;
 
     public TransactionReportController(
-            TransactionReportService transactionReportService) {
+            TransactionReportService transactionReportService,
+            ReportDateRangeValidator reportDateRangeValidator) {
         this.transactionReportService = transactionReportService;
+        this.reportDateRangeValidator = reportDateRangeValidator;
     }
 
     @GetMapping("/summary")
     public TransactionSummaryResponse getSummary(
             @RequestParam(defaultValue = "month") String period,
-
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate startDate,
-
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate endDate) {
@@ -50,21 +52,8 @@ public class TransactionReportController {
             );
         }
 
-        if (reportPeriod == ReportPeriod.CUSTOM) {
-            if (startDate == null || endDate == null) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "startDate and endDate are required for custom period."
-                );
-            }
-
-            if (startDate.isAfter(endDate)) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "startDate must not be after endDate."
-                );
-            }
-        }
+        reportDateRangeValidator.validate(
+                reportPeriod, startDate, endDate);
 
         return transactionReportService.getSummary(
                 reportPeriod.name().toLowerCase(Locale.ROOT));
