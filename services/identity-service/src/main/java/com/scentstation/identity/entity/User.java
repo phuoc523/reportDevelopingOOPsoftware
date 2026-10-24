@@ -1,5 +1,7 @@
 package com.scentstation.identity.entity;
 
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 @Entity
@@ -47,6 +49,7 @@ public class User {
     public Long getId() { return id; }
     public String getUsername() { return username; }
     public String getEmail() { return email; }
+    @JsonIgnore
     public String getPassword() { return password; }
     public String getFullName() { return fullName; }
     public Role getRole() { return role; }

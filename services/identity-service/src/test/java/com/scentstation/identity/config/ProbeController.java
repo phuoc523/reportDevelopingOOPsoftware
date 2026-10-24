@@ -20,4 +20,9 @@ public class ProbeController {
     public String customer() {
         return "customer";
     }
+
+    @GetMapping("/api/admin/users/probe")
+    public String adminUsers() {
+        return "admin-users";
+    }
 }

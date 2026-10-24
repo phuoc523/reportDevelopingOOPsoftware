@@ -13,6 +13,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
+
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -33,10 +34,16 @@ class SecurityAuthorizationTest {
 
     @BeforeEach
     void setUp() {
+        when(jwtService.extractUsername("platform-token")).thenReturn("platform");
         when(jwtService.extractUsername("admin-token")).thenReturn("admin");
         when(jwtService.extractUsername("staff-token")).thenReturn("staff");
         when(jwtService.extractUsername("customer-token")).thenReturn("customer");
         when(jwtService.extractUsername("invalid-role-token")).thenReturn("unknown");
+
+        when(userRepository.findByUsername("platform"))
+                .thenReturn(Optional.of(new User(
+                        "platform", "platform@test.local", "test-password",
+                        "Platform Admin", Role.PLATFORM_SUPER_ADMIN)));
 
         when(userRepository.findByUsername("admin"))
                 .thenReturn(Optional.of(new User(
@@ -62,6 +69,40 @@ class SecurityAuthorizationTest {
         mockMvc.perform(get("/api/admin/probe")
                         .header("Authorization", "Bearer admin-token"))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void platformSuperAdminCanAccessAccountManagementEndpoint() throws Exception {
+        mockMvc.perform(get("/api/admin/users/probe")
+                        .header("Authorization", "Bearer platform-token"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void regularAdminCannotAccessAccountManagementEndpoint() throws Exception {
+        mockMvc.perform(get("/api/admin/users/probe")
+                        .header("Authorization", "Bearer admin-token"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void staffCannotAccessAccountManagementEndpoint() throws Exception {
+        mockMvc.perform(get("/api/admin/users/probe")
+                        .header("Authorization", "Bearer staff-token"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void customerCannotAccessAccountManagementEndpoint() throws Exception {
+        mockMvc.perform(get("/api/admin/users/probe")
+                        .header("Authorization", "Bearer customer-token"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void unauthenticatedUserCannotAccessAccountManagementEndpoint() throws Exception {
+        mockMvc.perform(get("/api/admin/users/probe"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

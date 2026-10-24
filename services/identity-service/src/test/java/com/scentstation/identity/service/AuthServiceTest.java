@@ -90,6 +90,22 @@ class AuthServiceTest {
     }
 
     @Test
+    void loginFailsWhenAccountIsLocked() throws Exception {
+        User user = new User("alice", "alice@example.com",
+                "hashed-password", "Alice", Role.CUSTOMER);
+
+        var lockedField = User.class.getDeclaredField("locked");
+        lockedField.setAccessible(true);
+        lockedField.set(user, true);
+
+        when(users.findByUsername("alice")).thenReturn(Optional.of(user));
+
+        assertThrows(ResponseStatusException.class,
+                () -> authService.login(new LoginRequest("alice", "password123")));
+
+        verify(passwordEncoder, never()).matches(any(), any());
+    }
+    @Test
     void registerCreatesCustomerAndReturnsToken() {
         RegisterRequest request = new RegisterRequest(
                 " alice ", "ALICE@example.com", "password123", " Alice ");
