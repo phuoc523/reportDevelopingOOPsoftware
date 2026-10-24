@@ -92,6 +92,13 @@ type Product = {
   status: string
 }
 
+type ProductForm = {
+  name: string
+  category: string
+  price: string
+  stock: string
+}
+
 const initialProducts: Product[] = [
   {
     name: 'Citrus No. 08',
@@ -176,6 +183,13 @@ const pageTitles: Record<Page, string> = {
 function App() {
   const [role, setRole] = useState<Role>('Admin')
   const [products, setProducts] = useState<Product[]>(initialProducts)
+  const [showProductForm, setShowProductForm] = useState(false)
+  const [editingProduct, setEditingProduct] = useState<string | null>(null)
+  const [productForm, setProductForm] = useState<ProductForm>({
+    name: '',
+    category: '',
+    price: '',
+    stock: '0',})
   const [page, setPage] = useState<Page>('dashboard')
   const [loggedIn, setLoggedIn] = useState(false)
   const [email, setEmail] = useState('admin@example.com')
@@ -333,6 +347,81 @@ const submitInventoryAdjustment = () => {
   closeInventoryAdjustment()
 }
 
+const handleAddProduct = (event: React.FormEvent<HTMLFormElement>) => {
+  event.preventDefault()
+
+  const name = productForm.name.trim()
+  const category = productForm.category.trim()
+  const priceValue = Number(
+    productForm.price.replace(/[^\d]/g, ''),
+  )
+  const stockValue = Number(productForm.stock)
+
+  if (!name || !category || !productForm.price.trim()) {
+    setNotice('Vui lòng nhập đầy đủ thông tin sản phẩm.')
+    return
+  }
+
+  if (!Number.isFinite(priceValue) || priceValue <= 0) {
+    setNotice('Giá sản phẩm phải lớn hơn 0.')
+    return
+  }
+
+  if (
+    productForm.stock.trim() === '' ||
+    !Number.isInteger(stockValue) ||
+    stockValue < 0
+  ) {
+    setNotice('Số lượng tồn kho phải là số nguyên không âm.')
+    return
+  }
+
+  const duplicated = products.some(
+    (product) =>
+    product.name.toLowerCase() === name.toLowerCase() &&
+    product.name !== editingProduct,
+  )
+
+  if (duplicated) {
+    setNotice('Tên sản phẩm đã tồn tại.')
+    return
+  }
+
+  const newProduct: Product = {
+    name,
+    category,
+    price: `${priceValue.toLocaleString('vi-VN')} ₫`,
+    stock: stockValue,
+    status:
+      stockValue === 0
+        ? 'Hết hàng'
+        : stockValue < 10
+          ? 'Sắp hết'
+          : 'Đang kinh doanh',
+  }
+
+  if (editingProduct !== null) {
+    setProducts((currentProducts) =>
+      currentProducts.map((product) =>
+        product.name === editingProduct ? newProduct : product,
+      ),
+    )
+    setNotice('Đã cập nhật sản phẩm thành công.')
+  } else {
+    setProducts((currentProducts) => [...currentProducts, newProduct])
+    setNotice('Đã thêm sản phẩm thành công.')
+  }
+
+  setProductForm({
+    name: '',
+    category: '',
+    price: '',
+    stock: '0',
+  })
+
+  setShowProductForm(false)
+  setNotice('Đã thêm sản phẩm thành công.')
+  }
 
   if (!loggedIn) {
     return (
@@ -410,6 +499,49 @@ const submitInventoryAdjustment = () => {
         </section>
       </main>
     )
+  }
+
+  const handleEditProduct = (product: Product) => {
+  setProductForm({
+    name: product.name,
+    category: product.category,
+    price: product.price.replace(/[^\d]/g, ''),
+    stock: String(product.stock),
+  })
+
+  setEditingProduct(product.name)
+  setShowProductForm(true)
+  setNotice('')
+  }
+
+  
+const handleDeleteProduct = (product: Product) => {
+  const confirmed = window.confirm(
+    `Bạn có chắc chắn muốn xóa sản phẩm "${product.name}" không?`,
+  )
+
+  if (!confirmed) {
+    return
+  }
+
+  setProducts((currentProducts) =>
+    currentProducts.filter(
+      (item) => item.name !== product.name,
+    ),
+  )
+
+  if (editingProduct === product.name) {
+    setEditingProduct(null)
+    setShowProductForm(false)
+    setProductForm({
+      name: '',
+      category: '',
+      price: '',
+      stock: '0',
+    })
+  }
+
+  setNotice(`Đã xóa sản phẩm "${product.name}" thành công.`)
   }
 
   const renderDashboard = () => (
@@ -613,11 +745,112 @@ const submitInventoryAdjustment = () => {
           <p>Dữ liệu mẫu phục vụ phát triển giao diện</p>
         </div>
         {can('product.manage') && (
-          <button className="primary-button" onClick={() => setNotice('Chức năng thêm sản phẩm sẽ được kết nối ở bước tiếp theo.')}>
+          <button className="primary-button" onClick={() => {
+            setNotice('')
+            setShowProductForm(true)
+        }}>
             + Thêm sản phẩm
           </button>
         )}
       </div>
+      
+{showProductForm && (
+  <form className="product-form" onSubmit={handleAddProduct}>
+    <h3>{editingProduct !== null ? 'Chỉnh sửa sản phẩm' : 'Thêm sản phẩm mới'}</h3>
+
+    <div className="product-form-grid">
+      <label>
+        Tên sản phẩm
+        <input
+          value={productForm.name}
+          onChange={(event) =>
+            setProductForm((current) => ({
+              ...current,
+              name: event.target.value,
+            }))
+          }
+          required
+          placeholder="Ví dụ: Ocean Breeze"
+        />
+      </label>
+
+      <label>
+        Nhóm hương
+        <input
+          value={productForm.category}
+          onChange={(event) =>
+            setProductForm((current) => ({
+              ...current,
+              category: event.target.value,
+            }))
+          }
+          required
+          placeholder="Ví dụ: Fresh"
+        />
+      </label>
+
+      <label>
+        Giá sản phẩm (VNĐ)
+        <input
+          type="number"
+          min="1"
+          step="1"
+          value={productForm.price}
+          onChange={(event) =>
+            setProductForm((current) => ({
+              ...current,
+              price: event.target.value,
+            }))
+          }
+          required
+          placeholder="25000"
+        />
+      </label>
+
+      <label>
+        Số lượng tồn kho
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={productForm.stock}
+          onChange={(event) =>
+            setProductForm((current) => ({
+              ...current,
+              stock: event.target.value,
+            }))
+          }
+          required
+        />
+      </label>
+    </div>
+
+    <div className="form-actions">
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => {
+          setShowProductForm(false)
+          setEditingProduct(null)
+          setProductForm({
+            name: '',
+            category: '',
+            price: '',
+            stock: '0',
+          })
+          setNotice('')
+        }}
+      >
+        Hủy
+      </button>
+
+      <button type="submit" className="primary-button">
+        {editingProduct !== null ? 'Cập nhật' : 'Lưu sản phẩm'}
+      </button>
+    </div>
+  </form>
+)}
+
       <div className="filter-bar">
         <input
           value={search}
@@ -628,7 +861,7 @@ const submitInventoryAdjustment = () => {
       <div className="table-wrap">
         <table>
           <thead>
-            <tr><th>Sản phẩm</th><th>Nhóm hương</th><th>Giá</th><th>Tồn kho</th><th>Trạng thái</th></tr>
+            <tr><th>Sản phẩm</th><th>Nhóm hương</th><th>Giá</th><th>Tồn kho</th><th>Trạng thái</th><th>Thao tác</th></tr>
           </thead>
           <tbody>
             {filteredProducts.map((product) => (
@@ -638,10 +871,31 @@ const submitInventoryAdjustment = () => {
                 <td>{product.price}</td>
                 <td>{product.stock}</td>
                 <td><span className={`status-pill ${product.stock === 0 ? 'danger' : product.stock < 10 ? 'warning' : 'success'}`}>{product.status}</span></td>
+                <td>
+                  {can('product.manage') && (
+                    <div className="product-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => handleEditProduct(product)}
+                      >
+                      Sửa
+                      </button>
+
+                      <button
+                        type="button"
+                        className="delete-button"
+                        onClick={() => handleDeleteProduct(product)}
+                      >
+                        Xóa
+                      </button>
+                    </div>
+                  )}
+                </td>
               </tr>
             ))}
             {filteredProducts.length === 0 && (
-              <tr><td colSpan={5}>Không tìm thấy sản phẩm phù hợp.</td></tr>
+              <tr><td colSpan={6}>Không tìm thấy sản phẩm phù hợp.</td></tr>
             )}
           </tbody>
         </table>
