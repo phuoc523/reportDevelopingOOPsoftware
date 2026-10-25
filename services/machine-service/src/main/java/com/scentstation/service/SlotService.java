@@ -200,7 +200,7 @@ public class SlotService {
 
     @Transactional(readOnly = true)
     public boolean isAvailable(Machine machine, MachineSlot slot) {
-        return isAvailable(machine, slot, AvailabilityService.currentMachineTime(operatingHoursZone));
+        return isAvailable(machine, slot, OperatingHours.currentTime(operatingHoursZone));
     }
 
     boolean isAvailable(Machine machine, MachineSlot slot, java.time.LocalTime now) {
@@ -208,7 +208,7 @@ public class SlotService {
             && machine.getOperationalStatus() == MachineOperationalStatus.ONLINE
             && slot.isEnabled()
             && slot.getStatus() == SlotStatus.AVAILABLE
-            && AvailabilityService.isWithinOperatingHours(machine.getOperatingHoursStart(),
+            && OperatingHours.includes(machine.getOperatingHoursStart(),
                 machine.getOperatingHoursEnd(), now)
             && !blank(slot.getProductId())
             && !blank(slot.getCartridgeId());
@@ -221,7 +221,7 @@ public class SlotService {
         if (machine.getOperationalStatus() != MachineOperationalStatus.ONLINE) {
             return "Machine operational status is " + machine.getOperationalStatus();
         }
-        if (!AvailabilityService.isWithinOperatingHours(
+        if (!OperatingHours.includes(
                 machine.getOperatingHoursStart(), machine.getOperatingHoursEnd(), now)) {
             return "Machine is outside operating hours";
         }
@@ -241,7 +241,7 @@ public class SlotService {
     }
 
     private SlotResponse toResponse(MachineSlot slot, Machine machine) {
-        return toAvailabilityResponse(machine, slot, AvailabilityService.currentMachineTime(operatingHoursZone));
+        return toAvailabilityResponse(machine, slot, OperatingHours.currentTime(operatingHoursZone));
     }
 
     SlotResponse toAvailabilityResponse(Machine machine, MachineSlot slot, java.time.LocalTime now) {

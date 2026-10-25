@@ -1,6 +1,5 @@
 package com.scentstation;
 
-
 import com.scentstation.repository.LocationRepository;
 import com.scentstation.repository.MachineHistoryRepository;
 import com.scentstation.repository.MachineRepository;
@@ -14,25 +13,18 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-@SpringBootTest(
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = {
-        "spring.datasource.url=jdbc:h2:mem:machine-service-test;DB_CLOSE_DELAY=-1;MODE=MySQL",
-        "spring.datasource.driver-class-name=org.h2.Driver",
-        "spring.datasource.username=sa",
-        "spring.datasource.password=",
-        "spring.jpa.hibernate.ddl-auto=create-drop"
-    }
-)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
 abstract class MachineServiceIntegrationTestBase {
     @Autowired
     protected TestRestTemplate rest;
@@ -74,7 +66,7 @@ abstract class MachineServiceIntegrationTestBase {
         return rest.exchange(
             path,
             HttpMethod.POST,
-            new HttpEntity<>(request),
+            new HttpEntity<>(Objects.requireNonNull(request, "request")),
             new ParameterizedTypeReference<>() {
             }
         );
@@ -104,7 +96,7 @@ abstract class MachineServiceIntegrationTestBase {
         return rest.exchange(
             path,
             HttpMethod.PUT,
-            new HttpEntity<>(request),
+            new HttpEntity<>(Objects.requireNonNull(request, "request")),
             new ParameterizedTypeReference<>() {
             }
         );
@@ -118,7 +110,7 @@ abstract class MachineServiceIntegrationTestBase {
         return rest.exchange(
             path,
             HttpMethod.PATCH,
-            new HttpEntity<>(request),
+            new HttpEntity<>(Objects.requireNonNull(request, "request")),
             new ParameterizedTypeReference<>() {
             }
         );
@@ -158,7 +150,15 @@ abstract class MachineServiceIntegrationTestBase {
         ResponseEntity<Map<String, Object>> machineResponse =
             postJson("/api/machines", machineRequest(tenantId, locationId));
         assertEquals(HttpStatus.CREATED, machineResponse.getStatusCode());
-        assertNotNull(machineResponse.getBody());
-        return ((Number) machineResponse.getBody().get("id")).longValue();
+        return ((Number) requireBody(machineResponse).get("id")).longValue();
+    }
+
+    protected Map<String, Object> requireBody(ResponseEntity<Map<String, Object>> response) {
+        return Objects.requireNonNull(response.getBody(), "Expected response body");
+    }
+
+    protected List<Map<String, Object>> requireListBody(
+            ResponseEntity<List<Map<String, Object>>> response) {
+        return Objects.requireNonNull(response.getBody(), "Expected response body");
     }
 }

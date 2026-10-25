@@ -10,7 +10,6 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class MachineRegistrationIntegrationTest extends MachineServiceIntegrationTestBase {
     @Test
@@ -23,19 +22,18 @@ class MachineRegistrationIntegrationTest extends MachineServiceIntegrationTestBa
             postJson("/api/machines", machineRequest(tenantId, locationId));
 
         assertEquals(HttpStatus.CREATED, registration.getStatusCode());
-        assertNotNull(registration.getBody());
-        Long machineId = ((Number) registration.getBody().get("id")).longValue();
+        Long machineId = ((Number) requireBody(registration).get("id")).longValue();
 
         ResponseEntity<Map<String, Object>> savedMachine = getJson("/api/machines/" + machineId);
         assertEquals(HttpStatus.OK, savedMachine.getStatusCode());
-        assertEquals(tenantId, savedMachine.getBody().get("tenantId"));
+        assertEquals(tenantId, requireBody(savedMachine).get("tenantId"));
 
         ResponseEntity<List<Map<String, Object>>> history =
             getJsonList("/api/machines/" + machineId + "/history");
         assertEquals(HttpStatus.OK, history.getStatusCode());
-        assertNotNull(history.getBody());
-        assertFalse(history.getBody().isEmpty());
-        assertEquals("REGISTERED", history.getBody().get(0).get("action"));
+        List<Map<String, Object>> historyEntries = requireListBody(history);
+        assertFalse(historyEntries.isEmpty());
+        assertEquals("REGISTERED", historyEntries.get(0).get("action"));
     }
 
     @Test
@@ -55,7 +53,7 @@ class MachineRegistrationIntegrationTest extends MachineServiceIntegrationTestBa
     @Test
     void rejectsDuplicateSerialNumberRegardlessOfLetterCase() {
         Long existingId = createMachine(uniqueId("tenant"));
-        Map<String, Object> existingMachine = getJson("/api/machines/" + existingId).getBody();
+        Map<String, Object> existingMachine = requireBody(getJson("/api/machines/" + existingId));
         String serialNumber = (String) existingMachine.get("serialNumber");
         String tenantId = uniqueId("tenant");
         String locationId = uniqueId("location");

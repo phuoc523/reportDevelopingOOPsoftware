@@ -31,7 +31,7 @@ class MachineOperationsIntegrationTest extends MachineServiceIntegrationTestBase
             Map.of("action", "ENABLE")
         );
         assertEquals(HttpStatus.OK, enabled.getStatusCode());
-        assertEquals("OFFLINE", enabled.getBody().get("operationalStatus"));
+        assertEquals("OFFLINE", requireBody(enabled).get("operationalStatus"));
     }
 
     @Test
@@ -52,8 +52,8 @@ class MachineOperationsIntegrationTest extends MachineServiceIntegrationTestBase
         );
 
         assertEquals(HttpStatus.OK, cleared.getStatusCode());
-        assertNull(cleared.getBody().get("operatingHoursStart"));
-        assertNull(cleared.getBody().get("operatingHoursEnd"));
+        assertNull(requireBody(cleared).get("operatingHoursStart"));
+        assertNull(requireBody(cleared).get("operatingHoursEnd"));
     }
 
     @Test
@@ -64,7 +64,7 @@ class MachineOperationsIntegrationTest extends MachineServiceIntegrationTestBase
             postJson("/api/machines/" + machineId + "/heartbeat", Map.of());
 
         assertEquals(HttpStatus.OK, heartbeat.getStatusCode());
-        assertNotNull(heartbeat.getBody().get("lastSeenAt"));
-        assertEquals("ONLINE", heartbeat.getBody().get("operationalStatus"));
+        assertNotNull(requireBody(heartbeat).get("lastSeenAt"));
+        assertEquals("ONLINE", requireBody(heartbeat).get("operationalStatus"));
     }
 }

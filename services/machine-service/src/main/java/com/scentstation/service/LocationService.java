@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class LocationService {
@@ -22,8 +23,8 @@ public class LocationService {
 
     @Transactional
     public LocationResponse create(String locationId, String tenantId, String name, String address) {
-        String normalizedLocationId = locationId.trim();
-        if (locations.existsById(normalizedLocationId)) {
+        String normalizedLocationId = Objects.requireNonNull(locationId, "locationId").trim();
+        if (locations.existsById(Objects.requireNonNull(normalizedLocationId, "locationId"))) {
             throw new ConflictException("locationId already exists");
         }
         return toResponse(locations.save(new Location(
@@ -71,7 +72,7 @@ public class LocationService {
     }
 
     private Location requireLocation(String locationId) {
-        return locations.findById(locationId).orElseThrow(() ->
+        return locations.findById(Objects.requireNonNull(locationId, "locationId")).orElseThrow(() ->
             new ResourceNotFoundException("Location not found: " + locationId));
     }
 

@@ -22,13 +22,13 @@ class LocationIntegrationTest extends MachineServiceIntegrationTestBase {
         ResponseEntity<List<Map<String, Object>>> locations =
             getJsonList("/api/locations?tenantId=" + tenantId);
         assertEquals(HttpStatus.OK, locations.getStatusCode());
-        assertEquals(1, locations.getBody().size());
+        assertEquals(1, requireListBody(locations).size());
 
         Map<String, Object> update = locationRequest(locationId, tenantId);
         update.put("name", "Updated location");
         ResponseEntity<Map<String, Object>> updated = putJson("/api/locations/" + locationId, update);
         assertEquals(HttpStatus.OK, updated.getStatusCode());
-        assertEquals("Updated location", updated.getBody().get("name"));
+        assertEquals("Updated location", requireBody(updated).get("name"));
 
         update.put("tenantId", uniqueId("other-tenant"));
         ResponseEntity<Map<String, Object>> rejectedUpdate =
@@ -44,7 +44,7 @@ class LocationIntegrationTest extends MachineServiceIntegrationTestBase {
 
         ResponseEntity<Map<String, Object>> location = getJson("/api/locations/" + locationId);
         assertEquals(HttpStatus.OK, location.getStatusCode());
-        assertEquals(tenantId, location.getBody().get("tenantId"));
+        assertEquals(tenantId, requireBody(location).get("tenantId"));
 
         ResponseEntity<Map<String, Object>> deactivated =
             rest.exchange("/api/locations/" + locationId + "/active?active=false",
@@ -52,7 +52,7 @@ class LocationIntegrationTest extends MachineServiceIntegrationTestBase {
                 new ParameterizedTypeReference<>() {
                 });
         assertEquals(HttpStatus.OK, deactivated.getStatusCode());
-        assertEquals(Boolean.FALSE, deactivated.getBody().get("active"));
+        assertEquals(Boolean.FALSE, requireBody(deactivated).get("active"));
     }
 
     @Test

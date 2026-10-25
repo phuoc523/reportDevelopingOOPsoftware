@@ -1,6 +1,6 @@
-package com.scentstation.service;
+package com.scentstation;
 
-
+import com.scentstation.service.OperatingHours;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalTime;
@@ -11,9 +11,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AvailabilityRulesTest {
     @Test
     void noScheduleAllowsAllDayAndEqualEndpointsAllowNoTime() {
-        assertTrue(AvailabilityService.isWithinOperatingHours(
+        assertTrue(OperatingHours.includes(
             null, null, LocalTime.NOON));
-        assertFalse(AvailabilityService.isWithinOperatingHours(
+        assertFalse(OperatingHours.includes(
             LocalTime.NOON, LocalTime.NOON, LocalTime.NOON));
     }
 
@@ -22,10 +22,10 @@ class AvailabilityRulesTest {
         LocalTime start = LocalTime.of(8, 0);
         LocalTime end = LocalTime.of(17, 0);
 
-        assertTrue(AvailabilityService.isWithinOperatingHours(start, end, start));
-        assertTrue(AvailabilityService.isWithinOperatingHours(
+        assertTrue(OperatingHours.includes(start, end, start));
+        assertTrue(OperatingHours.includes(
             start, end, LocalTime.of(12, 0)));
-        assertFalse(AvailabilityService.isWithinOperatingHours(start, end, end));
+        assertFalse(OperatingHours.includes(start, end, end));
     }
 
     @Test
@@ -33,11 +33,11 @@ class AvailabilityRulesTest {
         LocalTime start = LocalTime.of(22, 0);
         LocalTime end = LocalTime.of(6, 0);
 
-        assertTrue(AvailabilityService.isWithinOperatingHours(
+        assertTrue(OperatingHours.includes(
             start, end, LocalTime.of(23, 0)));
-        assertTrue(AvailabilityService.isWithinOperatingHours(
+        assertTrue(OperatingHours.includes(
             start, end, LocalTime.of(5, 59)));
-        assertFalse(AvailabilityService.isWithinOperatingHours(
+        assertFalse(OperatingHours.includes(
             start, end, LocalTime.NOON));
     }
 }

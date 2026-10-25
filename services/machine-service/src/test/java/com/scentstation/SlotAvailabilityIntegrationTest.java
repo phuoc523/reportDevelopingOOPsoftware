@@ -9,7 +9,6 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class SlotAvailabilityIntegrationTest extends MachineServiceIntegrationTestBase {
     @Test
@@ -32,10 +31,10 @@ class SlotAvailabilityIntegrationTest extends MachineServiceIntegrationTestBase 
         ResponseEntity<Map<String, Object>> availability =
             getJson("/api/machines/" + machineId + "/availability");
         assertEquals(HttpStatus.OK, availability.getStatusCode());
-        assertNotNull(availability.getBody());
-        assertEquals(Boolean.TRUE, availability.getBody().get("machineAvailable"));
+        Map<String, Object> availabilityBody = requireBody(availability);
+        assertEquals(Boolean.TRUE, availabilityBody.get("machineAvailable"));
 
-        List<?> slots = (List<?>) availability.getBody().get("slots");
+        List<?> slots = (List<?>) availabilityBody.get("slots");
         assertEquals(1, slots.size());
         assertEquals(Boolean.TRUE, ((Map<?, ?>) slots.get(0)).get("available"));
     }
@@ -57,8 +56,7 @@ class SlotAvailabilityIntegrationTest extends MachineServiceIntegrationTestBase 
 
         ResponseEntity<Map<String, Object>> availability =
             getJson("/api/machines/" + machineId + "/availability");
-        assertNotNull(availability.getBody());
-        List<?> slots = (List<?>) availability.getBody().get("slots");
+        List<?> slots = (List<?>) requireBody(availability).get("slots");
         assertEquals(1, slots.size());
         assertFalse((Boolean) ((Map<?, ?>) slots.get(0)).get("available"));
         assertEquals("Slot is disabled", ((Map<?, ?>) slots.get(0)).get("availabilityReason"));
@@ -110,7 +108,7 @@ class SlotAvailabilityIntegrationTest extends MachineServiceIntegrationTestBase 
         );
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertEquals(true, response.getBody().get("detail").toString()
+        assertEquals(true, requireBody(response).get("detail").toString()
             .contains("calibratedSprayDurationMs"));
     }
 }

@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class MachineService {
@@ -41,7 +42,9 @@ public class MachineService {
     }
 
     private void validateLocation(String locationId, String tenantId) {
-        Location location = locations.findById(locationId.trim()).orElseThrow(() ->
+        String normalizedLocationId = Objects.requireNonNull(locationId, "locationId").trim();
+        Location location = locations.findById(
+            Objects.requireNonNull(normalizedLocationId, "locationId")).orElseThrow(() ->
             new ResourceNotFoundException("Location not found: " + locationId));
         if (!location.isActive()) throw new InvalidOperationException("Location is inactive");
         if (!location.getTenantId().equals(tenantId.trim()))
@@ -275,7 +278,7 @@ public class MachineService {
     }
 
     public Machine requireMachine(Long id) {
-        return machines.findById(id).orElseThrow(() ->
+        return machines.findById(Objects.requireNonNull(id, "id")).orElseThrow(() ->
             new ResourceNotFoundException("Machine not found: " + id));
     }
 
