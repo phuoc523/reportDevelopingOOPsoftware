@@ -47,27 +47,10 @@
         </dependency>
     </dependencies>
     <build>
-        <!-- This service keeps application code, tests, and the manually applied SQL schema separate. -->
-        <sourceDirectory>${project.basedir}/src</sourceDirectory>
-        <testSourceDirectory>${project.basedir}/test</testSourceDirectory>
-        <resources>
-            <resource>
-                <directory>${project.basedir}/src</directory>
-                <includes>
-                    <include>application.properties</include>
-                </includes>
-            </resource>
-        </resources>
+        <directory>${project.basedir}/target</directory>
+        <sourceDirectory>${project.basedir}/src/main/java</sourceDirectory>
+        <testSourceDirectory>${project.basedir}/src/test/java</testSourceDirectory>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <includes>
-                        <include>**/*.java</include>
-                    </includes>
-                </configuration>
-            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
