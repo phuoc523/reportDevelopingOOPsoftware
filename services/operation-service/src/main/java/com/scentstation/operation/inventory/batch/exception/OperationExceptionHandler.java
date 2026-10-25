@@ -10,6 +10,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import com.scentstation.operation.inventory.installation.exception.ActiveInstallationNotFoundException;
+import com.scentstation.operation.inventory.installation.exception.BottleAlreadyInstalledException;
+import com.scentstation.operation.inventory.installation.exception.BottleNotInstallableException;
+import com.scentstation.operation.inventory.installation.exception.SlotAlreadyOccupiedException;
+import com.scentstation.operation.inventory.refill.exception.BottleNotRefillableException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -158,5 +163,65 @@ public class OperationExceptionHandler {
         );
 
         return ResponseEntity.status(status).body(response);
+    }
+
+    @ExceptionHandler(ActiveInstallationNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleActiveInstallationNotFound(
+            ActiveInstallationNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage(),
+                request
+        );
+    }
+
+    @ExceptionHandler(BottleAlreadyInstalledException.class)
+    public ResponseEntity<ApiErrorResponse> handleBottleAlreadyInstalled(
+            BottleAlreadyInstalledException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                exception.getMessage(),
+                request
+        );
+    }
+
+    @ExceptionHandler(SlotAlreadyOccupiedException.class)
+    public ResponseEntity<ApiErrorResponse> handleSlotAlreadyOccupied(
+            SlotAlreadyOccupiedException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                exception.getMessage(),
+                request
+        );
+    }
+
+    @ExceptionHandler(BottleNotInstallableException.class)
+    public ResponseEntity<ApiErrorResponse> handleBottleNotInstallable(
+            BottleNotInstallableException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                exception.getMessage(),
+                request
+        );
+    }
+
+    @ExceptionHandler(BottleNotRefillableException.class)
+    public ResponseEntity<ApiErrorResponse> handleBottleNotRefillable(
+            BottleNotRefillableException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                exception.getMessage(),
+                request
+        );
     }
 }
