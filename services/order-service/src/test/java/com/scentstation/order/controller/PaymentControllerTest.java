@@ -6,6 +6,7 @@ import com.scentstation.order.entity.Payment;
 import com.scentstation.order.entity.PaymentCallbackEvent;
 import com.scentstation.order.repository.OrderRepository;
 import com.scentstation.order.repository.PaymentRepository;
+import com.scentstation.order.repository.DispensingRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,10 +42,14 @@ class PaymentControllerTest {
     @Autowired
     private PaymentRepository paymentRepository;
 
+    @Autowired
+    private DispensingRepository dispensingRepository;
+
     @BeforeEach
     void clearRepositories() {
         paymentRepository.deleteAll();
         orderRepository.deleteAll();
+        dispensingRepository.deleteAll();
     }
 
     @Test
@@ -84,9 +89,14 @@ class PaymentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PAID"));
 
+        mockMvc.perform(get("/api/orders/{id}/dispensing", orderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DISPENSED"))
+                .andExpect(jsonPath("$.manualReviewRequired").value(false));
+
         mockMvc.perform(get("/api/orders/{id}/status", orderId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("CONFIRMED"));
+                .andExpect(jsonPath("$.status").value("DISPENSED"));
 
         mockMvc.perform(post("/api/payments/{reference}/simulate", reference))
                 .andExpect(status().isOk())
@@ -106,6 +116,7 @@ class PaymentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PAID"))
                 .andExpect(jsonPath("$.currency").value("VND"));
+        String commandId = dispensingRepository.findByOrderId(orderId).orElseThrow().getCommandId();
 
         mockMvc.perform(post("/api/payments/callback")
                         .header("X-Payment-Callback-Token", CALLBACK_TOKEN)
@@ -116,6 +127,10 @@ class PaymentControllerTest {
 
         PaymentCallbackEvent event = paymentRepository.findCallbackEvent("event-1").orElseThrow();
         org.junit.jupiter.api.Assertions.assertEquals(PaymentCallbackEvent.Outcome.ACCEPTED, event.outcome());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                commandId,
+                dispensingRepository.findByOrderId(orderId).orElseThrow().getCommandId()
+        );
 
         mockMvc.perform(get("/api/orders/{id}/status", orderId))
                 .andExpect(status().isOk())
@@ -154,6 +169,7 @@ class PaymentControllerTest {
         mockMvc.perform(get("/api/payments/{reference}", reference))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PENDING"));
+        org.junit.jupiter.api.Assertions.assertTrue(dispensingRepository.findByOrderId(orderId).isEmpty());
     }
 
     @Test
@@ -304,6 +320,8 @@ class PaymentControllerTest {
                         .content("""
                                 {
                                   "customerId": 7,
+                                  "machineId": "MACHINE-001",
+                                  "slotId": "SLOT-01",
                                   "items": [
                                     {
                                       "productId": 3,

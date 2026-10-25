@@ -27,12 +27,14 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final OrderService orderService;
+    private final DispensingService dispensingService;
     private final Duration qrExpiration;
     private final String callbackToken;
 
     public PaymentService(
             PaymentRepository paymentRepository,
             OrderService orderService,
+            DispensingService dispensingService,
             @Value("${payment.qr-expiration:PT15M}") Duration qrExpiration,
             @Value("${payment.callback-token:local-mock-callback-token}") String callbackToken
     ) {
@@ -44,6 +46,7 @@ public class PaymentService {
         }
         this.paymentRepository = paymentRepository;
         this.orderService = orderService;
+        this.dispensingService = dispensingService;
         this.qrExpiration = qrExpiration;
         this.callbackToken = callbackToken;
     }
@@ -165,6 +168,7 @@ public class PaymentService {
             } catch (InvalidOrderStatusTransitionException exception) {
                 throw reject(request, HttpStatus.CONFLICT, "Order is not eligible for payment confirmation");
             }
+            dispensingService.requestDispensing(payment.getOrderId());
             return accept(request, payment);
         }
     }

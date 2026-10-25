@@ -2,8 +2,10 @@ package com.scentstation.order.controller;
 
 import com.scentstation.order.dto.request.CreateOrderRequest;
 import com.scentstation.order.dto.request.UpdateOrderStatusRequest;
+import com.scentstation.order.dto.response.DispensingResponse;
 import com.scentstation.order.dto.response.OrderResponse;
 import com.scentstation.order.dto.response.OrderStatusResponse;
+import com.scentstation.order.service.DispensingService;
 import com.scentstation.order.service.OrderService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -23,9 +25,11 @@ import java.util.List;
 public class OrderController {
 
     private final OrderService orderService;
+    private final DispensingService dispensingService;
 
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService, DispensingService dispensingService) {
         this.orderService = orderService;
+        this.dispensingService = dispensingService;
     }
 
     @PostMapping
@@ -46,6 +50,11 @@ public class OrderController {
     @GetMapping("/{id}/status")
     public ResponseEntity<OrderStatusResponse> getOrderStatus(@PathVariable Long id) {
         return ResponseEntity.ok(orderService.getOrderStatus(id));
+    }
+
+    @GetMapping("/{id}/dispensing")
+    public ResponseEntity<DispensingResponse> getDispensingResult(@PathVariable Long id) {
+        return ResponseEntity.ok(dispensingService.getDispensingResult(id));
     }
 
     @PatchMapping("/{id}/status")

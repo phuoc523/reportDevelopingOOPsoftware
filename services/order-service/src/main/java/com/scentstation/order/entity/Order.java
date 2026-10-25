@@ -8,14 +8,18 @@ public class Order {
 
     private Long id;
     private final Long customerId;
+    private final String machineId;
+    private final String slotId;
     private final List<OrderItem> items;
     private final BigDecimal totalAmount;
     private OrderStatus status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public Order(Long customerId, List<OrderItem> items, BigDecimal totalAmount) {
+    public Order(Long customerId, String machineId, String slotId, List<OrderItem> items, BigDecimal totalAmount) {
         this.customerId = customerId;
+        this.machineId = machineId;
+        this.slotId = slotId;
         this.items = List.copyOf(items);
         this.totalAmount = totalAmount;
     }
@@ -30,6 +34,14 @@ public class Order {
 
     public Long getCustomerId() {
         return customerId;
+    }
+
+    public String getMachineId() {
+        return machineId;
+    }
+
+    public String getSlotId() {
+        return slotId;
     }
 
     public List<OrderItem> getItems() {

@@ -5,6 +5,8 @@ import com.scentstation.order.dto.request.OrderItemRequest;
 import com.scentstation.order.dto.response.OrderItemResponse;
 import com.scentstation.order.dto.response.OrderResponse;
 import com.scentstation.order.dto.response.OrderStatusResponse;
+import com.scentstation.order.entity.DispensingCommand;
+import com.scentstation.order.entity.DispensingStatus;
 import com.scentstation.order.entity.Order;
 import com.scentstation.order.entity.OrderItem;
 import org.springframework.stereotype.Component;
@@ -24,10 +26,10 @@ public class OrderMapper {
                 .map(OrderItem::lineTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        return new Order(request.customerId(), items, totalAmount);
+        return new Order(request.customerId(), request.machineId(), request.slotId(), items, totalAmount);
     }
 
-    public OrderResponse toResponse(Order order) {
+    public OrderResponse toResponse(Order order, DispensingCommand command) {
         List<OrderItemResponse> items = order.getItems()
                 .stream()
                 .map(item -> new OrderItemResponse(
@@ -42,9 +44,15 @@ public class OrderMapper {
         return new OrderResponse(
                 order.getId(),
                 order.getCustomerId(),
+                order.getMachineId(),
+                order.getSlotId(),
                 items,
                 order.getTotalAmount(),
                 order.getStatus(),
+                command == null ? null : command.getCommandId(),
+                command == null ? DispensingStatus.NOT_REQUESTED : command.getStatus(),
+                command != null && command.isManualReviewRequired(),
+                command == null ? null : command.getManualReviewReason(),
                 order.getCreatedAt(),
                 order.getUpdatedAt()
         );

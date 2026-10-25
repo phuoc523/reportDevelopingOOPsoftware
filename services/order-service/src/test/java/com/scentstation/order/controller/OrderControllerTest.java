@@ -2,6 +2,7 @@ package com.scentstation.order.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scentstation.order.repository.OrderRepository;
+import com.scentstation.order.repository.DispensingRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,9 +30,13 @@ class OrderControllerTest {
     @Autowired
     private OrderRepository orderRepository;
 
+    @Autowired
+    private DispensingRepository dispensingRepository;
+
     @BeforeEach
     void clearOrders() {
         orderRepository.deleteAll();
+        dispensingRepository.deleteAll();
     }
 
     @Test
@@ -125,6 +130,8 @@ class OrderControllerTest {
                         .content("""
                                 {
                                   "customerId": 7,
+                                  "machineId": "MACHINE-001",
+                                  "slotId": "SLOT-01",
                                   "items": [
                                     {
                                       "productId": 3,
@@ -180,6 +187,8 @@ class OrderControllerTest {
         return """
                 {
                   "customerId": 7,
+                  "machineId": "MACHINE-001",
+                  "slotId": "SLOT-01",
                   "items": [
                     {
                       "productId": 3,

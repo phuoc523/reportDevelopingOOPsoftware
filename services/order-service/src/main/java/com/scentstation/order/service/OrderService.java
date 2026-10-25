@@ -4,6 +4,7 @@ import com.scentstation.order.dto.request.CreateOrderRequest;
 import com.scentstation.order.dto.request.UpdateOrderStatusRequest;
 import com.scentstation.order.dto.response.OrderResponse;
 import com.scentstation.order.dto.response.OrderStatusResponse;
+import com.scentstation.order.entity.DispensingCommand;
 import com.scentstation.order.entity.Order;
 import com.scentstation.order.entity.OrderStatus;
 import com.scentstation.order.entity.PaymentStatus;
@@ -11,6 +12,7 @@ import com.scentstation.order.exception.InvalidOrderStatusTransitionException;
 import com.scentstation.order.exception.OrderNotFoundException;
 import com.scentstation.order.exception.PaidOrderCancellationException;
 import com.scentstation.order.mapper.OrderMapper;
+import com.scentstation.order.repository.DispensingRepository;
 import com.scentstation.order.repository.OrderRepository;
 import com.scentstation.order.repository.PaymentRepository;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ public class OrderService {
             OrderStatus.PENDING, EnumSet.of(
                     OrderStatus.CONFIRMED, OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.FAILED),
             OrderStatus.CONFIRMED, EnumSet.of(OrderStatus.PROCESSING, OrderStatus.CANCELLED),
+            OrderStatus.DISPENSED, EnumSet.of(OrderStatus.PROCESSING),
             OrderStatus.PROCESSING, EnumSet.of(OrderStatus.SHIPPED, OrderStatus.CANCELLED),
             OrderStatus.SHIPPED, EnumSet.of(OrderStatus.DELIVERED),
             OrderStatus.DELIVERED, EnumSet.noneOf(OrderStatus.class),
@@ -37,32 +40,35 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
+    private final DispensingRepository dispensingRepository;
     private final OrderMapper orderMapper;
 
     public OrderService(
             OrderRepository orderRepository,
             PaymentRepository paymentRepository,
+            DispensingRepository dispensingRepository,
             OrderMapper orderMapper
     ) {
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
+        this.dispensingRepository = dispensingRepository;
         this.orderMapper = orderMapper;
     }
 
     public OrderResponse createOrder(CreateOrderRequest request) {
         Order order = orderMapper.toEntity(request);
-        return orderMapper.toResponse(orderRepository.save(order));
+        return orderMapper.toResponse(orderRepository.save(order), null);
     }
 
     public List<OrderResponse> getOrders() {
         return orderRepository.findAll()
                 .stream()
-                .map(orderMapper::toResponse)
+                .map(order -> orderMapper.toResponse(order, getDispensingCommand(order.getId())))
                 .toList();
     }
 
     public OrderResponse getOrderById(Long id) {
-        return orderMapper.toResponse(findOrderById(id));
+        return orderMapper.toResponse(findOrderById(id), getDispensingCommand(id));
     }
 
     public OrderStatusResponse getOrderStatus(Long id) {
@@ -76,7 +82,8 @@ public class OrderService {
             OrderStatus requestedStatus = request.status();
             if (requestedStatus == OrderStatus.CONFIRMED
                     || requestedStatus == OrderStatus.EXPIRED
-                    || requestedStatus == OrderStatus.FAILED) {
+                    || requestedStatus == OrderStatus.FAILED
+                    || requestedStatus == OrderStatus.DISPENSED) {
                 throw new InvalidOrderStatusTransitionException(currentStatus, requestedStatus);
             }
             if (!ALLOWED_TRANSITIONS.get(currentStatus).contains(requestedStatus)) {
@@ -133,5 +140,9 @@ public class OrderService {
     private Order findOrderById(Long id) {
         return orderRepository.findById(id)
                 .orElseThrow(() -> new OrderNotFoundException(id));
+    }
+
+    private DispensingCommand getDispensingCommand(Long orderId) {
+        return dispensingRepository.findByOrderId(orderId).orElse(null);
     }
 }

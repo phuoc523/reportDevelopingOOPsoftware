@@ -7,6 +7,8 @@ payment flow.
 Orders and payments are currently held in memory. Data is lost when the service restarts.
 No database or catalog-service connection is required; product name and price
 are captured from the create-order request.
+Dispensing commands and manual-review markers are also held in memory for this
+simulation and are lost on restart.
 
 ## Run
 
@@ -24,6 +26,8 @@ The default port is `8083`; override it with `ORDER_SERVICE_PORT`.
 - `GET /api/orders` — list all orders.
 - `GET /api/orders/{id}` — get order details.
 - `GET /api/orders/{id}/status` — look up order status.
+- `GET /api/orders/{id}/dispensing` — query the current Machine Service result
+  for the order's existing dispensing command. This never creates a new command.
 - `PATCH /api/orders/{id}/status` — update order status.
 - `POST /api/orders/{id}/payments/qr` — create or retrieve the order's pending
   mock payment and QR payload. Repeated requests return the same payment.
@@ -106,6 +110,8 @@ Create-order request example:
 ```json
 {
   "customerId": 7,
+  "machineId": "MACHINE-001",
+  "slotId": "SLOT-01",
   "items": [
     {
       "productId": 3,
@@ -120,7 +126,8 @@ Create-order request example:
 New orders start in `PENDING`. Allowed transitions are:
 
 - `PENDING` → `CONFIRMED` or `CANCELLED`
-- `CONFIRMED` → `PROCESSING` or `CANCELLED`
+- `CONFIRMED` → `DISPENSED`, `PROCESSING` or `CANCELLED`
+- `DISPENSED` → `PROCESSING`
 - `PROCESSING` → `SHIPPED` or `CANCELLED`
 - `SHIPPED` → `DELIVERED`
 - `PENDING` → `EXPIRED` when its QR payment expires
@@ -128,6 +135,38 @@ New orders start in `PENDING`. Allowed transitions are:
 
 Invalid order data returns `400`, unknown order IDs return `404`, and invalid
 status transitions return `409`.
+
+## Dispensing orchestration
+
+After a payment callback has been verified and the order is marked `CONFIRMED`,
+Order Service creates one in-memory `commandId` and submits
+`POST /api/machines/dispense-commands` to Machine Service. `tenantId` comes from
+`MACHINE_SERVICE_TENANT_ID` (default `TENANT-001`); the client cannot set it.
+Set `MACHINE_SERVICE_BASE_URL` to the Machine Service base URL (default
+`http://localhost:8084`). Machine/slot IDs are supplied in the create-order
+request and captured on the order.
+
+For this assignment's local demo, `MACHINE_SERVICE_SIMULATION_ENABLED` defaults
+to `true`. In this mode Order Service does not call another service: its client
+simulates an `ACCEPTED` response followed by the configured final result
+(`MACHINE_SERVICE_SIMULATED_RESULT`, default `DISPENSED`) on the dispensing
+lookup. This lets the full payment-to-dispensed flow run with only
+`order-service`. The mock command results are in memory and reset on restart.
+To use the real Machine Service later, set
+`MACHINE_SERVICE_SIMULATION_ENABLED=false` and configure
+`MACHINE_SERVICE_BASE_URL`.
+
+`ACCEPTED` and `PROCESSING` are not proof of dispensing. Order status changes
+to `DISPENSED` only after a matching `orderId` and `commandId` result explicitly
+reports `DISPENSED`. Use `GET /api/orders/{id}/dispensing` to poll
+`GET /api/machines/dispense-commands/{commandId}`. A request or lookup timeout,
+empty response, ID mismatch, or unrecognized result is recorded as `UNKNOWN`
+with `manualReviewRequired: true`; the same command ID is retained and no
+second dispense request is automatically created. A confirmed `FAILED` machine
+result moves the order to `FAILED` and is not retried. See
+[`contracts/openapi/order-machine-dispensing.yaml`](../../contracts/openapi/order-machine-dispensing.yaml)
+for the shared API contract. The tagged coordination document says this
+endpoint proposal is pending confirmation by both service owners.
 
 ## Test
 

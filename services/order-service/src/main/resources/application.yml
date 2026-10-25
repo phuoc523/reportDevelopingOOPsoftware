@@ -8,3 +8,9 @@ server:
 payment:
   qr-expiration: ${PAYMENT_QR_EXPIRATION:PT15M}
   callback-token: ${PAYMENT_CALLBACK_TOKEN:local-mock-callback-token}
+
+machine-service:
+  base-url: ${MACHINE_SERVICE_BASE_URL:http://localhost:8084}
+  tenant-id: ${MACHINE_SERVICE_TENANT_ID:TENANT-001}
+  simulation-enabled: ${MACHINE_SERVICE_SIMULATION_ENABLED:true}
+  simulated-result: ${MACHINE_SERVICE_SIMULATED_RESULT:DISPENSED}
