@@ -11,12 +11,14 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfiguration {
 
     @Bean
@@ -35,9 +37,18 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                         .requestMatchers("/api/v1/auth/**").authenticated()
+                        .requestMatchers("/api/v1/rbac/**").authenticated()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().denyAll())
-                .exceptionHandling(errors -> errors.authenticationEntryPoint(
+                .exceptionHandling(errors -> errors
+                        .accessDeniedHandler((req, res, ex) -> {
+                            res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            res.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                            res.setHeader("Cache-Control", "no-store");
+                            mapper.writeValue(res.getWriter(),
+                                    new AuthDto.ErrorResponse("ACCESS_DENIED", "Insufficient permission"));
+                        })
+                        .authenticationEntryPoint(
                         (req, res, ex) -> {
                             res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             res.setContentType(MediaType.APPLICATION_JSON_VALUE);
