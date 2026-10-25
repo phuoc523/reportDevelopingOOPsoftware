@@ -5,7 +5,6 @@ import com.scentstation.operation.inventory.batch.dto.request.CreateInventoryBat
 import com.scentstation.operation.inventory.batch.dto.response.InventoryBatchResponse;
 import com.scentstation.operation.inventory.batch.exception.InvalidInventoryBatchDateException;
 import com.scentstation.operation.inventory.batch.exception.InventoryBatchAlreadyExistsException;
-import com.scentstation.operation.inventory.batch.exception.InventoryBatchExceptionHandler;
 import com.scentstation.operation.inventory.batch.exception.InventoryBatchNotFoundException;
 import com.scentstation.operation.inventory.batch.service.InventoryBatchService;
 import org.junit.jupiter.api.Test;
@@ -15,6 +14,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import com.scentstation.operation.inventory.batch.exception.OperationExceptionHandler;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(InventoryBatchController.class)
-@Import(InventoryBatchExceptionHandler.class)
+@Import(OperationExceptionHandler.class)
 class InventoryBatchControllerTest {
 
     @Autowired
