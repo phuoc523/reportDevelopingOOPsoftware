@@ -3,6 +3,7 @@ package com.scentstation.identity.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scentstation.identity.auth.AuthDto;
 import com.scentstation.identity.auth.SessionService;
+import com.scentstation.identity.rbac.RbacPolicy;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,7 +28,7 @@ public class BearerAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI().substring(request.getContextPath().length());
-        return !path.startsWith("/api/v1/auth/") || path.equals("/api/v1/auth/login");
+        return !path.startsWith("/api/v1/") || path.equals("/api/v1/auth/login");
     }
 
     @Override
@@ -45,8 +46,10 @@ public class BearerAuthenticationFilter extends OncePerRequestFilter {
                 unauthorized(response);
                 return;
             }
-            var authorities = identity.roles().stream()
-                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role)).toList();
+            var authorities = new java.util.ArrayList<SimpleGrantedAuthority>();
+            identity.roles().forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
+            RbacPolicy.permissionsFor(identity.roles()).forEach(permission ->
+                    authorities.add(new SimpleGrantedAuthority("PERM_" + permission.name())));
             var auth = new UsernamePasswordAuthenticationToken(identity, null, authorities);
             SecurityContextHolder.getContext().setAuthentication(auth);
         }

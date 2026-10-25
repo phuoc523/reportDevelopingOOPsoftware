@@ -11,6 +11,11 @@ import java.util.Optional;
 public interface StaffUserRepository extends JpaRepository<StaffUser, String> {
     Optional<StaffUser> findByUsername(String username);
 
+    /** Serialize concurrent role updates to prevent lost writes and inconsistent audits. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from StaffUser u where u.id = :id")
+    Optional<StaffUser> findByIdForRoleUpdate(@Param("id") String id);
+
     /** Serialize concurrent login attempts for one staff account. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from StaffUser u where u.username = :username")
