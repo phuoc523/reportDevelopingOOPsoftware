@@ -20,6 +20,7 @@ public class BottleMovementService {
     private final BottleMovementRepository movementRepository;
     private final BottleRepository bottleRepository;
 
+    // Trả lịch sử movement của bottle sau khi xác minh tenant sở hữu bottle.
     @Transactional(readOnly = true)
     public List<BottleMovementResponse> getBottleHistory(
             Long tenantId,
@@ -40,6 +41,7 @@ public class BottleMovementService {
                 .toList();
     }
 
+    // Trả lịch sử movement của một machine trong tenant.
     @Transactional(readOnly = true)
     public List<BottleMovementResponse> getMachineHistory(
             Long tenantId,
@@ -55,6 +57,7 @@ public class BottleMovementService {
                 .toList();
     }
 
+    // Trả toàn bộ movement của tenant theo thời gian giảm dần.
     @Transactional(readOnly = true)
     public List<BottleMovementResponse> getTenantHistory(
             Long tenantId
@@ -68,6 +71,7 @@ public class BottleMovementService {
                 .toList();
     }
 
+    // Lọc movement của tenant theo loại nghiệp vụ.
     @Transactional(readOnly = true)
     public List<BottleMovementResponse> getHistoryByType(
             Long tenantId,
@@ -83,6 +87,7 @@ public class BottleMovementService {
                 .toList();
     }
 
+    // Bảo đảm bottle tồn tại trong đúng tenant trước khi đọc lịch sử.
     private void validateBottleExists(
             Long tenantId,
             Long bottleId
@@ -103,6 +108,7 @@ public class BottleMovementService {
         }
     }
 
+    // Chuyển movement thành response và tính chênh lệch quantity.
     private BottleMovementResponse toResponse(
             BottleMovement movement
     ) {

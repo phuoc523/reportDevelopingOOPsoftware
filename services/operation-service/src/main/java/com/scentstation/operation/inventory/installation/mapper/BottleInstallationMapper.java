@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class BottleInstallationMapper {
 
+    // Chuyển install request thành active installation entity.
     public BottleInstallation toEntity(
             InstallBottleRequest request
     ) {
@@ -21,6 +22,7 @@ public class BottleInstallationMapper {
                 .build();
     }
 
+    // Chuyển installation entity thành response API.
     public BottleInstallationResponse toResponse(
             BottleInstallation installation
     ) {

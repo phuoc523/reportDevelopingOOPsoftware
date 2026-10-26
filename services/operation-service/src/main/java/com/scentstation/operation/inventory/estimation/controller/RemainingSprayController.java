@@ -18,6 +18,7 @@ public class RemainingSprayController {
 
     private final RemainingSprayService remainingSprayService;
 
+    // Cập nhật calibration tiêu thụ cho bottle.
     @PutMapping("/calibration")
     public ResponseEntity<RemainingSprayResponse> updateCalibration(
             @Valid @RequestBody UpdateSprayCalibrationRequest request
@@ -27,6 +28,7 @@ public class RemainingSprayController {
         );
     }
 
+    // Trả số lần xịt ước tính còn lại của bottle.
     @GetMapping("/bottles/{bottleId}/remaining-sprays")
     public ResponseEntity<RemainingSprayResponse> getRemainingSprays(
             @PathVariable @Positive Long bottleId,

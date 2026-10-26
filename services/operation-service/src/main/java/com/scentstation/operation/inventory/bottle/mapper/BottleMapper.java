@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class BottleMapper {
 
+    // Chuyển create request thành bottle entity với trạng thái ban đầu.
     public Bottle toEntity(CreateBottleRequest request) {
         return Bottle.builder()
                 .tenantId(request.getTenantId())
@@ -21,6 +22,7 @@ public class BottleMapper {
                 .build();
     }
 
+    // Chuyển bottle entity thành response API.
     public BottleResponse toResponse(Bottle bottle) {
         return BottleResponse.builder()
                 .id(bottle.getId())

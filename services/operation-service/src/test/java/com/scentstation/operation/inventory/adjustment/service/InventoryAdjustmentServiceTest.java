@@ -3,6 +3,9 @@ package com.scentstation.operation.inventory.adjustment.service;
 import com.scentstation.operation.inventory.adjustment.dto.request.AdjustInventoryRequest;
 import com.scentstation.operation.inventory.adjustment.entity.InventoryAdjustment;
 import com.scentstation.operation.inventory.adjustment.repository.InventoryAdjustmentRepository;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
+import com.scentstation.operation.inventory.audit.entity.InventoryAuditEvent;
+import com.scentstation.operation.inventory.audit.enums.InventoryAuditAction;
 import com.scentstation.operation.inventory.bottle.entity.Bottle;
 import com.scentstation.operation.inventory.bottle.enums.BottleStatus;
 import com.scentstation.operation.inventory.bottle.repository.BottleRepository;
@@ -28,6 +31,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class InventoryAdjustmentServiceTest {
+
+    @Mock
+    private InventoryAuditService auditService;
 
     @Mock
     private InventoryAdjustmentRepository adjustmentRepository;
@@ -72,10 +78,6 @@ class InventoryAdjustmentServiceTest {
         when(bottleRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(bottle));
 
-        when(installationRepository
-                .existsByTenantIdAndBottleIdAndActiveTrue(1L, 10L))
-                .thenReturn(true);
-
         BottleInstallation installation =
                 BottleInstallation.builder()
                         .tenantId(1L)
@@ -118,6 +120,21 @@ class InventoryAdjustmentServiceTest {
         assertEquals(3L, movement.getMachineId());
         assertEquals(2L, movement.getSlotId());
         assertEquals(25L, movement.getActorId());
+
+        ArgumentCaptor<InventoryAuditEvent> auditCaptor =
+                ArgumentCaptor.forClass(InventoryAuditEvent.class);
+        verify(auditService).record(auditCaptor.capture());
+
+        InventoryAuditEvent audit = auditCaptor.getValue();
+        assertEquals(InventoryAuditAction.INVENTORY_ADJUSTMENT, audit.getAction());
+        assertEquals(1L, audit.getTenantId());
+        assertEquals(25L, audit.getActorId());
+        assertEquals(10L, audit.getEntityId());
+        assertEquals("20.000", audit.getBeforeValue());
+        assertEquals("17.000", audit.getAfterValue());
+        assertEquals("Sensor reconciliation", audit.getReason());
+        assertEquals(3L, audit.getMachineId());
+        assertEquals(2L, audit.getSlotId());
     }
 
     @Test
@@ -191,10 +208,6 @@ class InventoryAdjustmentServiceTest {
 
         when(bottleRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(bottle));
-
-        when(installationRepository
-                .existsByTenantIdAndBottleIdAndActiveTrue(1L, 10L))
-                .thenReturn(false);
 
         when(installationRepository
                 .findByTenantIdAndBottleIdAndActiveTrue(1L, 10L))

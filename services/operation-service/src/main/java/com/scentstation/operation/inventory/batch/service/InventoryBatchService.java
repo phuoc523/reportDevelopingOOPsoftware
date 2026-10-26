@@ -1,5 +1,8 @@
 package com.scentstation.operation.inventory.batch.service;
 
+import com.scentstation.operation.inventory.audit.entity.InventoryAuditEvent;
+import com.scentstation.operation.inventory.audit.enums.InventoryAuditAction;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.batch.dto.request.CreateInventoryBatchRequest;
 import com.scentstation.operation.inventory.batch.dto.response.InventoryBatchResponse;
 import com.scentstation.operation.inventory.batch.entity.InventoryBatch;
@@ -20,6 +23,7 @@ public class InventoryBatchService {
 
     private final InventoryBatchRepository inventoryBatchRepository;
     private final InventoryBatchMapper inventoryBatchMapper;
+    private final InventoryAuditService auditService;
 
     // Tạo lô hàng mới sau khi kiểm tra mã lô và khoảng ngày hợp lệ.
     @Transactional
@@ -33,6 +37,15 @@ public class InventoryBatchService {
 
         InventoryBatch savedBatch =
                 inventoryBatchRepository.save(batch);
+
+        auditService.record(
+                InventoryAuditEvent.builder()
+                        .tenantId(request.getTenantId())
+                        .action(InventoryAuditAction.BATCH_CREATED)
+                        .entityType("BATCH")
+                        .entityId(savedBatch.getId())
+                        .build()
+        );
 
         return inventoryBatchMapper.toResponse(savedBatch);
     }

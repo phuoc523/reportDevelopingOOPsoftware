@@ -1,6 +1,7 @@
 package com.scentstation.operation.inventory.batch.service;
 
 import com.scentstation.operation.inventory.batch.dto.request.CreateInventoryBatchRequest;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.batch.dto.response.InventoryBatchResponse;
 import com.scentstation.operation.inventory.batch.entity.InventoryBatch;
 import com.scentstation.operation.inventory.batch.exception.InvalidInventoryBatchDateException;
@@ -25,6 +26,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class InventoryBatchServiceTest {
+
+    @Mock
+    private InventoryAuditService auditService;
 
     @Mock
     private InventoryBatchRepository inventoryBatchRepository;

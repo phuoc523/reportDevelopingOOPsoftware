@@ -1,5 +1,8 @@
 package com.scentstation.operation.inventory.installation.service;
 
+import com.scentstation.operation.inventory.audit.entity.InventoryAuditEvent;
+import com.scentstation.operation.inventory.audit.enums.InventoryAuditAction;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.bottle.entity.Bottle;
 import com.scentstation.operation.inventory.bottle.enums.BottleStatus;
 import com.scentstation.operation.inventory.bottle.exception.BottleNotFoundException;
@@ -36,6 +39,7 @@ public class BottleInstallationService {
     private final BottleMovementRepository bottleMovementRepository;
     private final BottleInstallationMapper bottleInstallationMapper;
     private final MachineSlotClient machineSlotClient;
+    private final InventoryAuditService auditService;
 
     // Lắp chai vào slot trống, đổi trạng thái chai và ghi lịch sử INSTALL.
     @Transactional
@@ -81,6 +85,16 @@ public class BottleInstallationService {
                 bottle
         );
 
+        recordAudit(
+                request.getTenantId(),
+                request.getActorId(),
+                InventoryAuditAction.BOTTLE_INSTALLED,
+                bottle.getId(),
+                request.getMachineId(),
+                request.getSlotId(),
+                null
+        );
+
         return bottleInstallationMapper.toResponse(
                 savedInstallation
         );
@@ -124,6 +138,16 @@ public class BottleInstallationService {
                 request,
                 bottle,
                 installation
+        );
+
+        recordAudit(
+                request.getTenantId(),
+                request.getActorId(),
+                InventoryAuditAction.BOTTLE_REMOVED,
+                bottle.getId(),
+                installation.getMachineId(),
+                installation.getSlotId(),
+                request.getReason()
         );
 
         return bottleInstallationMapper.toResponse(
@@ -205,6 +229,25 @@ public class BottleInstallationService {
                 oldInstallation
         );
 
+        recordAudit(
+                request.getTenantId(),
+                request.getActorId(),
+                InventoryAuditAction.BOTTLE_REPLACED,
+                oldBottle.getId(),
+                oldInstallation.getMachineId(),
+                oldInstallation.getSlotId(),
+                request.getReason()
+        );
+        recordAudit(
+                request.getTenantId(),
+                request.getActorId(),
+                InventoryAuditAction.BOTTLE_REPLACED,
+                newBottle.getId(),
+                oldInstallation.getMachineId(),
+                oldInstallation.getSlotId(),
+                request.getReason()
+        );
+
         return bottleInstallationMapper.toResponse(
                 savedNewInstallation
         );
@@ -281,6 +324,7 @@ public class BottleInstallationService {
         }
     }
 
+    // Kiểm tra slot khả dụng và tương thích product trước khi thay đổi installation.
     private void validateMachineSlot(
             Bottle bottle,
             Long tenantId,
@@ -309,6 +353,30 @@ public class BottleInstallationService {
                     slot.getProductId()
             );
         }
+    }
+
+    // Ghi audit nghiệp vụ installation sau khi toàn bộ mutation đã thành công.
+    private void recordAudit(
+            Long tenantId,
+            Long actorId,
+            InventoryAuditAction action,
+            Long bottleId,
+            Long machineId,
+            Long slotId,
+            String reason
+    ) {
+        auditService.record(
+                InventoryAuditEvent.builder()
+                        .tenantId(tenantId)
+                        .actorId(actorId)
+                        .action(action)
+                        .entityType("BOTTLE")
+                        .entityId(bottleId)
+                        .machineId(machineId)
+                        .slotId(slotId)
+                        .reason(reason)
+                        .build()
+        );
     }
 
     // Ghi lịch sử INSTALL mà không làm thay đổi lượng trong chai.

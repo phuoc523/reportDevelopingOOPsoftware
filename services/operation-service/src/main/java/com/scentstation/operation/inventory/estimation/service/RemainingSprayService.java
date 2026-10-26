@@ -1,5 +1,8 @@
 package com.scentstation.operation.inventory.estimation.service;
 
+import com.scentstation.operation.inventory.audit.entity.InventoryAuditEvent;
+import com.scentstation.operation.inventory.audit.enums.InventoryAuditAction;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.bottle.entity.Bottle;
 import com.scentstation.operation.inventory.bottle.exception.BottleNotFoundException;
 import com.scentstation.operation.inventory.bottle.repository.BottleRepository;
@@ -21,6 +24,7 @@ public class RemainingSprayService {
 
     private final BottleRepository bottleRepository;
     private final DispenseConsumptionRepository dispenseConsumptionRepository;
+    private final InventoryAuditService auditService;
 
     // Cập nhật định mức tiêu thụ mỗi lần xịt và trả lại ước tính mới.
     @Transactional
@@ -32,11 +36,28 @@ public class RemainingSprayService {
                 request.getBottleId()
         );
 
+        BigDecimal calibrationBefore =
+                bottle.getCalibratedConsumptionPerSpray();
+
         bottle.setCalibratedConsumptionPerSpray(
                 request.getConsumptionPerSpray()
         );
 
         bottleRepository.save(bottle);
+
+        auditService.record(
+                InventoryAuditEvent.builder()
+                        .tenantId(request.getTenantId())
+                        .action(InventoryAuditAction.SPRAY_CALIBRATION_UPDATED)
+                        .entityType("BOTTLE")
+                        .entityId(bottle.getId())
+                        .beforeValue(calibrationBefore == null
+                                ? null
+                                : calibrationBefore.toPlainString())
+                        .afterValue(request.getConsumptionPerSpray()
+                                .toPlainString())
+                        .build()
+        );
 
         return buildResponse(bottle);
     }

@@ -20,6 +20,7 @@ public class InventoryAdjustmentController {
 
     private final InventoryAdjustmentService inventoryAdjustmentService;
 
+    // Điều chỉnh lượng bottle theo số đo thực tế được cung cấp.
     @PostMapping
     public ResponseEntity<InventoryAdjustmentResponse> adjust(
             @Valid @RequestBody AdjustInventoryRequest request
@@ -29,6 +30,7 @@ public class InventoryAdjustmentController {
         );
     }
 
+    // Trả lịch sử adjustment của một bottle trong tenant.
     @GetMapping("/bottles/{bottleId}")
     public ResponseEntity<List<InventoryAdjustmentResponse>>
     getBottleAdjustmentHistory(

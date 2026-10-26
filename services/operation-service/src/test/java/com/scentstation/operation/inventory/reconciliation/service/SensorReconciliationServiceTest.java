@@ -1,6 +1,7 @@
 package com.scentstation.operation.inventory.reconciliation.service;
 
 import com.scentstation.operation.inventory.bottle.entity.Bottle;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.bottle.enums.BottleStatus;
 import com.scentstation.operation.inventory.bottle.repository.BottleRepository;
 import com.scentstation.operation.inventory.installation.entity.BottleInstallation;
@@ -29,6 +30,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class SensorReconciliationServiceTest {
+
+    @Mock
+    private InventoryAuditService auditService;
 
     @Mock
     private SensorReconciliationRepository reconciliationRepository;
@@ -133,6 +137,7 @@ class SensorReconciliationServiceTest {
                 95L,
                 result.getEstimatedRemainingSprays()
         );
+        verify(auditService).record(any());
     }
 
     @Test
@@ -275,6 +280,7 @@ class SensorReconciliationServiceTest {
 
         verify(reconciliationRepository, never())
                 .save(any());
+        verifyNoInteractions(auditService);
     }
 
     @Test

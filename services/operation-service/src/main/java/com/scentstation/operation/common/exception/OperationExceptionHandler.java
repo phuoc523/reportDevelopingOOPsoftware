@@ -34,6 +34,7 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class OperationExceptionHandler {
 
+    // Trả 404 khi không tìm thấy inventory batch.
     @ExceptionHandler(InventoryBatchNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleBatchNotFound(
             InventoryBatchNotFoundException exception,
@@ -46,6 +47,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 404 khi không tìm thấy bottle trong tenant.
     @ExceptionHandler(BottleNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleBottleNotFound(
             BottleNotFoundException exception,
@@ -58,6 +60,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 409 khi mã batch đã tồn tại.
     @ExceptionHandler(InventoryBatchAlreadyExistsException.class)
     public ResponseEntity<ApiErrorResponse> handleBatchAlreadyExists(
             InventoryBatchAlreadyExistsException exception,
@@ -70,6 +73,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 409 khi mã bottle đã tồn tại.
     @ExceptionHandler(BottleAlreadyExistsException.class)
     public ResponseEntity<ApiErrorResponse> handleBottleAlreadyExists(
             BottleAlreadyExistsException exception,
@@ -82,6 +86,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 400 khi khoảng ngày của batch không hợp lệ.
     @ExceptionHandler(InvalidInventoryBatchDateException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidBatchDate(
             InvalidInventoryBatchDateException exception,
@@ -94,6 +99,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 400 khi thao tác dùng batch đã hết hạn.
     @ExceptionHandler(InventoryBatchExpiredException.class)
     public ResponseEntity<ApiErrorResponse> handleExpiredBatch(
             InventoryBatchExpiredException exception,
@@ -106,6 +112,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 400 khi product của bottle không khớp batch.
     @ExceptionHandler(BottleBatchMismatchException.class)
     public ResponseEntity<ApiErrorResponse> handleBottleBatchMismatch(
             BottleBatchMismatchException exception,
@@ -118,6 +125,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 404 khi không tìm thấy dispense command.
     @ExceptionHandler(DispenseConsumptionNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleDispenseConsumptionNotFound(
             DispenseConsumptionNotFoundException exception,
@@ -130,6 +138,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Tổng hợp lỗi validation request body thành response 400.
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleRequestValidation(
             MethodArgumentNotValidException exception,
@@ -152,6 +161,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 400 khi bottle chưa có calibration hợp lệ.
     @ExceptionHandler(SprayCalibrationNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleSprayCalibrationNotFound(
             SprayCalibrationNotFoundException exception,
@@ -164,6 +174,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Tổng hợp lỗi validation path và query parameter thành response 400.
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
             ConstraintViolationException exception,
@@ -185,6 +196,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 409 khi dispense command đã được xử lý.
     @ExceptionHandler(DuplicateDispenseCommandException.class)
     public ResponseEntity<ApiErrorResponse> handleDuplicateDispenseCommand(
             DuplicateDispenseCommandException exception,
@@ -197,6 +209,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 409 khi bottle không nằm đúng machine slot yêu cầu.
     @ExceptionHandler(BottleInstallationMismatchException.class)
     public ResponseEntity<ApiErrorResponse> handleBottleInstallationMismatch(
             BottleInstallationMismatchException exception,
@@ -209,6 +222,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 409 khi bottle không đủ lượng để dispense.
     @ExceptionHandler(InsufficientBottleQuantityException.class)
     public ResponseEntity<ApiErrorResponse> handleInsufficientBottleQuantity(
             InsufficientBottleQuantityException exception,
@@ -221,6 +235,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Tạo response lỗi thống nhất cho toàn operation-service.
     private ResponseEntity<ApiErrorResponse> buildResponse(
             HttpStatus status,
             String message,
@@ -237,6 +252,7 @@ public class OperationExceptionHandler {
         return ResponseEntity.status(status).body(response);
     }
 
+    // Trả 404 khi bottle không có installation active.
     @ExceptionHandler(ActiveInstallationNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleActiveInstallationNotFound(
             ActiveInstallationNotFoundException exception,
@@ -249,6 +265,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 409 khi bottle đã được lắp đặt.
     @ExceptionHandler(BottleAlreadyInstalledException.class)
     public ResponseEntity<ApiErrorResponse> handleBottleAlreadyInstalled(
             BottleAlreadyInstalledException exception,
@@ -261,6 +278,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 409 khi machine slot đã bị chiếm.
     @ExceptionHandler(SlotAlreadyOccupiedException.class)
     public ResponseEntity<ApiErrorResponse> handleSlotAlreadyOccupied(
             SlotAlreadyOccupiedException exception,
@@ -273,6 +291,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 400 khi trạng thái bottle không cho phép lắp.
     @ExceptionHandler(BottleNotInstallableException.class)
     public ResponseEntity<ApiErrorResponse> handleBottleNotInstallable(
             BottleNotInstallableException exception,
@@ -285,6 +304,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 400 khi trạng thái bottle không cho phép refill.
     @ExceptionHandler(BottleNotRefillableException.class)
     public ResponseEntity<ApiErrorResponse> handleBottleNotRefillable(
             BottleNotRefillableException exception,
@@ -297,6 +317,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 409 khi machine slot inactive hoặc maintenance.
     @ExceptionHandler(MachineSlotUnavailableException.class)
     public ResponseEntity<ApiErrorResponse> handleMachineSlotUnavailable(
             MachineSlotUnavailableException exception,
@@ -309,6 +330,7 @@ public class OperationExceptionHandler {
         );
     }
 
+    // Trả 409 khi product của slot không tương thích bottle.
     @ExceptionHandler(MachineSlotProductMismatchException.class)
     public ResponseEntity<ApiErrorResponse> handleMachineSlotProductMismatch(
             MachineSlotProductMismatchException exception,
@@ -321,6 +343,7 @@ public class OperationExceptionHandler {
         );
     }
 
+        // Trả 409 khi sensor reading không khớp installation.
         @ExceptionHandler(SensorInstallationMismatchException.class)
         public ResponseEntity<ApiErrorResponse> handleSensorInstallationMismatch(
                 SensorInstallationMismatchException exception,

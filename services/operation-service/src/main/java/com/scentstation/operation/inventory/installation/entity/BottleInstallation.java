@@ -52,6 +52,7 @@ public class BottleInstallation {
     private Boolean active = true;
 
     @PrePersist
+    // Khởi tạo thời điểm lắp và trạng thái active trước khi persist.
     protected void onCreate() {
         if (installedAt == null) {
             installedAt = LocalDateTime.now();

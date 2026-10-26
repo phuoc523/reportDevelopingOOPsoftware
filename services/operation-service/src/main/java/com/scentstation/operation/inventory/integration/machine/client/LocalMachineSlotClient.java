@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class LocalMachineSlotClient implements MachineSlotClient {
 
+    // Mô phỏng slot khả dụng cho tới khi machine-service có API thật.
     @Override
     public MachineSlotInfo getSlot(
             Long tenantId,

@@ -4,6 +4,7 @@ import com.scentstation.operation.inventory.integration.machine.dto.MachineSlotI
 
 public interface MachineSlotClient {
 
+    // Lấy snapshot slot từ boundary do machine-service sở hữu.
     MachineSlotInfo getSlot(
             Long tenantId,
             Long machineId,

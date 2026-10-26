@@ -19,6 +19,7 @@ public class DispenseConsumptionController {
 
     private final DispenseConsumptionService dispenseConsumptionService;
 
+    // Ghi nhận kết quả một lệnh dispense từ machine.
     @PostMapping
     public ResponseEntity<DispenseConsumptionResponse> recordDispense(
             @Valid @RequestBody RecordDispenseRequest request
@@ -28,6 +29,7 @@ public class DispenseConsumptionController {
         );
     }
 
+    // Tra cứu dispense đã xử lý theo command id và tenant.
     @GetMapping("/command/{commandId}")
     public ResponseEntity<DispenseConsumptionResponse> getByCommandId(
             @PathVariable @NotBlank String commandId,

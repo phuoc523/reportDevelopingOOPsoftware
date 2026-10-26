@@ -74,6 +74,7 @@ public class DispenseConsumption {
     private LocalDateTime processedAt;
 
     @PrePersist
+    // Gắn thời điểm xử lý và mặc định cờ trừ tồn kho trước khi persist.
     protected void onCreate() {
         processedAt = LocalDateTime.now();
 

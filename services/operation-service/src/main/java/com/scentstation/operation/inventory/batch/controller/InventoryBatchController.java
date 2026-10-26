@@ -21,6 +21,7 @@ public class InventoryBatchController {
 
     private final InventoryBatchService inventoryBatchService;
 
+    // Tạo inventory batch mới từ request hợp lệ.
     @PostMapping
     public ResponseEntity<InventoryBatchResponse> createBatch(
             @Valid @RequestBody CreateInventoryBatchRequest request
@@ -33,6 +34,7 @@ public class InventoryBatchController {
                 .body(response);
     }
 
+    // Liệt kê batch theo tenant và tùy chọn lọc product.
     @GetMapping
     public ResponseEntity<List<InventoryBatchResponse>> getBatches(
             @RequestParam @Positive Long tenantId,
@@ -53,6 +55,7 @@ public class InventoryBatchController {
         );
     }
 
+    // Trả một batch theo id trong phạm vi tenant.
     @GetMapping("/{id}")
     public ResponseEntity<InventoryBatchResponse> getBatchById(
             @PathVariable @Positive Long id,

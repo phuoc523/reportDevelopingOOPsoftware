@@ -61,6 +61,7 @@ public class InventoryAdjustment {
     private LocalDateTime createdAt;
 
     @PrePersist
+    // Gắn thời điểm adjustment được tạo trước khi persist.
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }

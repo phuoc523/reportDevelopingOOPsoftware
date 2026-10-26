@@ -1,9 +1,11 @@
 package com.scentstation.operation.inventory.refill.service;
 
 import com.scentstation.operation.inventory.bottle.entity.Bottle;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.bottle.enums.BottleStatus;
 import com.scentstation.operation.inventory.bottle.exception.BottleNotFoundException;
 import com.scentstation.operation.inventory.bottle.repository.BottleRepository;
+import com.scentstation.operation.inventory.installation.entity.BottleInstallation;
 import com.scentstation.operation.inventory.installation.repository.BottleInstallationRepository;
 import com.scentstation.operation.inventory.movement.entity.BottleMovement;
 import com.scentstation.operation.inventory.movement.repository.BottleMovementRepository;
@@ -26,6 +28,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RefillServiceTest {
+
+    @Mock
+    private InventoryAuditService auditService;
 
     @Mock
     private BottleRepository bottleRepository;
@@ -70,11 +75,8 @@ class RefillServiceTest {
                 .thenReturn(Optional.of(bottle));
 
         when(bottleInstallationRepository
-                .existsByTenantIdAndBottleIdAndActiveTrue(
-                        1L,
-                        10L
-                ))
-                .thenReturn(false);
+                .findByTenantIdAndBottleIdAndActiveTrue(1L, 10L))
+                .thenReturn(Optional.empty());
 
         RefillBottleResponse result =
                 refillService.refillBottle(request);
@@ -108,6 +110,7 @@ class RefillServiceTest {
 
         verify(bottleMovementRepository)
                 .save(any(BottleMovement.class));
+        verify(auditService).record(any());
     }
 
     @Test
@@ -126,11 +129,16 @@ class RefillServiceTest {
                 .thenReturn(Optional.of(bottle));
 
         when(bottleInstallationRepository
-                .existsByTenantIdAndBottleIdAndActiveTrue(
-                        1L,
-                        10L
-                ))
-                .thenReturn(true);
+                .findByTenantIdAndBottleIdAndActiveTrue(1L, 10L))
+                .thenReturn(Optional.of(
+                        BottleInstallation.builder()
+                                .tenantId(1L)
+                                .bottleId(10L)
+                                .machineId(3L)
+                                .slotId(2L)
+                                .active(true)
+                                .build()
+                ));
 
         RefillBottleResponse result =
                 refillService.refillBottle(request);
@@ -163,11 +171,8 @@ class RefillServiceTest {
                 .thenReturn(Optional.of(bottle));
 
         when(bottleInstallationRepository
-                .existsByTenantIdAndBottleIdAndActiveTrue(
-                        1L,
-                        10L
-                ))
-                .thenReturn(false);
+                .findByTenantIdAndBottleIdAndActiveTrue(1L, 10L))
+                .thenReturn(Optional.empty());
 
         RefillBottleResponse result =
                 refillService.refillBottle(request);

@@ -1,6 +1,7 @@
 package com.scentstation.operation.inventory.estimation.service;
 
 import com.scentstation.operation.inventory.bottle.entity.Bottle;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.bottle.enums.BottleStatus;
 import com.scentstation.operation.inventory.bottle.exception.BottleNotFoundException;
 import com.scentstation.operation.inventory.bottle.repository.BottleRepository;
@@ -24,6 +25,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class RemainingSprayServiceTest {
+
+    @Mock
+    private InventoryAuditService auditService;
 
     @Mock
     private BottleRepository bottleRepository;
@@ -164,6 +168,7 @@ class RemainingSprayServiceTest {
         );
 
         verify(bottleRepository).save(bottle);
+        verify(auditService).record(any());
     }
 
     @Test

@@ -90,6 +90,7 @@ public class SensorReconciliation {
     private LocalDateTime processedAt;
 
     @PrePersist
+    // Gắn thời điểm reconciliation được xử lý trước khi persist.
     protected void onCreate() {
         processedAt = LocalDateTime.now();
     }

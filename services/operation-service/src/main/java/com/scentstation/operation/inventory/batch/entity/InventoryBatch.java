@@ -54,6 +54,7 @@ public class InventoryBatch {
     private LocalDateTime updatedAt;
 
     @PrePersist
+    // Khởi tạo timestamp tạo và cập nhật khi batch được persist lần đầu.
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
@@ -61,6 +62,7 @@ public class InventoryBatch {
     }
 
     @PreUpdate
+    // Làm mới timestamp cập nhật trước khi ghi thay đổi batch.
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }

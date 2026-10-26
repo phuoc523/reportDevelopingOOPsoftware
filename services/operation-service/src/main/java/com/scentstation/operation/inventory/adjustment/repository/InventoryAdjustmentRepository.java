@@ -8,12 +8,14 @@ import java.util.List;
 public interface InventoryAdjustmentRepository
         extends JpaRepository<InventoryAdjustment, Long> {
 
+    // Trả lịch sử adjustment của bottle.
     List<InventoryAdjustment>
     findAllByTenantIdAndBottleIdOrderByCreatedAtDesc(
             Long tenantId,
             Long bottleId
     );
 
+    // Trả lịch sử adjustment của tenant.
     List<InventoryAdjustment>
     findAllByTenantIdOrderByCreatedAtDesc(
             Long tenantId

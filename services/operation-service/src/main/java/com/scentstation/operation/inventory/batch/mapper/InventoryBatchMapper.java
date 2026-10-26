@@ -10,6 +10,7 @@ import java.time.LocalDate;
 @Component
 public class InventoryBatchMapper {
 
+    // Chuyển create request thành inventory batch entity.
     public InventoryBatch toEntity(CreateInventoryBatchRequest request) {
         return InventoryBatch.builder()
                 .tenantId(request.getTenantId())
@@ -21,6 +22,7 @@ public class InventoryBatchMapper {
                 .build();
     }
 
+    // Chuyển batch entity thành response kèm trạng thái hết hạn.
     public InventoryBatchResponse toResponse(InventoryBatch batch) {
         return InventoryBatchResponse.builder()
                 .id(batch.getId())
@@ -36,6 +38,7 @@ public class InventoryBatchMapper {
                 .build();
     }
 
+    // Xác định batch đã quá ngày hết hạn hay chưa.
     private boolean isExpired(InventoryBatch batch) {
         return batch.getExpiryDate() != null
                 && batch.getExpiryDate().isBefore(LocalDate.now());

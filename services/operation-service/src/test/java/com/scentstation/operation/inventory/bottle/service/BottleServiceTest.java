@@ -1,6 +1,7 @@
 package com.scentstation.operation.inventory.bottle.service;
 
 import com.scentstation.operation.inventory.batch.entity.InventoryBatch;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.batch.exception.InventoryBatchExpiredException;
 import com.scentstation.operation.inventory.batch.exception.InventoryBatchNotFoundException;
 import com.scentstation.operation.inventory.batch.repository.InventoryBatchRepository;
@@ -28,6 +29,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class BottleServiceTest {
+
+    @Mock
+    private InventoryAuditService auditService;
 
     @Mock
     private BottleRepository bottleRepository;

@@ -17,6 +17,7 @@ public class BottleInstallationController {
 
     private final BottleInstallationService bottleInstallationService;
 
+    // Lắp bottle vào machine slot.
     @PostMapping("/install")
     public ResponseEntity<BottleInstallationResponse> installBottle(
             @Valid @RequestBody InstallBottleRequest request
@@ -26,6 +27,7 @@ public class BottleInstallationController {
         );
     }
 
+    // Tháo bottle khỏi installation active.
     @PostMapping("/remove")
     public ResponseEntity<BottleInstallationResponse> removeBottle(
             @Valid @RequestBody RemoveBottleRequest request
@@ -35,6 +37,7 @@ public class BottleInstallationController {
         );
     }
 
+    // Thay bottle mới tại vị trí của bottle cũ.
     @PostMapping("/replace")
     public ResponseEntity<BottleInstallationResponse> replaceBottle(
             @Valid @RequestBody ReplaceBottleRequest request

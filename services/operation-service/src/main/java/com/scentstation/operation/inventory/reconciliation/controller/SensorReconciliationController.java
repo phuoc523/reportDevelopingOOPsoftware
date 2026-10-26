@@ -15,6 +15,7 @@ public class SensorReconciliationController {
 
     private final SensorReconciliationService sensorReconciliationService;
 
+    // Nhận sensor reading và trả kết quả reconciliation.
     @PostMapping
     public ResponseEntity<SensorReconciliationResponse> reconcile(
             @Valid @RequestBody RecordSensorReadingRequest request

@@ -10,11 +10,18 @@ import java.util.Optional;
 
 @Repository 
 public interface BottleRepository extends JpaRepository<Bottle, Long> {
+    // Tìm bottle theo id trong tenant.
     Optional<Bottle>findByIdAndTenantId(Long id, Long tenantId);
+    // Tìm bottle bằng mã duy nhất trong tenant.
     Optional<Bottle> findByTenantIdAndBottleCode(Long tenantId, String bottleCode);
+    // Kiểm tra mã bottle đã tồn tại trong tenant hay chưa.
     Boolean existsByTenantIdAndBottleCode(Long tenantId, String bottleCode);
+    // Trả toàn bộ bottle của tenant.
     List<Bottle>findAllByTenantId(Long tenantId);
+    // Trả bottle của tenant theo batch.
     List<Bottle>findAllByTenantIdAndBatchId(Long tenantId, Long batchId);
+    // Trả bottle của tenant theo product.
     List<Bottle>findAllByTenantIdAndProductId(Long tenantId, Long productId);
+    // Trả bottle của tenant theo trạng thái.
     List<Bottle>findAllByTenantIdAndStatus(Long tenantId, BottleStatus status);
 }

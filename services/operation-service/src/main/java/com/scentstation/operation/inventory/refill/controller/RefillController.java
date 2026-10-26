@@ -15,6 +15,7 @@ public class RefillController {
 
     private final RefillService refillService;
 
+    // Nhận yêu cầu refill bottle và trả kết quả cập nhật tồn kho.
     @PostMapping
     public ResponseEntity<RefillBottleResponse> refillBottle(
             @Valid @RequestBody RefillBottleRequest request

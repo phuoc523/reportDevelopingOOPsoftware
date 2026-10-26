@@ -1,5 +1,8 @@
 package com.scentstation.operation.inventory.bottle.service;
 
+import com.scentstation.operation.inventory.audit.entity.InventoryAuditEvent;
+import com.scentstation.operation.inventory.audit.enums.InventoryAuditAction;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.batch.entity.InventoryBatch;
 import com.scentstation.operation.inventory.batch.exception.InventoryBatchExpiredException;
 import com.scentstation.operation.inventory.batch.exception.InventoryBatchNotFoundException;
@@ -26,6 +29,7 @@ public class BottleService {
     private final BottleRepository bottleRepository;
     private final InventoryBatchRepository inventoryBatchRepository;
     private final BottleMapper bottleMapper;
+    private final InventoryAuditService auditService;
 
     // Tạo chai mới sau khi kiểm tra mã chai, lô hàng, sản phẩm và hạn dùng.
     @Transactional
@@ -46,6 +50,15 @@ public class BottleService {
         Bottle bottle = bottleMapper.toEntity(request);
 
         Bottle savedBottle = bottleRepository.save(bottle);
+
+        auditService.record(
+                InventoryAuditEvent.builder()
+                        .tenantId(request.getTenantId())
+                        .action(InventoryAuditAction.BOTTLE_CREATED)
+                        .entityType("BOTTLE")
+                        .entityId(savedBottle.getId())
+                        .build()
+        );
 
         return bottleMapper.toResponse(savedBottle);
     }

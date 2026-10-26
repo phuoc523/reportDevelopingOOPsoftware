@@ -1,6 +1,7 @@
 package com.scentstation.operation.inventory.installation.service;
 
 import com.scentstation.operation.inventory.bottle.entity.Bottle;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.bottle.enums.BottleStatus;
 import com.scentstation.operation.inventory.bottle.repository.BottleRepository;
 import com.scentstation.operation.inventory.installation.dto.request.InstallBottleRequest;
@@ -36,6 +37,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class BottleInstallationServiceTest {
+
+    @Mock
+    private InventoryAuditService auditService;
 
     @Mock
     private BottleRepository bottleRepository;
@@ -147,6 +151,7 @@ class BottleInstallationServiceTest {
         verify(bottleRepository).save(bottle);
         verify(bottleMovementRepository)
                 .save(any(BottleMovement.class));
+        verify(auditService).record(any());
     }
 
     @Test
@@ -338,6 +343,7 @@ class BottleInstallationServiceTest {
 
         verify(bottleMovementRepository)
                 .save(any(BottleMovement.class));
+        verify(auditService).record(any());
         verifyNoInteractions(machineSlotClient);
     }
 
@@ -443,6 +449,7 @@ class BottleInstallationServiceTest {
 
         verify(bottleMovementRepository, times(2))
                 .save(any(BottleMovement.class));
+        verify(auditService, times(2)).record(any());
     }
 
     @Test
@@ -484,6 +491,7 @@ class BottleInstallationServiceTest {
         assertTrue(installation.getActive());
         verify(bottleInstallationRepository, never()).save(any());
         verify(bottleRepository, never()).save(any());
+        verifyNoInteractions(auditService);
     }
 
     private InstallBottleRequest installRequest() {

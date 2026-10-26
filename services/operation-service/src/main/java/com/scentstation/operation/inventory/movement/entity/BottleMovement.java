@@ -66,6 +66,7 @@ public class BottleMovement {
     private LocalDateTime createdAt;
 
     @PrePersist
+    // Gắn thời điểm movement được tạo trước khi persist.
     protected void onCreate() {
         createdAt = LocalDateTime.now();
     }

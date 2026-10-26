@@ -1,6 +1,7 @@
 package com.scentstation.operation.inventory.consumption.service;
 
 import com.scentstation.operation.inventory.bottle.entity.Bottle;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.bottle.enums.BottleStatus;
 import com.scentstation.operation.inventory.bottle.repository.BottleRepository;
 import com.scentstation.operation.inventory.consumption.dto.request.RecordDispenseRequest;
@@ -30,6 +31,9 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class DispenseConsumptionServiceTest {
+
+    @Mock
+    private InventoryAuditService auditService;
 
     @Mock
     private DispenseConsumptionRepository dispenseConsumptionRepository;
@@ -110,6 +114,7 @@ class DispenseConsumptionServiceTest {
         );
 
         verify(bottleRepository).save(bottle);
+        verify(auditService).record(any());
     }
 
     @Test
@@ -179,6 +184,7 @@ class DispenseConsumptionServiceTest {
         );
 
         verify(bottleRepository, never()).save(any());
+        verifyNoInteractions(auditService);
     }
 
     @Test

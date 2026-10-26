@@ -1,5 +1,8 @@
 package com.scentstation.operation.inventory.consumption.service;
 
+import com.scentstation.operation.inventory.audit.entity.InventoryAuditEvent;
+import com.scentstation.operation.inventory.audit.enums.InventoryAuditAction;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.bottle.entity.Bottle;
 import com.scentstation.operation.inventory.bottle.enums.BottleStatus;
 import com.scentstation.operation.inventory.bottle.exception.BottleNotFoundException;
@@ -29,6 +32,7 @@ public class DispenseConsumptionService {
     private final DispenseConsumptionRepository dispenseConsumptionRepository;
     private final BottleRepository bottleRepository;
     private final BottleInstallationRepository bottleInstallationRepository;
+    private final InventoryAuditService auditService;
 
     // Ghi nhận một lần dispense; chỉ trừ tồn kho khi kết quả thành công.
     @Transactional
@@ -102,6 +106,20 @@ public class DispenseConsumptionService {
 
         DispenseConsumption saved =
                 dispenseConsumptionRepository.save(consumption);
+
+        auditService.record(
+                InventoryAuditEvent.builder()
+                        .tenantId(request.getTenantId())
+                        .action(InventoryAuditAction.DISPENSE_RECORDED)
+                        .entityType("DISPENSE")
+                        .entityId(saved.getId())
+                        .machineId(request.getMachineId())
+                        .slotId(request.getSlotId())
+                        .beforeValue(quantityBefore.toPlainString())
+                        .afterValue(quantityAfter.toPlainString())
+                        .referenceId(request.getCommandId())
+                        .build()
+        );
 
         return toResponse(
                 saved,

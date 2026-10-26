@@ -1,5 +1,8 @@
 package com.scentstation.operation.inventory.reconciliation.service;
 
+import com.scentstation.operation.inventory.audit.entity.InventoryAuditEvent;
+import com.scentstation.operation.inventory.audit.enums.InventoryAuditAction;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.bottle.entity.Bottle;
 import com.scentstation.operation.inventory.bottle.exception.BottleNotFoundException;
 import com.scentstation.operation.inventory.bottle.repository.BottleRepository;
@@ -43,7 +46,9 @@ public class SensorReconciliationService {
     private final SensorReconciliationRepository reconciliationRepository;
     private final BottleRepository bottleRepository;
     private final BottleInstallationRepository installationRepository;
+    private final InventoryAuditService auditService;
 
+    // Đối chiếu sensor theo idempotency key và chỉ audit bản ghi mới.
     @Transactional
     public SensorReconciliationResponse reconcile(
             RecordSensorReadingRequest request
@@ -125,9 +130,25 @@ public class SensorReconciliationService {
         SensorReconciliation saved =
                 reconciliationRepository.save(reconciliation);
 
+        auditService.record(
+                InventoryAuditEvent.builder()
+                        .tenantId(request.getTenantId())
+                        .action(InventoryAuditAction.SENSOR_RECONCILIATION)
+                        .entityType("RECONCILIATION")
+                        .entityId(saved.getId())
+                        .machineId(request.getMachineId())
+                        .slotId(request.getSlotId())
+                        .beforeValue(predictedQuantity.toPlainString())
+                        .afterValue(sensorQuantity.toPlainString())
+                        .reason(status.name())
+                        .referenceId(request.getSensorEventId())
+                        .build()
+        );
+
         return toResponse(saved);
     }
 
+    // Lấy bottle đúng tenant để bảo vệ tenant isolation.
     private Bottle getBottle(
             Long tenantId,
             Long bottleId
@@ -145,6 +166,7 @@ public class SensorReconciliationService {
                 );
     }
 
+    // Lấy installation active của bottle trước khi đối chiếu sensor.
     private BottleInstallation getActiveInstallation(
             Long tenantId,
             Long bottleId
@@ -162,6 +184,7 @@ public class SensorReconciliationService {
                 );
     }
 
+    // Xác nhận sensor reading đến từ đúng machine và slot đang lắp bottle.
     private void validateInstallation(
             RecordSensorReadingRequest request,
             BottleInstallation installation
@@ -183,6 +206,7 @@ public class SensorReconciliationService {
         }
     }
 
+    // Phân loại reconciliation theo tỷ lệ sai lệch và chiều chênh lệch.
     private ReconciliationStatus determineStatus(
             BigDecimal predictedQuantity,
             BigDecimal sensorQuantity,
@@ -227,6 +251,7 @@ public class SensorReconciliationService {
         return ReconciliationStatus.NORMAL;
     }
 
+    // Ước tính số lần xịt còn lại khi bottle đã có calibration hợp lệ.
     private Long calculateEstimatedRemainingSprays(
             BigDecimal sensorQuantity,
             BigDecimal consumptionPerSpray
@@ -247,6 +272,7 @@ public class SensorReconciliationService {
                 .longValue();
     }
 
+    // Chuyển reconciliation đã lưu thành response API.
     private SensorReconciliationResponse toResponse(
             SensorReconciliation reconciliation
     ) {

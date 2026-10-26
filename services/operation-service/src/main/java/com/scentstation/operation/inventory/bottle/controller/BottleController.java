@@ -21,6 +21,7 @@ public class BottleController {
 
     private final BottleService bottleService;
 
+    // Tạo bottle mới thuộc batch và tenant hợp lệ.
     @PostMapping
     public ResponseEntity<BottleResponse> createBottle(
             @Valid @RequestBody CreateBottleRequest request
@@ -33,6 +34,7 @@ public class BottleController {
                 .body(response);
     }
 
+    // Liệt kê bottle theo tenant và các bộ lọc tùy chọn.
     @GetMapping
     public ResponseEntity<List<BottleResponse>> getBottles(
             @RequestParam @Positive Long tenantId,
@@ -62,6 +64,7 @@ public class BottleController {
         );
     }
 
+    // Trả một bottle theo id trong phạm vi tenant.
     @GetMapping("/{id}")
     public ResponseEntity<BottleResponse> getBottleById(
             @PathVariable @Positive Long id,

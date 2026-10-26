@@ -1,10 +1,14 @@
 package com.scentstation.operation.inventory.refill.service;
 
+import com.scentstation.operation.inventory.audit.entity.InventoryAuditEvent;
+import com.scentstation.operation.inventory.audit.enums.InventoryAuditAction;
+import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.bottle.entity.Bottle;
 import com.scentstation.operation.inventory.bottle.enums.BottleStatus;
 import com.scentstation.operation.inventory.bottle.exception.BottleNotFoundException;
 import com.scentstation.operation.inventory.bottle.repository.BottleRepository;
 import com.scentstation.operation.inventory.installation.repository.BottleInstallationRepository;
+import com.scentstation.operation.inventory.installation.entity.BottleInstallation;
 import com.scentstation.operation.inventory.movement.entity.BottleMovement;
 import com.scentstation.operation.inventory.movement.enums.BottleMovementType;
 import com.scentstation.operation.inventory.movement.repository.BottleMovementRepository;
@@ -17,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +30,7 @@ public class RefillService {
     private final BottleRepository bottleRepository;
     private final BottleInstallationRepository bottleInstallationRepository;
     private final BottleMovementRepository bottleMovementRepository;
+    private final InventoryAuditService auditService;
 
     // Nạp thêm dung lượng cho chai, cập nhật trạng thái và ghi lịch sử biến động.
     @Transactional
@@ -53,11 +59,18 @@ public class RefillService {
                         request.getRefillQuantity()
                 );
 
+        Optional<BottleInstallation> activeInstallation =
+                bottleInstallationRepository
+                        .findByTenantIdAndBottleIdAndActiveTrue(
+                                request.getTenantId(),
+                                request.getBottleId()
+                        );
+
         bottle.setCurrentQuantity(quantityAfter);
 
         updateStatusAfterRefill(
                 bottle,
-                request.getTenantId()
+                activeInstallation.isPresent()
         );
 
         bottleRepository.save(bottle);
@@ -67,6 +80,25 @@ public class RefillService {
                 bottle,
                 quantityBefore,
                 quantityAfter
+        );
+
+        auditService.record(
+                InventoryAuditEvent.builder()
+                        .tenantId(request.getTenantId())
+                        .actorId(request.getActorId())
+                        .action(InventoryAuditAction.BOTTLE_REFILLED)
+                        .entityType("BOTTLE")
+                        .entityId(bottle.getId())
+                        .machineId(activeInstallation
+                                .map(BottleInstallation::getMachineId)
+                                .orElse(null))
+                        .slotId(activeInstallation
+                                .map(BottleInstallation::getSlotId)
+                                .orElse(null))
+                        .beforeValue(quantityBefore.toPlainString())
+                        .afterValue(quantityAfter.toPlainString())
+                        .reason(request.getReason())
+                        .build()
         );
 
         return RefillBottleResponse.builder()
@@ -99,16 +131,9 @@ public class RefillService {
     // Khôi phục trạng thái chai dựa trên việc chai có đang được lắp hay không.
     private void updateStatusAfterRefill(
             Bottle bottle,
-            Long tenantId
+            boolean installed
     ) {
-        boolean isInstalled =
-                bottleInstallationRepository
-                        .existsByTenantIdAndBottleIdAndActiveTrue(
-                                tenantId,
-                                bottle.getId()
-                        );
-
-        if (isInstalled) {
+        if (installed) {
             bottle.setStatus(BottleStatus.INSTALLED);
         } else {
             bottle.setStatus(BottleStatus.AVAILABLE);

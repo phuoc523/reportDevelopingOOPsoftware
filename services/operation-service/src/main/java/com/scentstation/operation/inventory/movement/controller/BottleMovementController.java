@@ -19,6 +19,7 @@ public class BottleMovementController {
 
     private final BottleMovementService movementService;
 
+    // Liệt kê movement của tenant và tùy chọn lọc theo loại.
     @GetMapping
     public ResponseEntity<List<BottleMovementResponse>>
     getTenantHistory(
@@ -42,6 +43,7 @@ public class BottleMovementController {
         );
     }
 
+    // Trả lịch sử movement của một bottle.
     @GetMapping("/bottles/{bottleId}")
     public ResponseEntity<List<BottleMovementResponse>>
     getBottleHistory(
@@ -56,6 +58,7 @@ public class BottleMovementController {
         );
     }
 
+    // Trả lịch sử movement tại một machine.
     @GetMapping("/machines/{machineId}")
     public ResponseEntity<List<BottleMovementResponse>>
     getMachineHistory(

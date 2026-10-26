@@ -81,6 +81,7 @@ public class Bottle {
     private LocalDateTime updatedAt;
 
     @PrePersist
+    // Khởi tạo timestamp, quantity và status mặc định của bottle mới.
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
 
@@ -97,6 +98,7 @@ public class Bottle {
     }
 
     @PreUpdate
+    // Làm mới timestamp cập nhật trước khi persist thay đổi bottle.
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
