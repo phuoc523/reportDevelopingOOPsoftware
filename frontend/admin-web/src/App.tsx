@@ -109,6 +109,17 @@ type ProductForm = {
   stock: string
 }
 
+type InventoryHistory = {
+  id: number
+  productName: string
+  type: 'import' | 'export'
+  quantity: number
+  previousStock: number
+  newStock: number
+  reason: string
+  timestamp: string
+}
+
 const initialProducts: Product[] = [
   {
     name: 'Citrus No. 08',
@@ -202,11 +213,54 @@ const initialCampaigns: Campaign[] = [
 // ]
 
 
-const transactions = [
-  { id: 'ORD-1028', product: 'Citrus No. 08', time: '09:42', amount: '25.000 ₫', status: 'Thành công' },
-  { id: 'ORD-1027', product: 'Ocean Breeze', time: '09:36', amount: '30.000 ₫', status: 'Thành công' },
-  { id: 'ORD-1026', product: 'Rose Velvet', time: '09:21', amount: '35.000 ₫', status: 'Cần kiểm tra' },
-  { id: 'ORD-1025', product: 'Woody Night', time: '09:10', amount: '40.000 ₫', status: 'Thất bại' },
+
+type Order = {
+  id: string
+  product: string
+  time: string
+  amount: number
+  paymentStatus: 'Thành công' | 'Thất bại' | 'Đang xử lý'
+  fulfillmentStatus: 'Hoàn tất' | 'Cần kiểm tra' | 'Chưa xử lý'
+  reviewNote: string
+}
+
+const initialOrders: Order[] = [
+  {
+    id: 'ORD-1028',
+    product: 'Citrus No. 08',
+    time: '09:42',
+    amount: 25000,
+    paymentStatus: 'Thành công',
+    fulfillmentStatus: 'Hoàn tất',
+    reviewNote: '',
+  },
+  {
+    id: 'ORD-1027',
+    product: 'Ocean Breeze',
+    time: '09:36',
+    amount: 30000,
+    paymentStatus: 'Thành công',
+    fulfillmentStatus: 'Hoàn tất',
+    reviewNote: '',
+  },
+  {
+    id: 'ORD-1026',
+    product: 'Rose Velvet',
+    time: '09:21',
+    amount: 35000,
+    paymentStatus: 'Thành công',
+    fulfillmentStatus: 'Cần kiểm tra',
+    reviewNote: '',
+  },
+  {
+    id: 'ORD-1025',
+    product: 'Woody Night',
+    time: '09:10',
+    amount: 40000,
+    paymentStatus: 'Thất bại',
+    fulfillmentStatus: 'Chưa xử lý',
+    reviewNote: '',
+  },
 ]
 
 const pageTitles: Record<Page, string> = {
@@ -224,7 +278,29 @@ const pageTitles: Record<Page, string> = {
 function App() {
   const [role, setRole] = useState<Role>('Admin')
   const [products, setProducts] = useState<Product[]>(initialProducts)
+  const [orders, setOrders] = useState<Order[]>(initialOrders)
+  const [orderSearch, setOrderSearch] = useState('')
+  const [orderStatusFilter, setOrderStatusFilter] = useState('all')
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+  const [reviewNote, setReviewNote] = useState('')
+  const [reviewingOrderId, setReviewingOrderId] = useState<string | null>(null)
+  const filteredOrders = orders.filter((order) => {
+  const search = orderSearch.trim().toLowerCase()
+
+  const matchesSearch =
+    order.id.toLowerCase().includes(search) ||
+    order.product.toLowerCase().includes(search)
+
+  const matchesStatus =
+    orderStatusFilter === 'all' ||
+    order.paymentStatus === orderStatusFilter ||
+    order.fulfillmentStatus === orderStatusFilter
+
+  return matchesSearch && matchesStatus
+  })
   const [campaigns] = useState<Campaign[]>(initialCampaigns)
+  const [inventoryHistory, setInventoryHistory] =
+    useState<InventoryHistory[]>([])
   const [showProductForm, setShowProductForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState<string | null>(null)
   const [devices, setDevices] = useState<Device[]>([])
@@ -421,6 +497,20 @@ const submitInventoryAdjustment = () => {
     ),
   )
 
+  setInventoryHistory((currentHistory) => [
+  {
+    id: Date.now(),
+    productName: adjustingProduct,
+    type: adjustmentType,
+    quantity,
+    previousStock: product.stock,
+    newStock,
+    reason: adjustmentReason.trim(),
+    timestamp: new Date().toLocaleString('vi-VN'),
+  },
+  ...currentHistory,
+  ])
+
   setNotice(
     `Đã ${
       adjustmentType === 'import' ? 'nhập thêm' : 'xuất'
@@ -428,7 +518,34 @@ const submitInventoryAdjustment = () => {
   )
 
   closeInventoryAdjustment()
-}
+  }
+
+  const openOrderReview = (order: Order) => {
+    setReviewingOrderId(order.id)
+    setReviewNote(order.reviewNote)
+    setNotice('')
+  }
+
+  const saveOrderReview = () => {
+    if (!reviewingOrderId) return
+
+    if (!reviewNote.trim()) {
+      setNotice('Vui lòng nhập lý do hoặc ghi chú xử lý.')
+      return
+  }
+
+  setOrders((currentOrders) =>
+    currentOrders.map((order) =>
+      order.id === reviewingOrderId
+        ? { ...order, reviewNote: reviewNote.trim() }
+        : order,
+    ),
+  )
+
+  setNotice(`Đã lưu ghi chú xử lý cho đơn ${reviewingOrderId}.`)
+  setReviewingOrderId(null)
+  setReviewNote('')
+  }
 
   const handleAddProduct = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -801,21 +918,21 @@ const handleDeleteProduct = (product: Product) => {
               </tr>
             </thead>
             <tbody>
-              {transactions.map((transaction) => (
-                <tr key={transaction.id}>
-                  <td><strong>{transaction.id}</strong></td>
-                  <td>{transaction.product}</td>
-                  <td>{transaction.time}</td>
-                  <td>{transaction.amount}</td>
+              {orders.slice(0, 4).map((order) => (
+                <tr key={order.id}>
+                  <td><strong>{order.id}</strong></td>
+                  <td>{order.product}</td>
+                  <td>{order.time}</td>
+                  <td>{order.amount.toLocaleString('vi-VN')} ₫</td>
                   <td>
                     <span className={`status-pill ${
-                      transaction.status === 'Thành công'
+                      order.paymentStatus === 'Thành công'
                         ? 'success'
-                        : transaction.status === 'Thất bại'
+                        : order.paymentStatus === 'Thất bại'
                           ? 'danger'
                           : 'warning'
                     }`}>
-                      {transaction.status}
+                      {order.paymentStatus}
                     </span>
                   </td>
                 </tr>
@@ -1161,7 +1278,7 @@ const handleDeleteProduct = (product: Product) => {
   )
 
 
-const renderInventory = () => (
+  const renderInventory = () => (
   <>
     <section className="panel">
       <div className="panel-heading">
@@ -1309,35 +1426,343 @@ const renderInventory = () => (
         </form>
       </section>
     )}
-  </>
-)
-
-
-  const renderOrders = () => (
     <section className="panel">
-      <div className="panel-heading">
-        <div><h3>Đơn hàng & thanh toán</h3><p>Theo dõi giao dịch và kết quả cấp phát</p></div>
-      </div>
-      <div className="table-wrap">
-        <table>
-          <thead><tr><th>Mã đơn</th><th>Sản phẩm</th><th>Thời gian</th><th>Thanh toán</th><th>Trạng thái xử lý</th><th>Thao tác</th></tr></thead>
-          <tbody>
-            {transactions.map((transaction) => (
-              <tr key={transaction.id}>
-                <td><strong>{transaction.id}</strong></td>
-                <td>{transaction.product}</td>
-                <td>{transaction.time}</td>
-                <td>{transaction.amount}</td>
-                <td><span className={`status-pill ${transaction.status === 'Thành công' ? 'success' : transaction.status === 'Thất bại' ? 'danger' : 'warning'}`}>{transaction.status}</span></td>
-                <td>{transaction.status !== 'Thành công' && can('payment.refund') ? <button className="small-button" onClick={() => setNotice(`Đơn ${transaction.id} được đánh dấu cần xem xét hoàn tiền. Chưa có hoàn tiền thật.`)}>Xem xét</button> : <span className="muted">Chi tiết</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="panel-note">Hoàn tiền và kiểm tra kết quả phun cần tích hợp backend trước khi sử dụng thật.</p>
-    </section>
+  <div className="panel-heading">
+    <div>
+      <h3>Lịch sử điều chỉnh kho</h3>
+      <p>Theo dõi các lần nhập và xuất hàng</p>
+    </div>
+    <span className="status-pill neutral">
+      {inventoryHistory.length} giao dịch
+    </span>
+  </div>
+
+  <div className="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Thời gian</th>
+          <th>Sản phẩm</th>
+          <th>Loại điều chỉnh</th>
+          <th>Tồn trước</th>
+          <th>Thay đổi</th>
+          <th>Tồn sau</th>
+          <th>Lý do</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {inventoryHistory.map((item) => (
+          <tr key={item.id}>
+            <td>{item.timestamp}</td>
+            <td>
+              <strong>{item.productName}</strong>
+            </td>
+            <td>
+              <span
+                className={`status-pill ${
+                  item.type === 'import'
+                    ? 'success'
+                    : 'warning'
+                }`}
+              >
+                {item.type === 'import'
+                  ? 'Nhập kho'
+                  : 'Xuất kho'}
+              </span>
+            </td>
+            <td>{item.previousStock}</td>
+            <td>
+              <strong>
+                {item.type === 'import' ? '+' : '-'}
+                {item.quantity}
+              </strong>
+            </td>
+            <td>{item.newStock}</td>
+            <td>{item.reason}</td>
+          </tr>
+        ))}
+
+        {inventoryHistory.length === 0 && (
+          <tr>
+            <td colSpan={7}>
+              Chưa có lịch sử điều chỉnh kho.
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </div>
+
+  <p className="panel-note">
+      Lịch sử hiện được lưu trong bộ nhớ frontend,
+      chưa được lưu trữ lâu dài trên máy chủ.
+    </p>
+  </section>
+  </>
   )
+
+
+  
+const renderOrders = () => (
+  <section className="panel">
+    <div className="panel-heading">
+      <div>
+        <h3>Đơn hàng & thanh toán</h3>
+        <p>Theo dõi giao dịch và kết quả cấp phát</p>
+      </div>
+    </div>
+
+    {/* Tìm kiếm và lọc đơn hàng */}
+    <div
+      style={{
+        display: 'flex',
+        gap: '12px',
+        marginBottom: '16px',
+        flexWrap: 'wrap',
+      }}
+    >
+      <input
+        type="text"
+        placeholder="Tìm theo mã đơn hoặc tên sản phẩm..."
+        value={orderSearch}
+        onChange={(e) => setOrderSearch(e.target.value)}
+        style={{
+          padding: '10px 12px',
+          border: '1px solid #ddd',
+          borderRadius: '8px',
+          flex: '1',
+          minWidth: '220px',
+        }}
+      />
+
+      <select
+        value={orderStatusFilter}
+        onChange={(e) => setOrderStatusFilter(e.target.value)}
+        style={{
+          padding: '10px 12px',
+          border: '1px solid #ddd',
+          borderRadius: '8px',
+          minWidth: '180px',
+        }}
+      >
+        <option value="all">Tất cả trạng thái</option>
+        <option value="Thành công">Thanh toán thành công</option>
+        <option value="Thất bại">Thanh toán thất bại</option>
+        <option value="Đang xử lý">Đang xử lý thanh toán</option>
+        <option value="Hoàn tất">Đã cấp phát</option>
+        <option value="Cần kiểm tra">Cần kiểm tra cấp phát</option>
+        <option value="Chưa xử lý">Chưa xử lý cấp phát</option>
+      </select>
+    </div>
+
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Mã đơn</th>
+            <th>Sản phẩm</th>
+            <th>Thời gian</th>
+            <th>Số tiền</th>
+            <th>Thanh toán</th>
+            <th>Trạng thái xử lý</th>
+            <th>Thao tác</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {filteredOrders.map((order) => (
+            <tr key={order.id}>
+              <td>
+                <strong>{order.id}</strong>
+              </td>
+
+              <td>{order.product}</td>
+
+              <td>{order.time}</td>
+
+              <td>{order.amount.toLocaleString('vi-VN')} ₫</td>
+
+              <td>
+                <span
+                  className={`status-pill ${
+                    order.paymentStatus === 'Thành công'
+                      ? 'success'
+                      : order.paymentStatus === 'Thất bại'
+                        ? 'danger'
+                        : 'warning'
+                  }`}
+                >
+                  {order.paymentStatus}
+                </span>
+              </td>
+
+              <td>
+                <span
+                  className={`status-pill ${
+                    order.fulfillmentStatus === 'Hoàn tất'
+                      ? 'success'
+                      : order.fulfillmentStatus === 'Chưa xử lý'
+                        ? 'warning'
+                        : 'danger'
+                  }`}
+                >
+                  {order.fulfillmentStatus}
+                </span>
+              </td>         
+              <td>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  className="small-button"
+                  onClick={() => setSelectedOrder(order)}
+                >
+                Chi tiết
+                </button>
+
+                {order.paymentStatus !== 'Thành công' &&
+                can('payment.refund') && (
+                <button
+                  className="small-button"
+                  onClick={() => openOrderReview(order)}
+                >
+                Xem xét
+                </button>
+                )}
+              </div>
+              </td>
+            </tr>
+          ))}
+
+          {filteredOrders.length === 0 && (
+            <tr>
+              <td colSpan={7} style={{ textAlign: 'center', padding: '24px' }}>
+                Không tìm thấy đơn hàng phù hợp.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+
+    <p className="panel-note">
+      Hoàn tiền và kiểm tra kết quả phun cần tích hợp backend trước khi sử dụng thật.
+    </p>
+
+    
+    {reviewingOrderId && (
+      <section className="panel" style={{ marginTop: '16px' }}>
+        <div className="panel-heading">
+          <div>
+            <h3>Xử lý đơn hàng {reviewingOrderId}</h3>
+            <p>Ghi nhận kết quả kiểm tra đơn hàng</p>
+          </div>
+
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => {
+            setReviewingOrderId(null)
+            setReviewNote('')
+          }}
+        >
+          Hủy
+        </button>
+      </div>
+
+      <label htmlFor="orderReviewNote">
+        Lý do hoặc ghi chú xử lý
+      </label>
+
+      <textarea
+        id="orderReviewNote"
+        value={reviewNote}
+        onChange={(event) => setReviewNote(event.target.value)}
+        placeholder="Ví dụ: Thanh toán thành công nhưng chưa xác nhận cấp phát..."
+        rows={4}
+        style={{ width: '100%', marginTop: '8px' }}
+      />
+
+      <div style={{ marginTop: '12px' }}>
+        <button
+          type="button"
+          className="primary-button"
+          onClick={saveOrderReview}
+        >
+          Lưu xử lý
+        </button>
+      </div>
+    </section>
+    )}
+
+
+    {/* Cửa sổ chi tiết đơn hàng */}
+    {selectedOrder && (
+      <div
+        className="device-modal-overlay"
+        onClick={() => setSelectedOrder(null)}
+      >
+        <div
+          className="device-modal"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="panel-heading">
+            <div>
+              <h3>Chi tiết đơn hàng</h3>
+              <p>{selectedOrder.id}</p>
+            </div>
+
+            <button
+              className="small-button"
+              onClick={() => setSelectedOrder(null)}
+            >
+              Đóng
+            </button>
+          </div>
+
+          <div className="device-detail-grid">
+            <div className="device-detail-item">
+              <span>Mã đơn hàng</span>
+              <strong>{selectedOrder.id}</strong>
+            </div>
+
+            <div className="device-detail-item">
+              <span>Sản phẩm</span>
+              <strong>{selectedOrder.product}</strong>
+            </div>
+
+            <div className="device-detail-item">
+              <span>Thời gian</span>
+              <strong>{selectedOrder.time}</strong>
+            </div>
+
+            <div className="device-detail-item">
+              <span>Số tiền</span>
+              <strong>
+                {selectedOrder.amount.toLocaleString('vi-VN')} ₫
+              </strong>
+            </div>
+
+            <div className="device-detail-item">
+              <span>Trạng thái thanh toán</span>
+              <strong>{selectedOrder.paymentStatus}</strong>
+            </div>
+
+            <div className="device-detail-item">
+              <span>Trạng thái cấp phát</span>
+              <strong>{selectedOrder.fulfillmentStatus}</strong>
+            </div>
+
+            <div className="device-detail-item">
+              <span>Ghi chú xử lý</span>
+              <strong>{selectedOrder.reviewNote || 'Chưa có ghi chú'}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </section>
+  )
+
 
   const renderPlaceholder = () => {
     const content: Record<'alerts' | 'maintenance' | 'audit', { heading: string; description: string; rows: string[] }> = {
