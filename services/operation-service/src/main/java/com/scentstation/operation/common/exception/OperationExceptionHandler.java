@@ -1,8 +1,22 @@
-package com.scentstation.operation.inventory.batch.exception;
+package com.scentstation.operation.common.exception;
 
+import com.scentstation.operation.inventory.batch.exception.InvalidInventoryBatchDateException;
+import com.scentstation.operation.inventory.batch.exception.InventoryBatchAlreadyExistsException;
+import com.scentstation.operation.inventory.batch.exception.InventoryBatchExpiredException;
+import com.scentstation.operation.inventory.batch.exception.InventoryBatchNotFoundException;
 import com.scentstation.operation.inventory.bottle.exception.BottleAlreadyExistsException;
 import com.scentstation.operation.inventory.bottle.exception.BottleBatchMismatchException;
 import com.scentstation.operation.inventory.bottle.exception.BottleNotFoundException;
+import com.scentstation.operation.inventory.consumption.exception.BottleInstallationMismatchException;
+import com.scentstation.operation.inventory.consumption.exception.DispenseConsumptionNotFoundException;
+import com.scentstation.operation.inventory.consumption.exception.DuplicateDispenseCommandException;
+import com.scentstation.operation.inventory.consumption.exception.InsufficientBottleQuantityException;
+import com.scentstation.operation.inventory.estimation.exception.SprayCalibrationNotFoundException;
+import com.scentstation.operation.inventory.installation.exception.ActiveInstallationNotFoundException;
+import com.scentstation.operation.inventory.installation.exception.BottleAlreadyInstalledException;
+import com.scentstation.operation.inventory.installation.exception.BottleNotInstallableException;
+import com.scentstation.operation.inventory.installation.exception.SlotAlreadyOccupiedException;
+import com.scentstation.operation.inventory.refill.exception.BottleNotRefillableException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
@@ -10,16 +24,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import com.scentstation.operation.inventory.installation.exception.ActiveInstallationNotFoundException;
-import com.scentstation.operation.inventory.installation.exception.BottleAlreadyInstalledException;
-import com.scentstation.operation.inventory.installation.exception.BottleNotInstallableException;
-import com.scentstation.operation.inventory.installation.exception.SlotAlreadyOccupiedException;
-import com.scentstation.operation.inventory.refill.exception.BottleNotRefillableException;
-import com.scentstation.operation.inventory.consumption.exception.BottleInstallationMismatchException;
-import com.scentstation.operation.inventory.consumption.exception.DuplicateDispenseCommandException;
-import com.scentstation.operation.inventory.consumption.exception.InsufficientBottleQuantityException;
-import com.scentstation.operation.inventory.consumption.exception.DispenseConsumptionNotFoundException;
-import com.scentstation.operation.inventory.estimation.exception.SprayCalibrationNotFoundException;
+import com.scentstation.operation.inventory.reconciliation.exception.SensorInstallationMismatchException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -145,17 +150,17 @@ public class OperationExceptionHandler {
         );
     }
 
-        @ExceptionHandler(SprayCalibrationNotFoundException.class)
-        public ResponseEntity<ApiErrorResponse> handleSprayCalibrationNotFound(
-                SprayCalibrationNotFoundException exception,
-                HttpServletRequest request
-        ) {
+    @ExceptionHandler(SprayCalibrationNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleSprayCalibrationNotFound(
+            SprayCalibrationNotFoundException exception,
+            HttpServletRequest request
+    ) {
         return buildResponse(
                 HttpStatus.BAD_REQUEST,
                 exception.getMessage(),
                 request
         );
-        }
+    }
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
@@ -289,4 +294,16 @@ public class OperationExceptionHandler {
                 request
         );
     }
+
+        @ExceptionHandler(SensorInstallationMismatchException.class)
+        public ResponseEntity<ApiErrorResponse> handleSensorInstallationMismatch(
+                SensorInstallationMismatchException exception,
+                HttpServletRequest request
+        ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                exception.getMessage(),
+                request
+        );
+        }
 }

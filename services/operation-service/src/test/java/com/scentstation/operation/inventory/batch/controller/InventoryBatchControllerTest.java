@@ -1,6 +1,7 @@
 package com.scentstation.operation.inventory.batch.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scentstation.operation.common.exception.OperationExceptionHandler;
 import com.scentstation.operation.inventory.batch.dto.request.CreateInventoryBatchRequest;
 import com.scentstation.operation.inventory.batch.dto.response.InventoryBatchResponse;
 import com.scentstation.operation.inventory.batch.exception.InvalidInventoryBatchDateException;
@@ -14,7 +15,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import com.scentstation.operation.inventory.batch.exception.OperationExceptionHandler;
 
 import java.time.LocalDate;
 import java.util.List;

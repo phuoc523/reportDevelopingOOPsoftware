@@ -1,7 +1,7 @@
 package com.scentstation.operation.inventory.installation.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.scentstation.operation.inventory.batch.exception.OperationExceptionHandler;
+import com.scentstation.operation.common.exception.OperationExceptionHandler;
 import com.scentstation.operation.inventory.installation.dto.request.InstallBottleRequest;
 import com.scentstation.operation.inventory.installation.dto.request.RemoveBottleRequest;
 import com.scentstation.operation.inventory.installation.dto.request.ReplaceBottleRequest;

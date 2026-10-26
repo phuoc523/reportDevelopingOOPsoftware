@@ -32,6 +32,7 @@ public class BottleInstallationService {
     private final BottleMovementRepository bottleMovementRepository;
     private final BottleInstallationMapper bottleInstallationMapper;
 
+    // Lắp chai vào slot trống, đổi trạng thái chai và ghi lịch sử INSTALL.
     @Transactional
     public BottleInstallationResponse installBottle(
             InstallBottleRequest request
@@ -73,6 +74,7 @@ public class BottleInstallationService {
         );
     }
 
+    // Tháo chai khỏi máy, đóng bản ghi lắp đặt và ghi lịch sử REMOVE.
     @Transactional
     public BottleInstallationResponse removeBottle(
             RemoveBottleRequest request
@@ -117,6 +119,7 @@ public class BottleInstallationService {
         );
     }
 
+    // Thay chai tại cùng machine/slot và ghi lịch sử cho cả hai chai.
     @Transactional
     public BottleInstallationResponse replaceBottle(
             ReplaceBottleRequest request
@@ -188,6 +191,7 @@ public class BottleInstallationService {
         );
     }
 
+    // Lấy chai thuộc tenant hoặc báo lỗi nếu không tồn tại.
     private Bottle getBottle(
             Long tenantId,
             Long bottleId
@@ -205,6 +209,7 @@ public class BottleInstallationService {
                 );
     }
 
+    // Chỉ cho phép lắp chai đang ở trạng thái AVAILABLE.
     private void validateBottleStatus(
             Bottle bottle
     ) {
@@ -216,6 +221,7 @@ public class BottleInstallationService {
         }
     }
 
+    // Bảo đảm chai chưa có bản ghi lắp đặt đang hoạt động.
     private void validateBottleNotAlreadyInstalled(
             Long tenantId,
             Long bottleId
@@ -234,6 +240,7 @@ public class BottleInstallationService {
         }
     }
 
+    // Bảo đảm slot mục tiêu chưa bị một chai khác chiếm dụng.
     private void validateSlotAvailable(
             Long tenantId,
             Long machineId,
@@ -255,6 +262,7 @@ public class BottleInstallationService {
         }
     }
 
+    // Ghi lịch sử INSTALL mà không làm thay đổi lượng trong chai.
     private void saveMovement(
             InstallBottleRequest request,
             Bottle bottle
@@ -274,6 +282,7 @@ public class BottleInstallationService {
 
         bottleMovementRepository.save(movement);
     }
+    // Trả chai đã tháo từ INSTALLED về AVAILABLE.
     private void updateBottleStatusAfterRemoval(
             Bottle bottle
     ) {
@@ -282,6 +291,7 @@ public class BottleInstallationService {
         }
     }
 
+    // Ghi lịch sử REMOVE cùng machine, slot và lý do thao tác.
     private void saveRemoveMovement(
             RemoveBottleRequest request,
             Bottle bottle,
@@ -303,6 +313,7 @@ public class BottleInstallationService {
         bottleMovementRepository.save(movement);
     }
 
+    // Ghi hai lịch sử REPLACE cho chai cũ và chai mới tại cùng vị trí.
     private void saveReplaceMovement(
             ReplaceBottleRequest request,
             Bottle oldBottle,

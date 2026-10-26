@@ -27,6 +27,7 @@ public class BottleService {
     private final InventoryBatchRepository inventoryBatchRepository;
     private final BottleMapper bottleMapper;
 
+    // Tạo chai mới sau khi kiểm tra mã chai, lô hàng, sản phẩm và hạn dùng.
     @Transactional
     public BottleResponse createBottle(
             CreateBottleRequest request
@@ -49,6 +50,7 @@ public class BottleService {
         return bottleMapper.toResponse(savedBottle);
     }
 
+    // Tìm chai theo tenant và id, báo lỗi nếu không tồn tại.
     @Transactional(readOnly = true)
     public BottleResponse getBottleById(
             Long tenantId,
@@ -66,6 +68,7 @@ public class BottleService {
         return bottleMapper.toResponse(bottle);
     }
 
+    // Lấy toàn bộ chai thuộc một tenant.
     @Transactional(readOnly = true)
     public List<BottleResponse> getBottlesByTenant(
             Long tenantId
@@ -77,6 +80,7 @@ public class BottleService {
                 .toList();
     }
 
+    // Lọc chai của tenant theo lô hàng.
     @Transactional(readOnly = true)
     public List<BottleResponse> getBottlesByTenantAndBatch(
             Long tenantId,
@@ -92,6 +96,7 @@ public class BottleService {
                 .toList();
     }
 
+    // Lọc chai của tenant theo sản phẩm.
     @Transactional(readOnly = true)
     public List<BottleResponse> getBottlesByTenantAndProduct(
             Long tenantId,
@@ -107,6 +112,7 @@ public class BottleService {
                 .toList();
     }
 
+    // Bảo đảm mã chai không bị trùng trong cùng tenant.
     private void validateBottleCodeUniqueness(
             CreateBottleRequest request
     ) {
@@ -124,6 +130,7 @@ public class BottleService {
         }
     }
 
+    // Lấy đúng lô hàng của tenant hoặc báo lỗi nếu không tìm thấy.
     private InventoryBatch getValidBatch(
             CreateBottleRequest request
     ) {
@@ -140,6 +147,7 @@ public class BottleService {
                 );
     }
 
+    // Bảo đảm chai và lô hàng cùng tham chiếu một sản phẩm.
     private void validateProductMatchesBatch(
             CreateBottleRequest request,
             InventoryBatch batch
@@ -154,6 +162,7 @@ public class BottleService {
         }
     }
 
+    // Không cho phép tạo chai từ một lô hàng đã hết hạn.
     private void validateBatchNotExpired(
             InventoryBatch batch
     ) {

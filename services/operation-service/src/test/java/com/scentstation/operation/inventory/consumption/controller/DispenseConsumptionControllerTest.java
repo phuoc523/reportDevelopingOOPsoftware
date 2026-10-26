@@ -1,7 +1,7 @@
 package com.scentstation.operation.inventory.consumption.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.scentstation.operation.inventory.batch.exception.OperationExceptionHandler;
+import com.scentstation.operation.common.exception.OperationExceptionHandler;
 import com.scentstation.operation.inventory.bottle.enums.BottleStatus;
 import com.scentstation.operation.inventory.consumption.dto.request.RecordDispenseRequest;
 import com.scentstation.operation.inventory.consumption.dto.response.DispenseConsumptionResponse;

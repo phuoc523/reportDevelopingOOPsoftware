@@ -22,6 +22,7 @@ public class RemainingSprayService {
     private final BottleRepository bottleRepository;
     private final DispenseConsumptionRepository dispenseConsumptionRepository;
 
+    // Cập nhật định mức tiêu thụ mỗi lần xịt và trả lại ước tính mới.
     @Transactional
     public RemainingSprayResponse updateCalibration(
             UpdateSprayCalibrationRequest request
@@ -40,6 +41,7 @@ public class RemainingSprayService {
         return buildResponse(bottle);
     }
 
+    // Tính số lần xịt còn lại từ lượng hiện có và định mức đã hiệu chuẩn.
     @Transactional(readOnly = true)
     public RemainingSprayResponse getRemainingSprays(
             Long tenantId,
@@ -55,6 +57,7 @@ public class RemainingSprayService {
         return buildResponse(bottle);
     }
 
+    // Lấy chai thuộc tenant hoặc báo lỗi nếu không tồn tại.
     private Bottle getBottle(
             Long tenantId,
             Long bottleId
@@ -72,6 +75,7 @@ public class RemainingSprayService {
                 );
     }
 
+    // Bảo đảm chai có định mức tiêu thụ hợp lệ trước khi ước tính.
     private void validateCalibration(
             Bottle bottle
     ) {
@@ -85,6 +89,7 @@ public class RemainingSprayService {
         }
     }
 
+    // Tổng hợp ước tính còn lại và số lần dispense thành công thành response.
     private RemainingSprayResponse buildResponse(
             Bottle bottle
     ) {
@@ -118,6 +123,7 @@ public class RemainingSprayService {
                 .build();
     }
 
+    // Chia lượng còn lại cho định mức và làm tròn xuống số lần xịt nguyên.
     private long calculateRemainingSprays(
             Bottle bottle
     ) {

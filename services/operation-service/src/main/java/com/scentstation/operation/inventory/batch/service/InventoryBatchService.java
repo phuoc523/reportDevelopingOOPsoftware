@@ -21,6 +21,7 @@ public class InventoryBatchService {
     private final InventoryBatchRepository inventoryBatchRepository;
     private final InventoryBatchMapper inventoryBatchMapper;
 
+    // Tạo lô hàng mới sau khi kiểm tra mã lô và khoảng ngày hợp lệ.
     @Transactional
     public InventoryBatchResponse createBatch(
             CreateInventoryBatchRequest request
@@ -36,6 +37,7 @@ public class InventoryBatchService {
         return inventoryBatchMapper.toResponse(savedBatch);
     }
 
+    // Lấy toàn bộ lô hàng thuộc một tenant.
     @Transactional(readOnly = true)
     public List<InventoryBatchResponse> getBatchesByTenant(
             Long tenantId
@@ -47,6 +49,7 @@ public class InventoryBatchService {
                 .toList();
     }
 
+    // Lọc các lô hàng của tenant theo sản phẩm.
     @Transactional(readOnly = true)
     public List<InventoryBatchResponse> getBatchesByTenantAndProduct(
             Long tenantId,
@@ -59,6 +62,7 @@ public class InventoryBatchService {
                 .toList();
     }
 
+    // Tìm một lô hàng theo tenant và id, báo lỗi nếu không tồn tại.
     @Transactional(readOnly = true)
     public InventoryBatchResponse getBatchById(Long tenantId, Long id) {
         InventoryBatch batch = inventoryBatchRepository
@@ -66,6 +70,7 @@ public class InventoryBatchService {
                 .orElseThrow(() -> new InventoryBatchNotFoundException(tenantId, id));
         return inventoryBatchMapper.toResponse(batch);
     }
+    // Bảo đảm mã lô không bị trùng trong cùng tenant.
     private void validateBatchCodeUniqueness(
             CreateInventoryBatchRequest request
     ) {
@@ -83,6 +88,7 @@ public class InventoryBatchService {
         }
     }
 
+    // Bảo đảm ngày hết hạn không đứng trước ngày nhận hàng.
     private void validateDates(
             CreateInventoryBatchRequest request
     ) {

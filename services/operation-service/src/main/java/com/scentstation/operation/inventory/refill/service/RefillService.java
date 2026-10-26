@@ -26,6 +26,7 @@ public class RefillService {
     private final BottleInstallationRepository bottleInstallationRepository;
     private final BottleMovementRepository bottleMovementRepository;
 
+    // Nạp thêm dung lượng cho chai, cập nhật trạng thái và ghi lịch sử biến động.
     @Transactional
     public RefillBottleResponse refillBottle(
             RefillBottleRequest request
@@ -81,6 +82,7 @@ public class RefillService {
                 .build();
     }
 
+    // Chặn thao tác nạp lại với chai hỏng hoặc hết hạn.
     private void validateRefillable(
             Bottle bottle
     ) {
@@ -94,6 +96,7 @@ public class RefillService {
         }
     }
 
+    // Khôi phục trạng thái chai dựa trên việc chai có đang được lắp hay không.
     private void updateStatusAfterRefill(
             Bottle bottle,
             Long tenantId
@@ -112,6 +115,7 @@ public class RefillService {
         }
     }
 
+    // Ghi nhận biến động tồn kho loại REFILL để phục vụ truy vết.
     private void saveMovement(
             RefillBottleRequest request,
             Bottle bottle,

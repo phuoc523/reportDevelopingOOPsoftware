@@ -30,6 +30,7 @@ public class DispenseConsumptionService {
     private final BottleRepository bottleRepository;
     private final BottleInstallationRepository bottleInstallationRepository;
 
+    // Ghi nhận một lần dispense; chỉ trừ tồn kho khi kết quả thành công.
     @Transactional
     public DispenseConsumptionResponse recordDispense(
             RecordDispenseRequest request
@@ -108,6 +109,7 @@ public class DispenseConsumptionService {
         );
     }
 
+    // Tra cứu kết quả dispense bằng command id trong phạm vi tenant.
     @Transactional(readOnly = true)
     public DispenseConsumptionResponse getByCommandId(
             Long tenantId,
@@ -137,6 +139,7 @@ public class DispenseConsumptionService {
         );
     }
 
+    // Ngăn xử lý lặp lại cùng một command dispense.
     private void validateCommandNotProcessed(
             RecordDispenseRequest request
     ) {
@@ -155,6 +158,7 @@ public class DispenseConsumptionService {
         }
     }
 
+    // Lấy chai thuộc tenant hoặc báo lỗi nếu không tồn tại.
     private Bottle getBottle(
             Long tenantId,
             Long bottleId
@@ -172,6 +176,7 @@ public class DispenseConsumptionService {
                 );
     }
 
+    // Lấy bản ghi lắp đặt đang hoạt động của chai.
     private BottleInstallation getActiveInstallation(
             Long tenantId,
             Long bottleId
@@ -189,6 +194,7 @@ public class DispenseConsumptionService {
                 );
     }
 
+    // Bảo đảm machine và slot trong yêu cầu khớp vị trí lắp đặt thực tế.
     private void validateInstallationMatchesRequest(
             RecordDispenseRequest request,
             BottleInstallation installation
@@ -210,6 +216,7 @@ public class DispenseConsumptionService {
         }
     }
 
+    // Bảo đảm chai còn đủ lượng để thực hiện dispense.
     private void validateSufficientQuantity(
             Bottle bottle,
             BigDecimal consumedQuantity
@@ -225,6 +232,7 @@ public class DispenseConsumptionService {
         }
     }
 
+    // Chuyển chai sang EMPTY khi lượng còn lại bằng không.
     private void updateBottleStatusAfterConsumption(
             Bottle bottle,
             BigDecimal quantityAfter
@@ -234,6 +242,7 @@ public class DispenseConsumptionService {
         }
     }
 
+    // Chuyển bản ghi tiêu thụ và trạng thái chai thành dữ liệu trả về API.
     private DispenseConsumptionResponse toResponse(
             DispenseConsumption consumption,
             Bottle bottle

@@ -1,4 +1,4 @@
-package com.scentstation.operation.inventory.batch.exception;
+package com.scentstation.operation.common.exception;
 
 import java.time.LocalDateTime;
 
