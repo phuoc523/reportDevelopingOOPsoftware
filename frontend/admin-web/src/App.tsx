@@ -1,6 +1,9 @@
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
+// import { mockDevices } from './data/mockDevices';
+import type { Device } from './types/device';
+import { deviceService } from './services/deviceService';
 
 type Role =
   | 'Admin'
@@ -12,6 +15,7 @@ type Role =
 type Page =
   | 'dashboard'
   | 'products'
+  | 'campaigns'
   | 'inventory'
   | 'devices'
   | 'alerts'
@@ -44,6 +48,12 @@ const navigation: {
     label: 'Sản phẩm',
     icon: '◈',
     permission: ['Admin', 'Operator', 'Inventory Manager'],
+  },
+  {
+    id: 'campaigns',
+    label: 'Chiến dịch',
+    icon: '◷',
+    permission: ['Admin', 'Operator'],
   },
   {
     id: 'inventory',
@@ -130,36 +140,66 @@ const initialProducts: Product[] = [
   },
 ]
 
-const devices = [
+type Campaign = {
+  id: number
+  name: string
+  startDate: string
+  endDate: string
+}
+
+const initialCampaigns: Campaign[] = [
   {
-    name: 'Đầu phun SP-001',
-    product: 'Citrus No. 08',
-    location: 'Tầng 1 · Sảnh chính',
-    status: 'Online',
-    stock: '82%',
+    id: 1,
+    name: 'Ưu đãi khai trương',
+    startDate: '2026-10-20',
+    endDate: '2026-10-30',
   },
   {
-    name: 'Đầu phun SP-002',
-    product: 'Ocean Breeze',
-    location: 'Tầng 2 · Khu mua sắm',
-    status: 'Online',
-    stock: '45%',
+    id: 2,
+    name: 'Tuần lễ hương thơm',
+    startDate: '2026-10-25',
+    endDate: '2026-11-05',
   },
   {
-    name: 'Đầu phun SP-003',
-    product: 'Rose Velvet',
-    location: 'Tầng 3 · Khu dịch vụ',
-    status: 'Offline',
-    stock: '12%',
-  },
-  {
-    name: 'Đầu phun SP-004',
-    product: 'Woody Night',
-    location: 'Tầng 3 · Khu dịch vụ',
-    status: 'Online',
-    stock: '0%',
+    id: 3,
+    name: 'Khuyến mãi mùa hè',
+    startDate: '2026-06-01',
+    endDate: '2026-06-30',
   },
 ]
+
+// const devices: Device[] = mockDevices;
+
+// const devices = [
+//   {
+//     name: 'Đầu phun SP-001',
+//     product: 'Citrus No. 08',
+//     location: 'Tầng 1 · Sảnh chính',
+//     status: 'Online',
+//     stock: '82%',
+//   },
+//   {
+//     name: 'Đầu phun SP-002',
+//     product: 'Ocean Breeze',
+//     location: 'Tầng 2 · Khu mua sắm',
+//     status: 'Online',
+//     stock: '45%',
+//   },
+//   {
+//     name: 'Đầu phun SP-003',
+//     product: 'Rose Velvet',
+//     location: 'Tầng 3 · Khu dịch vụ',
+//     status: 'Offline',
+//     stock: '12%',
+//   },
+//   {
+//     name: 'Đầu phun SP-004',
+//     product: 'Woody Night',
+//     location: 'Tầng 3 · Khu dịch vụ',
+//     status: 'Online',
+//     stock: '0%',
+//   },
+// ]
 
 
 const transactions = [
@@ -172,6 +212,7 @@ const transactions = [
 const pageTitles: Record<Page, string> = {
   dashboard: 'Tổng quan hệ thống',
   products: 'Quản lý sản phẩm',
+  campaigns: 'Quản lý chiến dịch',
   inventory: 'Quản lý tồn kho',
   devices: 'Quản lý máy phun',
   alerts: 'Cảnh báo hệ thống',
@@ -183,13 +224,55 @@ const pageTitles: Record<Page, string> = {
 function App() {
   const [role, setRole] = useState<Role>('Admin')
   const [products, setProducts] = useState<Product[]>(initialProducts)
+  const [campaigns] = useState<Campaign[]>(initialCampaigns)
   const [showProductForm, setShowProductForm] = useState(false)
   const [editingProduct, setEditingProduct] = useState<string | null>(null)
+  const [devices, setDevices] = useState<Device[]>([])
+  const [devicesLoading, setDevicesLoading] = useState(true)
+  const [devicesError, setDevicesError] = useState('')
+  useEffect(() => {
+  let cancelled = false
+
+  const loadDevices = async () => {
+    try {
+      setDevicesLoading(true)
+      setDevicesError('')
+
+      const data = await deviceService.getDevices()
+
+      if (!cancelled) {
+        setDevices(data)
+      }
+    } catch {
+      if (!cancelled) {
+        setDevicesError('Không thể tải danh sách máy phun.')
+      }
+    } finally {
+      if (!cancelled) {
+        setDevicesLoading(false)
+      }
+    }
+  }
+
+  void loadDevices()
+
+  return () => {
+    cancelled = true
+  }
+  }, [])
   const [productForm, setProductForm] = useState<ProductForm>({
     name: '',
     category: '',
     price: '',
     stock: '0',})
+  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null)
+  const openDeviceDetail = (device: Device) => {
+  setSelectedDevice(device)
+}
+
+const closeDeviceDetail = () => {
+  setSelectedDevice(null)
+}
   const [page, setPage] = useState<Page>('dashboard')
   const [loggedIn, setLoggedIn] = useState(false)
   const [email, setEmail] = useState('admin@example.com')
@@ -347,8 +430,8 @@ const submitInventoryAdjustment = () => {
   closeInventoryAdjustment()
 }
 
-const handleAddProduct = (event: React.FormEvent<HTMLFormElement>) => {
-  event.preventDefault()
+  const handleAddProduct = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
 
   const name = productForm.name.trim()
   const category = productForm.category.trim()
@@ -603,6 +686,13 @@ const handleDeleteProduct = (product: Product) => {
               Xem tồn kho →
             </button>
           </div>
+          {devicesLoading && (
+            <p className="panel-note">Đang tải danh sách máy phun...</p>
+          )}
+
+          {devicesError && (
+            <p className="panel-note">{devicesError}</p>
+        )}
           <div className="table-wrap">
             <table>
               <thead>
@@ -663,7 +753,7 @@ const handleDeleteProduct = (product: Product) => {
             <button className="icon-button" onClick={() => setPage('devices')}>↗</button>
           </div>
           <div className="device-list">
-            {devices.map((device) => (
+            {!devicesLoading && !devicesError && devices.map((device) => (
               <div className="device-row" key={device.name}>
                 <div className="device-symbol">▣</div>
                 <div className="device-info">
@@ -903,6 +993,104 @@ const handleDeleteProduct = (product: Product) => {
     </section>
   )
 
+  const renderCampaigns = () => {
+  // Lấy ngày hiện tại theo múi giờ máy người dùng.
+  const now = new Date()
+  const today = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-')
+
+  const getCampaignStatus = (campaign: Campaign) => {
+    if (today < campaign.startDate) {
+      return {
+        label: 'Sắp diễn ra',
+        className: 'warning',
+      }
+    }
+
+    if (today > campaign.endDate) {
+      return {
+        label: 'Đã kết thúc',
+        className: 'neutral',
+      }
+    }
+
+    return {
+      label: 'Đang diễn ra',
+      className: 'success',
+    }
+  }
+
+  const formatDate = (date: string) => {
+    const [year, month, day] = date.split('-')
+    return `${day}/${month}/${year}`
+  }
+
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <h3>Danh sách chiến dịch</h3>
+          <p>Thời gian áp dụng và trạng thái các chiến dịch</p>
+        </div>
+      </div>
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>STT</th>
+              <th>Tên chiến dịch</th>
+              <th>Ngày bắt đầu</th>
+              <th>Ngày kết thúc</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {campaigns.map((campaign, index) => {
+              const status = getCampaignStatus(campaign)
+
+              return (
+                <tr key={campaign.id}>
+                  <td>{index + 1}</td>
+
+                  <td>
+                    <strong>{campaign.name}</strong>
+                  </td>
+
+                  <td>{formatDate(campaign.startDate)}</td>
+
+                  <td>{formatDate(campaign.endDate)}</td>
+
+                  <td>
+                    <span className={`status-pill ${status.className}`}>
+                      {status.label}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+
+            {campaigns.length === 0 && (
+              <tr>
+                <td colSpan={5}>Chưa có chiến dịch nào.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="panel-note">
+        Trạng thái được xác định tự động theo ngày hiện tại.
+        Dữ liệu chiến dịch hiện là dữ liệu mẫu trên frontend.
+      </p>
+    </section>
+  )
+  }
+
   const renderDevices = () => (
     <section className="panel">
       <div className="panel-heading">
@@ -926,15 +1114,42 @@ const handleDeleteProduct = (product: Product) => {
           <tbody>
             {devices.map((device) => (
               <tr key={device.name}>
-                <td><strong>{device.name}</strong></td>
+                <td>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => openDeviceDetail(device)}
+                  >
+                    {device.name}
+                  </button>
+                </td>
                 <td>{device.product}</td>
                 <td>{device.location}</td>
                 <td><span className={`status-pill ${device.status === 'Online' ? 'success' : 'danger'}`}>{device.status}</span></td>
-                <td>{device.stock}</td>
+                <td>{device.stock}%</td>
                 <td>
-                  {can('device.diagnostic_spray') && device.status === 'Online' ? (
-                    <button className="small-button" onClick={() => setNotice(`Đã yêu cầu mô phỏng phun thử trên ${device.name}. Chưa gửi lệnh tới thiết bị thật.`)}>Phun thử</button>
-                  ) : <span className="muted">Chỉ xem</span>}
+                  <div className="product-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => openDeviceDetail(device)}
+                    >
+                    Chi tiết
+                    </button>
+
+                    {can('device.diagnostic_spray') &&
+                    device.status === 'Online' ? (
+                    <button
+                      type="button"
+                      className="small-button"
+                      onClick={() =>
+                        setNotice(`Đã yêu cầu mô phỏng phun thử trên ${device.name}. Chưa gửi lệnh tới thiết bị thật.`)
+                      }
+                    >
+                    Phun thử
+                    </button>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1266,6 +1481,7 @@ const renderInventory = () => (
 
           {page === 'dashboard' && renderDashboard()}
           {page === 'products' && renderProducts()}
+          {page === 'campaigns' && renderCampaigns()}
           {page === 'inventory' && renderInventory()}
           {page === 'devices' && renderDevices()}
           {page === 'orders' && renderOrders()}
@@ -1275,10 +1491,99 @@ const renderInventory = () => (
             <span>© 2026 SCENTOS · Admin Console</span>
             <span>Frontend prototype · Mock data</span>
           </footer>
+          {selectedDevice && (
+            <div
+              className="device-modal-overlay"
+              onClick={closeDeviceDetail}
+            >
+            <section
+              className="device-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="device-detail-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+            <div className="panel-heading">
+              <div>
+                <span className="eyebrow">DEVICE DETAILS</span>
+                <h2 id="device-detail-title">
+                {selectedDevice.name}
+                </h2>
+                <p>Thông tin chi tiết thiết bị</p>
+              </div>
+
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={closeDeviceDetail}
+                aria-label="Đóng chi tiết thiết bị"
+              >
+              Đóng ✕
+              </button>
+            </div>
+
+      <div className="device-detail-grid">
+        <div className="device-detail-item">
+          <span>Mã thiết bị</span>
+          <strong>{selectedDevice.id}</strong>
+        </div>
+
+        <div className="device-detail-item">
+          <span>Trạng thái kết nối</span>
+          <strong>
+            <span
+              className={`status-pill ${
+                selectedDevice.status === 'Online'
+                  ? 'success'
+                  : 'danger'
+              }`}
+            >
+              {selectedDevice.status}
+            </span>
+          </strong>
+        </div>
+
+        <div className="device-detail-item">
+          <span>Sản phẩm sử dụng</span>
+          <strong>{selectedDevice.product}</strong>
+        </div>
+
+        <div className="device-detail-item">
+          <span>Vị trí lắp đặt</span>
+          <strong>{selectedDevice.location}</strong>
+        </div>
+
+        <div className="device-detail-item device-detail-stock">
+          <span>Mức dung dịch ước tính</span>
+          <strong>{selectedDevice.stock}%</strong>
+
+          <div className="device-stock-track">
+            <div
+              className="device-stock-fill"
+              style={{
+                width: `${Math.max(
+                  0,
+                  Math.min(100, selectedDevice.stock)
+                )}%`,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <p className="panel-note">
+        Thông tin đang sử dụng dữ liệu mẫu trên frontend.
+        Trạng thái và mức dung dịch chưa được xác nhận từ thiết bị thật.
+      </p>
+    </section>
+  </div>
+)}
         </div>
       </main>
     </div>
   )
+
+  
 }
 
 export default App
