@@ -12,6 +12,10 @@ import com.scentstation.operation.inventory.installation.exception.BottleNotInst
 import com.scentstation.operation.inventory.installation.exception.SlotAlreadyOccupiedException;
 import com.scentstation.operation.inventory.installation.mapper.BottleInstallationMapper;
 import com.scentstation.operation.inventory.installation.repository.BottleInstallationRepository;
+import com.scentstation.operation.inventory.integration.machine.client.MachineSlotClient;
+import com.scentstation.operation.inventory.integration.machine.dto.MachineSlotInfo;
+import com.scentstation.operation.inventory.integration.machine.exception.MachineSlotProductMismatchException;
+import com.scentstation.operation.inventory.integration.machine.exception.MachineSlotUnavailableException;
 import com.scentstation.operation.inventory.movement.entity.BottleMovement;
 import com.scentstation.operation.inventory.movement.enums.BottleMovementType;
 import com.scentstation.operation.inventory.movement.repository.BottleMovementRepository;
@@ -31,6 +35,7 @@ public class BottleInstallationService {
     private final BottleInstallationRepository bottleInstallationRepository;
     private final BottleMovementRepository bottleMovementRepository;
     private final BottleInstallationMapper bottleInstallationMapper;
+    private final MachineSlotClient machineSlotClient;
 
     // Lắp chai vào slot trống, đổi trạng thái chai và ghi lịch sử INSTALL.
     @Transactional
@@ -50,6 +55,13 @@ public class BottleInstallationService {
         );
 
         validateSlotAvailable(
+                request.getTenantId(),
+                request.getMachineId(),
+                request.getSlotId()
+        );
+
+        validateMachineSlot(
+                bottle,
                 request.getTenantId(),
                 request.getMachineId(),
                 request.getSlotId()
@@ -152,6 +164,13 @@ public class BottleInstallationService {
         validateBottleNotAlreadyInstalled(
                 request.getTenantId(),
                 request.getNewBottleId()
+        );
+
+        validateMachineSlot(
+                newBottle,
+                request.getTenantId(),
+                oldInstallation.getMachineId(),
+                oldInstallation.getSlotId()
         );
 
         oldInstallation.setActive(false);
@@ -258,6 +277,36 @@ public class BottleInstallationService {
             throw new SlotAlreadyOccupiedException(
                     machineId,
                     slotId
+            );
+        }
+    }
+
+    private void validateMachineSlot(
+            Bottle bottle,
+            Long tenantId,
+            Long machineId,
+            Long slotId
+    ) {
+        MachineSlotInfo slot = machineSlotClient.getSlot(
+                tenantId,
+                machineId,
+                slotId
+        );
+
+        if (!slot.isActive() || slot.isMaintenanceMode()) {
+            throw new MachineSlotUnavailableException(
+                    machineId,
+                    slotId
+            );
+        }
+
+        if (slot.getProductId() != null
+                && !slot.getProductId().equals(bottle.getProductId())) {
+            throw new MachineSlotProductMismatchException(
+                    machineId,
+                    slotId,
+                    bottle.getProductId(),
+                    slot.getProductId()
             );
         }
     }

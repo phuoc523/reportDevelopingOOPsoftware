@@ -16,6 +16,8 @@ import com.scentstation.operation.inventory.installation.exception.ActiveInstall
 import com.scentstation.operation.inventory.installation.exception.BottleAlreadyInstalledException;
 import com.scentstation.operation.inventory.installation.exception.BottleNotInstallableException;
 import com.scentstation.operation.inventory.installation.exception.SlotAlreadyOccupiedException;
+import com.scentstation.operation.inventory.integration.machine.exception.MachineSlotProductMismatchException;
+import com.scentstation.operation.inventory.integration.machine.exception.MachineSlotUnavailableException;
 import com.scentstation.operation.inventory.refill.exception.BottleNotRefillableException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -290,6 +292,30 @@ public class OperationExceptionHandler {
     ) {
         return buildResponse(
                 HttpStatus.BAD_REQUEST,
+                exception.getMessage(),
+                request
+        );
+    }
+
+    @ExceptionHandler(MachineSlotUnavailableException.class)
+    public ResponseEntity<ApiErrorResponse> handleMachineSlotUnavailable(
+            MachineSlotUnavailableException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                exception.getMessage(),
+                request
+        );
+    }
+
+    @ExceptionHandler(MachineSlotProductMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> handleMachineSlotProductMismatch(
+            MachineSlotProductMismatchException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
                 exception.getMessage(),
                 request
         );

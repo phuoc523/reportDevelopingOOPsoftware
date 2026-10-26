@@ -14,6 +14,10 @@ import com.scentstation.operation.inventory.installation.exception.BottleNotInst
 import com.scentstation.operation.inventory.installation.exception.SlotAlreadyOccupiedException;
 import com.scentstation.operation.inventory.installation.mapper.BottleInstallationMapper;
 import com.scentstation.operation.inventory.installation.repository.BottleInstallationRepository;
+import com.scentstation.operation.inventory.integration.machine.client.MachineSlotClient;
+import com.scentstation.operation.inventory.integration.machine.dto.MachineSlotInfo;
+import com.scentstation.operation.inventory.integration.machine.exception.MachineSlotProductMismatchException;
+import com.scentstation.operation.inventory.integration.machine.exception.MachineSlotUnavailableException;
 import com.scentstation.operation.inventory.movement.entity.BottleMovement;
 import com.scentstation.operation.inventory.movement.repository.BottleMovementRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +48,9 @@ class BottleInstallationServiceTest {
 
     @Mock
     private BottleInstallationMapper bottleInstallationMapper;
+
+    @Mock
+    private MachineSlotClient machineSlotClient;
 
     @InjectMocks
     private BottleInstallationService bottleInstallationService;
@@ -112,6 +119,9 @@ class BottleInstallationServiceTest {
                 ))
                 .thenReturn(false);
 
+        when(machineSlotClient.getSlot(1L, 3L, 2L))
+                .thenReturn(machineSlot(100L, true, false));
+
         when(bottleInstallationMapper.toEntity(request))
                 .thenReturn(installation);
 
@@ -137,6 +147,75 @@ class BottleInstallationServiceTest {
         verify(bottleRepository).save(bottle);
         verify(bottleMovementRepository)
                 .save(any(BottleMovement.class));
+    }
+
+    @Test
+    void shouldInstallBottleWhenSlotProductIsUnspecified() {
+        InstallBottleRequest request = installRequest();
+
+        stubAvailableBottleAndSlot(request);
+        when(machineSlotClient.getSlot(1L, 3L, 2L))
+                .thenReturn(machineSlot(null, true, false));
+        when(bottleInstallationMapper.toEntity(request))
+                .thenReturn(installation);
+        when(bottleInstallationRepository.save(installation))
+                .thenReturn(installation);
+        when(bottleInstallationMapper.toResponse(installation))
+                .thenReturn(response);
+
+        BottleInstallationResponse result =
+                bottleInstallationService.installBottle(request);
+
+        assertNotNull(result);
+        assertEquals(10L, result.getBottleId());
+    }
+
+    @Test
+    void shouldRejectInstallWhenSlotIsInactive() {
+        InstallBottleRequest request = installRequest();
+
+        stubAvailableBottleAndSlot(request);
+        when(machineSlotClient.getSlot(1L, 3L, 2L))
+                .thenReturn(machineSlot(100L, false, false));
+
+        assertThrows(
+                MachineSlotUnavailableException.class,
+                () -> bottleInstallationService.installBottle(request)
+        );
+
+        verify(bottleInstallationRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectInstallWhenSlotIsInMaintenanceMode() {
+        InstallBottleRequest request = installRequest();
+
+        stubAvailableBottleAndSlot(request);
+        when(machineSlotClient.getSlot(1L, 3L, 2L))
+                .thenReturn(machineSlot(100L, true, true));
+
+        assertThrows(
+                MachineSlotUnavailableException.class,
+                () -> bottleInstallationService.installBottle(request)
+        );
+
+        verify(bottleInstallationRepository, never()).save(any());
+    }
+
+    @Test
+    void shouldRejectInstallWhenSlotProductDoesNotMatch() {
+        InstallBottleRequest request = installRequest();
+
+        stubAvailableBottleAndSlot(request);
+        when(machineSlotClient.getSlot(1L, 3L, 2L))
+                .thenReturn(machineSlot(200L, true, false));
+
+        assertThrows(
+                MachineSlotProductMismatchException.class,
+                () -> bottleInstallationService.installBottle(request)
+        );
+
+        verify(bottleInstallationRepository, never()).save(any());
     }
 
     @Test
@@ -259,6 +338,7 @@ class BottleInstallationServiceTest {
 
         verify(bottleMovementRepository)
                 .save(any(BottleMovement.class));
+        verifyNoInteractions(machineSlotClient);
     }
 
     @Test
@@ -321,6 +401,9 @@ class BottleInstallationServiceTest {
                 .existsByTenantIdAndBottleIdAndActiveTrue(1L, 20L))
                 .thenReturn(false);
 
+        when(machineSlotClient.getSlot(1L, 3L, 2L))
+                .thenReturn(machineSlot(100L, true, false));
+
         when(bottleInstallationRepository.save(any(BottleInstallation.class)))
                 .thenAnswer(invocation ->
                         invocation.getArgument(0)
@@ -360,5 +443,88 @@ class BottleInstallationServiceTest {
 
         verify(bottleMovementRepository, times(2))
                 .save(any(BottleMovement.class));
+    }
+
+    @Test
+    void shouldRejectReplaceWhenSlotProductDoesNotMatch() {
+        bottle.setStatus(BottleStatus.INSTALLED);
+
+        Bottle newBottle = Bottle.builder()
+                .id(20L)
+                .tenantId(1L)
+                .productId(200L)
+                .status(BottleStatus.AVAILABLE)
+                .build();
+
+        ReplaceBottleRequest request = ReplaceBottleRequest.builder()
+                .tenantId(1L)
+                .oldBottleId(10L)
+                .newBottleId(20L)
+                .actorId(5L)
+                .build();
+
+        when(bottleRepository.findByIdAndTenantId(10L, 1L))
+                .thenReturn(Optional.of(bottle));
+        when(bottleInstallationRepository
+                .findByTenantIdAndBottleIdAndActiveTrue(1L, 10L))
+                .thenReturn(Optional.of(installation));
+        when(bottleRepository.findByIdAndTenantId(20L, 1L))
+                .thenReturn(Optional.of(newBottle));
+        when(bottleInstallationRepository
+                .existsByTenantIdAndBottleIdAndActiveTrue(1L, 20L))
+                .thenReturn(false);
+        when(machineSlotClient.getSlot(1L, 3L, 2L))
+                .thenReturn(machineSlot(100L, true, false));
+
+        assertThrows(
+                MachineSlotProductMismatchException.class,
+                () -> bottleInstallationService.replaceBottle(request)
+        );
+
+        assertTrue(installation.getActive());
+        verify(bottleInstallationRepository, never()).save(any());
+        verify(bottleRepository, never()).save(any());
+    }
+
+    private InstallBottleRequest installRequest() {
+        return InstallBottleRequest.builder()
+                .tenantId(1L)
+                .bottleId(10L)
+                .machineId(3L)
+                .slotId(2L)
+                .actorId(5L)
+                .build();
+    }
+
+    private void stubAvailableBottleAndSlot(
+            InstallBottleRequest request
+    ) {
+        when(bottleRepository.findByIdAndTenantId(10L, 1L))
+                .thenReturn(Optional.of(bottle));
+        when(bottleInstallationRepository
+                .existsByTenantIdAndBottleIdAndActiveTrue(1L, 10L))
+                .thenReturn(false);
+        when(bottleInstallationRepository
+                .existsByTenantIdAndMachineIdAndSlotIdAndActiveTrue(
+                        1L,
+                        3L,
+                        2L
+                ))
+                .thenReturn(false);
+    }
+
+    private MachineSlotInfo machineSlot(
+            Long productId,
+            boolean active,
+            boolean maintenanceMode
+    ) {
+        return MachineSlotInfo.builder()
+                .tenantId(1L)
+                .machineId(3L)
+                .slotId(2L)
+                .productId(productId)
+                .active(active)
+                .maintenanceMode(maintenanceMode)
+                .build();
     }
 }

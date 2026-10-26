@@ -11,6 +11,8 @@ import com.scentstation.operation.inventory.installation.exception.BottleAlready
 import com.scentstation.operation.inventory.installation.exception.BottleNotInstallableException;
 import com.scentstation.operation.inventory.installation.exception.SlotAlreadyOccupiedException;
 import com.scentstation.operation.inventory.installation.service.BottleInstallationService;
+import com.scentstation.operation.inventory.integration.machine.exception.MachineSlotProductMismatchException;
+import com.scentstation.operation.inventory.integration.machine.exception.MachineSlotUnavailableException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -258,6 +260,59 @@ class BottleInstallationControllerTest {
                 )
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
+    }
+
+    @Test
+    void shouldReturn409WhenMachineSlotIsUnavailable() throws Exception {
+        InstallBottleRequest request = InstallBottleRequest.builder()
+                .tenantId(1L)
+                .bottleId(10L)
+                .machineId(3L)
+                .slotId(2L)
+                .actorId(5L)
+                .build();
+
+        when(bottleInstallationService.installBottle(
+                any(InstallBottleRequest.class)
+        )).thenThrow(new MachineSlotUnavailableException(3L, 2L));
+
+        mockMvc.perform(
+                        post("/api/inventory/installations/install")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409));
+    }
+
+    @Test
+    void shouldReturn409WhenMachineSlotProductDoesNotMatch() throws Exception {
+        InstallBottleRequest request = InstallBottleRequest.builder()
+                .tenantId(1L)
+                .bottleId(10L)
+                .machineId(3L)
+                .slotId(2L)
+                .actorId(5L)
+                .build();
+
+        when(bottleInstallationService.installBottle(
+                any(InstallBottleRequest.class)
+        )).thenThrow(
+                new MachineSlotProductMismatchException(
+                        3L,
+                        2L,
+                        100L,
+                        200L
+                )
+        );
+
+        mockMvc.perform(
+                        post("/api/inventory/installations/install")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                )
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409));
     }
 
     @Test
