@@ -80,7 +80,7 @@ public class DispensingCommand {
         }
         status = result;
         resultReceivedAt = LocalDateTime.now();
-        manualReviewRequired = result == DispensingStatus.UNKNOWN;
+        manualReviewRequired = result == DispensingStatus.UNKNOWN || result == DispensingStatus.FAILED;
         manualReviewReason = manualReviewRequired ? reason : null;
     }
 }

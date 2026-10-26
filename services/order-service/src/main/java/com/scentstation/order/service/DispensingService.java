@@ -15,6 +15,7 @@ import com.scentstation.order.exception.PaymentNotAvailableException;
 import com.scentstation.order.repository.DispensingRepository;
 import com.scentstation.order.repository.OrderRepository;
 import com.scentstation.order.repository.PaymentRepository;
+import com.scentstation.order.repository.TransactionReviewRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,6 +34,7 @@ public class DispensingService {
     private final PaymentRepository paymentRepository;
     private final DispensingRepository dispensingRepository;
     private final MachineServiceGateway machineServiceClient;
+    private final TransactionReviewRepository transactionReviewRepository;
     private final String tenantId;
 
     public DispensingService(
@@ -40,12 +42,14 @@ public class DispensingService {
             PaymentRepository paymentRepository,
             DispensingRepository dispensingRepository,
             MachineServiceGateway machineServiceClient,
+            TransactionReviewRepository transactionReviewRepository,
             @Value("${machine-service.tenant-id:TENANT-001}") String tenantId
     ) {
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
         this.dispensingRepository = dispensingRepository;
         this.machineServiceClient = machineServiceClient;
+        this.transactionReviewRepository = transactionReviewRepository;
         this.tenantId = tenantId;
     }
 
@@ -130,9 +134,22 @@ public class DispensingService {
             markUnknown(command, "Machine Service returned an unsupported dispensing status");
             return;
         }
-        command.recordResult(result, result == DispensingStatus.UNKNOWN
-                ? "Machine Service cannot determine whether dispensing completed"
-                : null);
+        String reviewReason = switch (result) {
+            case UNKNOWN -> firstNonBlank(
+                    response.message(),
+                    "Machine Service cannot determine whether dispensing completed"
+            );
+            case FAILED -> firstNonBlank(response.message(), "Dispensing failed after payment was confirmed");
+            default -> null;
+        };
+        command.recordResult(result, reviewReason);
+        if (command.isManualReviewRequired()) {
+            transactionReviewRepository.openOrUpdate(
+                    command.getPaymentReference(),
+                    command.getOrderId(),
+                    command.getManualReviewReason()
+            );
+        }
         DispensingStatus effectiveStatus = command.getStatus();
         if (effectiveStatus == DispensingStatus.DISPENSED || effectiveStatus == DispensingStatus.FAILED) {
             synchronized (order) {
@@ -157,8 +174,17 @@ public class DispensingService {
         }
     }
 
+    private String firstNonBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
     private void markUnknown(DispensingCommand command, String reason) {
         command.recordResult(DispensingStatus.UNKNOWN, reason);
+        transactionReviewRepository.openOrUpdate(
+                command.getPaymentReference(),
+                command.getOrderId(),
+                command.getManualReviewReason()
+        );
         LOGGER.warn("Dispensing command {} requires manual review: {}", command.getCommandId(), reason);
     }
 

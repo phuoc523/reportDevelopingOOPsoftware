@@ -32,6 +32,14 @@ public class GlobalExceptionHandler {
         return errorResponse(HttpStatus.NOT_FOUND, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(TransactionReviewNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleTransactionReviewNotFound(
+            TransactionReviewNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(HttpStatus.NOT_FOUND, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(InvalidOrderStatusTransitionException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidStatusTransition(
             InvalidOrderStatusTransitionException exception,

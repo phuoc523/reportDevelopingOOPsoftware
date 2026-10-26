@@ -14,6 +14,7 @@ import com.scentstation.order.repository.DispensingRepository;
 import com.scentstation.order.repository.InMemoryDispensingRepository;
 import com.scentstation.order.repository.InMemoryOrderRepository;
 import com.scentstation.order.repository.InMemoryPaymentRepository;
+import com.scentstation.order.repository.InMemoryTransactionReviewRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.ResourceAccessException;
@@ -33,8 +34,9 @@ class DispensingServiceTest {
     private final InMemoryPaymentRepository payments = new InMemoryPaymentRepository();
     private final DispensingRepository commands = new InMemoryDispensingRepository();
     private final FakeMachineServiceGateway machineServiceClient = new FakeMachineServiceGateway();
+    private final InMemoryTransactionReviewRepository reviews = new InMemoryTransactionReviewRepository();
     private final DispensingService dispensingService = new DispensingService(
-            orders, payments, commands, machineServiceClient, "TENANT-TEST"
+            orders, payments, commands, machineServiceClient, reviews, "TENANT-TEST"
     );
 
     private Order order;
@@ -43,6 +45,7 @@ class DispensingServiceTest {
     void setUp() {
         commands.deleteAll();
         payments.deleteAll();
+        reviews.deleteAll();
         orders.deleteAll();
         machineServiceClient.reset();
         order = orders.save(new Order(
@@ -97,6 +100,8 @@ class DispensingServiceTest {
 
         assertEquals(DispensingStatus.FAILED, result.status());
         assertEquals(OrderStatus.FAILED, order.getStatus());
+        assertTrue(result.manualReviewRequired());
+        assertEquals("Machine response", reviews.findByReference("PAY-001").orElseThrow().getReason());
         assertEquals(result.commandId(), dispensingService.requestDispensing(order.getId()).commandId());
         assertEquals(1, machineServiceClient.submitCount);
     }

@@ -5,6 +5,8 @@ import com.scentstation.order.entity.PaymentCallbackEvent;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -36,6 +38,14 @@ public class InMemoryPaymentRepository implements PaymentRepository {
     public Optional<Payment> findByOrderId(Long orderId) {
         String reference = referencesByOrderId.get(orderId);
         return reference == null ? Optional.empty() : findByReference(reference);
+    }
+
+    @Override
+    public List<Payment> findAll() {
+        return paymentsByReference.values()
+                .stream()
+                .sorted(Comparator.comparing(Payment::getReference))
+                .toList();
     }
 
     @Override

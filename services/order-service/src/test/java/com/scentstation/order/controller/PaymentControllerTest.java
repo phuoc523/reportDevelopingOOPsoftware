@@ -7,6 +7,7 @@ import com.scentstation.order.entity.PaymentCallbackEvent;
 import com.scentstation.order.repository.OrderRepository;
 import com.scentstation.order.repository.PaymentRepository;
 import com.scentstation.order.repository.DispensingRepository;
+import com.scentstation.order.repository.TransactionReviewRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,11 +46,15 @@ class PaymentControllerTest {
     @Autowired
     private DispensingRepository dispensingRepository;
 
+    @Autowired
+    private TransactionReviewRepository transactionReviewRepository;
+
     @BeforeEach
     void clearRepositories() {
         paymentRepository.deleteAll();
         orderRepository.deleteAll();
         dispensingRepository.deleteAll();
+        transactionReviewRepository.deleteAll();
     }
 
     @Test
@@ -131,6 +136,32 @@ class PaymentControllerTest {
                 commandId,
                 dispensingRepository.findByOrderId(orderId).orElseThrow().getCommandId()
         );
+
+        mockMvc.perform(get("/api/orders/{id}/status", orderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMED"));
+    }
+
+    @Test
+    void completesOrderPaymentStatusAndCallbackDemoFlow() throws Exception {
+        long orderId = createOrder();
+        String reference = createPayment(orderId);
+
+        mockMvc.perform(get("/api/orders/{id}/status", orderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+
+        mockMvc.perform(post("/api/payments/callback")
+                        .header("X-Payment-Callback-Token", CALLBACK_TOKEN)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(callbackBody("swagger-demo-" + orderId, reference, orderId,
+                                "25.50", "VND", "PAID")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAID"));
+
+        mockMvc.perform(get("/api/payments/{reference}", reference))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAID"));
 
         mockMvc.perform(get("/api/orders/{id}/status", orderId))
                 .andExpect(status().isOk())
@@ -312,6 +343,126 @@ class PaymentControllerTest {
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
+    }
+
+    @Test
+    void reconciliationFlagsMissingPaymentAndAllowsManualResolution() throws Exception {
+        long orderId = createOrder();
+        String reference = createPayment(orderId);
+
+        mockMvc.perform(post("/api/payments/reconciliation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"payments": []}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.checkedTransactions").value(1))
+                .andExpect(jsonPath("$.matchedTransactions").value(0))
+                .andExpect(jsonPath("$.discrepancyCount").value(1))
+                .andExpect(jsonPath("$.discrepancies[0].reference").value(reference))
+                .andExpect(jsonPath("$.discrepancies[0].status").value("OPEN"))
+                .andExpect(jsonPath("$.discrepancies[0].manualReviewRequired").value(true));
+
+        mockMvc.perform(get("/api/payments/reviews/{reference}", reference))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reason").value("Payment is missing from reconciliation data"));
+
+        mockMvc.perform(post("/api/payments/reviews/{reference}/resolve", reference))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESOLVED"))
+                .andExpect(jsonPath("$.manualReviewRequired").value(false));
+    }
+
+    @Test
+    void reconciliationAcceptsMatchingSimulatedPaymentRecord() throws Exception {
+        long orderId = createOrder();
+        String reference = createPayment(orderId);
+
+        mockMvc.perform(post("/api/payments/reconciliation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "payments": [{
+                                    "reference": "%s",
+                                    "orderId": %d,
+                                    "amount": 25.50,
+                                    "currency": "VND",
+                                    "status": "PENDING"
+                                  }]
+                                }
+                                """.formatted(reference, orderId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.checkedTransactions").value(1))
+                .andExpect(jsonPath("$.matchedTransactions").value(1))
+                .andExpect(jsonPath("$.discrepancyCount").value(0));
+    }
+
+    @Test
+    void reconciliationFlagsPaymentFieldMismatches() throws Exception {
+        long orderId = createOrder();
+        String reference = createPayment(orderId);
+
+        mockMvc.perform(post("/api/payments/reconciliation")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "payments": [{
+                                    "reference": "%s",
+                                    "orderId": %d,
+                                    "amount": 99.00,
+                                    "currency": "USD",
+                                    "status": "PAID"
+                                  }]
+                                }
+                                """.formatted(reference, orderId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.matchedTransactions").value(0))
+                .andExpect(jsonPath("$.discrepancies[0].reason")
+                        .value("amount does not match, currency does not match, status does not match"));
+    }
+
+    @Test
+    void publishesOpenApiDocumentAndSwaggerUi() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.info.title").value("ScentStation Order Service API"))
+                .andExpect(jsonPath("$.paths['/api/payments/reconciliation']").exists())
+                .andExpect(jsonPath("$.paths['/api/payments/{reference}/simulate'].post.summary")
+                        .value("Simulate successful payment"))
+                .andExpect(jsonPath("$.paths['/api/payments/{reference}'].get.summary")
+                        .value("Get payment"))
+                .andExpect(jsonPath("$.paths['/api/orders/{id}/status'].get.summary")
+                        .value("Get order status"))
+                .andExpect(jsonPath(
+                        "$.paths['/api/orders'].post.requestBody.content['application/json']"
+                                + ".examples['Valid order'].value.customerId"
+                ).value(7))
+                .andExpect(jsonPath(
+                        "$.components.schemas.OrderItemRequest.properties.quantity.example"
+                ).value(2))
+                .andExpect(jsonPath("$.components.schemas.CreateOrderRequest.properties.customerId.example")
+                        .value(7))
+                .andExpect(jsonPath("$.paths['/api/orders'].post.responses['201'].description")
+                        .value("Order created; status is PENDING"))
+                .andExpect(jsonPath("$.paths['/api/orders'].post.responses['400'].description")
+                        .value(org.hamcrest.Matchers.containsString("unitPrice")))
+                .andExpect(jsonPath(
+                        "$.paths['/api/orders'].post.responses['400'].content['application/json'].schema.$ref"
+                ).value("#/components/schemas/ApiErrorResponse"))
+                .andExpect(jsonPath("$.components.schemas.ApiErrorResponse.properties.message.type")
+                        .value("string"))
+                .andExpect(jsonPath("$.paths['/api/payments/callback'].post.parameters[0].name")
+                        .value("X-Payment-Callback-Token"))
+                .andExpect(jsonPath("$.paths['/api/payments/callback'].post.parameters[0].required")
+                        .value(true))
+                .andExpect(jsonPath(
+                        "$.paths['/api/payments/callback'].post.requestBody.content['application/json']"
+                                + ".examples['Successful payment callback'].value.status"
+                ).value("PAID"))
+                .andExpect(jsonPath("$.paths['/api/payments/callback'].post.responses['401']").exists());
+
+        mockMvc.perform(get("/swagger-ui/index.html"))
+                .andExpect(status().isOk());
     }
 
     private long createOrder() throws Exception {
