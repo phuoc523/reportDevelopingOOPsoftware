@@ -61,6 +61,13 @@ public class Bottle {
     )
     private BigDecimal currentQuantity;
 
+    @Column(
+            name = "calibrated_consumption_per_spray",
+            precision = 12,
+            scale = 3
+    )
+    private BigDecimal calibratedConsumptionPerSpray;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     private BottleStatus status;

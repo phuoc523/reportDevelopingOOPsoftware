@@ -3,6 +3,7 @@ package com.scentstation.operation.inventory.consumption.repository;
 import com.scentstation.operation.inventory.consumption.entity.DispenseConsumption;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import com.scentstation.operation.inventory.consumption.enums.DispenseResult;
 
 import java.util.List;
 import java.util.Optional;
@@ -32,4 +33,10 @@ public interface DispenseConsumptionRepository
             Long tenantId,
             Long machineId
     );
+
+        long countByTenantIdAndBottleIdAndResult(
+                Long tenantId,
+                Long bottleId,
+                DispenseResult result
+        );
 }

@@ -19,6 +19,7 @@ import com.scentstation.operation.inventory.consumption.exception.BottleInstalla
 import com.scentstation.operation.inventory.consumption.exception.DuplicateDispenseCommandException;
 import com.scentstation.operation.inventory.consumption.exception.InsufficientBottleQuantityException;
 import com.scentstation.operation.inventory.consumption.exception.DispenseConsumptionNotFoundException;
+import com.scentstation.operation.inventory.estimation.exception.SprayCalibrationNotFoundException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -143,6 +144,18 @@ public class OperationExceptionHandler {
                 request
         );
     }
+
+        @ExceptionHandler(SprayCalibrationNotFoundException.class)
+        public ResponseEntity<ApiErrorResponse> handleSprayCalibrationNotFound(
+                SprayCalibrationNotFoundException exception,
+                HttpServletRequest request
+        ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                exception.getMessage(),
+                request
+        );
+        }
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
