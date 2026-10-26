@@ -15,6 +15,10 @@ import com.scentstation.operation.inventory.installation.exception.BottleAlready
 import com.scentstation.operation.inventory.installation.exception.BottleNotInstallableException;
 import com.scentstation.operation.inventory.installation.exception.SlotAlreadyOccupiedException;
 import com.scentstation.operation.inventory.refill.exception.BottleNotRefillableException;
+import com.scentstation.operation.inventory.consumption.exception.BottleInstallationMismatchException;
+import com.scentstation.operation.inventory.consumption.exception.DuplicateDispenseCommandException;
+import com.scentstation.operation.inventory.consumption.exception.InsufficientBottleQuantityException;
+import com.scentstation.operation.inventory.consumption.exception.DispenseConsumptionNotFoundException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -106,6 +110,18 @@ public class OperationExceptionHandler {
         );
     }
 
+    @ExceptionHandler(DispenseConsumptionNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleDispenseConsumptionNotFound(
+            DispenseConsumptionNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage(),
+                request
+        );
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiErrorResponse> handleRequestValidation(
             MethodArgumentNotValidException exception,
@@ -145,6 +161,42 @@ public class OperationExceptionHandler {
         return buildResponse(
                 HttpStatus.BAD_REQUEST,
                 message,
+                request
+        );
+    }
+
+    @ExceptionHandler(DuplicateDispenseCommandException.class)
+    public ResponseEntity<ApiErrorResponse> handleDuplicateDispenseCommand(
+            DuplicateDispenseCommandException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                exception.getMessage(),
+                request
+        );
+    }
+
+    @ExceptionHandler(BottleInstallationMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> handleBottleInstallationMismatch(
+            BottleInstallationMismatchException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                exception.getMessage(),
+                request
+        );
+    }
+
+    @ExceptionHandler(InsufficientBottleQuantityException.class)
+    public ResponseEntity<ApiErrorResponse> handleInsufficientBottleQuantity(
+            InsufficientBottleQuantityException exception,
+            HttpServletRequest request
+    ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                exception.getMessage(),
                 request
         );
     }
