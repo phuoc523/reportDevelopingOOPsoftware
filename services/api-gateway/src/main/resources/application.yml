@@ -1,0 +1,25 @@
+server:
+  port: ${GATEWAY_PORT:8080}
+spring:
+  application:
+    name: scentstation-api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 10s
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+gateway:
+  identity-url: ${IDENTITY_URL:http://127.0.0.1:8081}
+  catalog-url: ${CATALOG_URL:}
+  operation-url: ${OPERATION_URL:}
+  order-url: ${ORDER_URL:}
+  machine-url: ${MACHINE_URL:}
+  reporting-url: ${REPORTING_URL:}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}

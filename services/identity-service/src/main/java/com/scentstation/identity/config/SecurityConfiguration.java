@@ -40,6 +40,11 @@ public class SecurityConfiguration {
                         // The internal endpoint authenticates callers with a separate service key.
                         // NEVER expose it through the public API gateway.
                         .requestMatchers(HttpMethod.POST, "/api/v1/internal/tenant/introspect").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/internal/audit/events").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/internal/notifications/events").permitAll()
+                        .requestMatchers("/api/v1/platform-config/**").authenticated()
+                        .requestMatchers("/api/v1/audit/**").authenticated()
+                        .requestMatchers("/api/v1/notifications/**").authenticated()
                         .requestMatchers("/api/v1/tenant-scope/**").authenticated()
                         .requestMatchers("/api/v1/rbac/**").authenticated()
                         .requestMatchers("/error").permitAll()

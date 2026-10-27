@@ -7,9 +7,11 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.Optional;
+import java.util.List;
 
 public interface StaffUserRepository extends JpaRepository<StaffUser, String> {
     Optional<StaffUser> findByUsername(String username);
+    List<StaffUser> findByTenant_Id(String tenantId);
 
     /** Tenant-filtered query prevents cross-tenant object lookup leaks. */
     @Query("select u from StaffUser u where u.id = :id and u.tenant.id = :tenantId")
