@@ -4,6 +4,8 @@ import com.scentstation.dto.request.MachineRequests.*;
 import com.scentstation.dto.response.MachineResponses.*;
 import com.scentstation.entity.DeviceRegistrationStatus;
 import com.scentstation.entity.Machine;
+import com.scentstation.entity.MachineAlert;
+import com.scentstation.entity.MachineAlertStatus;
 import com.scentstation.entity.MachineHistoryAction;
 import com.scentstation.entity.MachineOperationalStatus;
 import com.scentstation.entity.MachineSlot;
@@ -12,28 +14,34 @@ import com.scentstation.exception.ConflictException;
 import com.scentstation.exception.InvalidOperationException;
 import com.scentstation.exception.ResourceNotFoundException;
 import com.scentstation.repository.MachineSlotRepository;
+import com.scentstation.repository.MachineAlertRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.EnumSet;
 
 @Service
 public class SlotService {
     private final MachineService machineService;
     private final MachineSlotRepository slots;
+    private final MachineAlertRepository alerts;
     private final ZoneId operatingHoursZone;
 
     public SlotService(MachineService machineService, MachineSlotRepository slots,
+                       MachineAlertRepository alerts,
                        @Value("${machine.operating-hours.zone:Asia/Ho_Chi_Minh}") String operatingHoursZone) {
         this.machineService = machineService;
         this.slots = slots;
+        this.alerts = alerts;
         this.operatingHoursZone = ZoneId.of(operatingHoursZone);
     }
 
     @Transactional
-    public SlotResponse create(Long machineId, CreateSlotRequest request, String actorId) {
+    public SlotResponse create(@NonNull Long machineId, CreateSlotRequest request, String actorId) {
         Machine machine = machineService.requireMachine(machineId);
         ensureDeviceActive(machine);
         if (slots.existsByMachineIdAndSlotNumber(machineId, request.getSlotNumber()))
@@ -73,20 +81,21 @@ public class SlotService {
     }
 
     @Transactional(readOnly = true)
-    public List<SlotResponse> list(Long machineId) {
+    public List<SlotResponse> list(@NonNull Long machineId) {
         Machine machine = machineService.requireMachine(machineId);
         return slots.findAllByMachineIdOrderBySlotNumberAsc(machineId).stream()
             .map(slot -> toResponse(slot, machine)).toList();
     }
 
     @Transactional(readOnly = true)
-    public SlotResponse get(Long machineId, Long slotId) {
+    public SlotResponse get(@NonNull Long machineId, @NonNull Long slotId) {
         Machine machine = machineService.requireMachine(machineId);
         return toResponse(requireSlot(machineId, slotId), machine);
     }
 
     @Transactional
-    public SlotResponse update(Long machineId, Long slotId, UpdateSlotRequest request, String actorId) {
+    public SlotResponse update(@NonNull Long machineId, @NonNull Long slotId,
+                               UpdateSlotRequest request, String actorId) {
         Machine machine = machineService.requireMachine(machineId);
         ensureDeviceActive(machine);
         MachineSlot slot = requireSlot(machineId, slotId);
@@ -162,7 +171,8 @@ public class SlotService {
     }
 
     @Transactional
-    public SlotResponse setEnabled(Long machineId, Long slotId, UpdateSlotEnabledRequest request, String actorId) {
+    public SlotResponse setEnabled(@NonNull Long machineId, @NonNull Long slotId,
+                                   UpdateSlotEnabledRequest request, String actorId) {
         Machine machine = machineService.requireMachine(machineId);
         ensureDeviceActive(machine);
         MachineSlot slot = requireSlot(machineId, slotId);
@@ -177,7 +187,8 @@ public class SlotService {
     }
 
     @Transactional
-    public SlotResponse updateReportedStatus(Long machineId, Long slotId, SlotStatus status, String actorId) {
+    public SlotResponse updateReportedStatus(@NonNull Long machineId, @NonNull Long slotId,
+                                             SlotStatus status, String actorId) {
         Machine machine = machineService.requireMachine(machineId);
         ensureDeviceActive(machine);
         MachineSlot slot = requireSlot(machineId, slotId);
@@ -200,12 +211,19 @@ public class SlotService {
 
     @Transactional(readOnly = true)
     public boolean isAvailable(Machine machine, MachineSlot slot) {
-        return isAvailable(machine, slot, OperatingHours.currentTime(operatingHoursZone));
+        return isAvailable(machine, slot, OperatingHours.currentTime(operatingHoursZone),
+            activeAlertReason(machine, slot));
     }
 
     boolean isAvailable(Machine machine, MachineSlot slot, java.time.LocalTime now) {
+        return isAvailable(machine, slot, now, activeAlertReason(machine, slot));
+    }
+
+    private boolean isAvailable(Machine machine, MachineSlot slot, java.time.LocalTime now,
+                               String activeAlertReason) {
         return machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.ACTIVE
             && machine.getOperationalStatus() == MachineOperationalStatus.ONLINE
+            && activeAlertReason == null
             && slot.isEnabled()
             && slot.getStatus() == SlotStatus.AVAILABLE
             && OperatingHours.includes(machine.getOperatingHoursStart(),
@@ -215,6 +233,11 @@ public class SlotService {
     }
 
     String availabilityReason(Machine machine, MachineSlot slot, java.time.LocalTime now) {
+        return availabilityReason(machine, slot, now, activeAlertReason(machine, slot));
+    }
+
+    String availabilityReason(Machine machine, MachineSlot slot, java.time.LocalTime now,
+                              String activeAlertReason) {
         if (machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.REVOKED) {
             return "Device registration has been revoked";
         }
@@ -224,6 +247,9 @@ public class SlotService {
         if (!OperatingHours.includes(
                 machine.getOperatingHoursStart(), machine.getOperatingHoursEnd(), now)) {
             return "Machine is outside operating hours";
+        }
+        if (activeAlertReason != null) {
+            return activeAlertReason;
         }
         if (!slot.isEnabled()) {
             return "Slot is disabled";
@@ -245,11 +271,27 @@ public class SlotService {
     }
 
     SlotResponse toAvailabilityResponse(Machine machine, MachineSlot slot, java.time.LocalTime now) {
-        String reason = availabilityReason(machine, slot, now);
+        return toAvailabilityResponse(machine, slot, now, activeAlertReason(machine, slot));
+    }
+
+    SlotResponse toAvailabilityResponse(Machine machine, MachineSlot slot, java.time.LocalTime now,
+                                        String activeAlertReason) {
+        String reason = availabilityReason(machine, slot, now, activeAlertReason);
         return SlotResponse.from(slot, reason == null, reason);
     }
 
-    private MachineSlot requireSlot(Long machineId, Long slotId) {
+    private String activeAlertReason(Machine machine, MachineSlot slot) {
+        List<MachineAlert> activeAlerts = alerts.findAllByMachineIdAndStatusInOrderByLastSeenAtDesc(
+            machine.getId(), EnumSet.of(MachineAlertStatus.OPEN, MachineAlertStatus.ACKNOWLEDGED,
+                MachineAlertStatus.ASSIGNED, MachineAlertStatus.ESCALATED));
+        return activeAlerts.stream()
+            .filter(alert -> alert.getSlotId() == null || alert.getSlotId().equals(slot.getId()))
+            .findFirst()
+            .map(alert -> "Active " + alert.getType() + " alert: " + alert.getSummary())
+            .orElse(null);
+    }
+
+    private MachineSlot requireSlot(@NonNull Long machineId, @NonNull Long slotId) {
         return slots.findByIdAndMachineId(slotId, machineId)
             .orElseThrow(() -> new ResourceNotFoundException(
                 "Slot " + slotId + " not found for machine " + machineId));

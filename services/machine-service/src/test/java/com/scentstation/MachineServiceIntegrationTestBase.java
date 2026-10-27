@@ -1,9 +1,14 @@
 package com.scentstation;
 
 import com.scentstation.repository.LocationRepository;
+import com.scentstation.repository.MachineAlertRepository;
+import com.scentstation.repository.MachineCommandRepository;
+import com.scentstation.repository.MachineDeviceEventRepository;
 import com.scentstation.repository.MachineHistoryRepository;
+import com.scentstation.repository.MachineMessageReceiptRepository;
 import com.scentstation.repository.MachineRepository;
 import com.scentstation.repository.MachineSlotRepository;
+import com.scentstation.repository.MachineTelemetryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.lang.NonNull;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,6 +39,21 @@ abstract class MachineServiceIntegrationTestBase {
     private MachineHistoryRepository historyRepository;
 
     @Autowired
+    private MachineAlertRepository alertRepository;
+
+    @Autowired
+    private MachineCommandRepository commandRepository;
+
+    @Autowired
+    private MachineDeviceEventRepository deviceEventRepository;
+
+    @Autowired
+    private MachineTelemetryRepository telemetryRepository;
+
+    @Autowired
+    private MachineMessageReceiptRepository messageReceiptRepository;
+
+    @Autowired
     private MachineSlotRepository slotRepository;
 
     @Autowired
@@ -43,6 +64,11 @@ abstract class MachineServiceIntegrationTestBase {
 
     @BeforeEach
     void clearDatabase() {
+        messageReceiptRepository.deleteAllInBatch();
+        commandRepository.deleteAllInBatch();
+        alertRepository.deleteAllInBatch();
+        telemetryRepository.deleteAllInBatch();
+        deviceEventRepository.deleteAllInBatch();
         historyRepository.deleteAllInBatch();
         slotRepository.deleteAllInBatch();
         machineRepository.deleteAllInBatch();
@@ -142,6 +168,7 @@ abstract class MachineServiceIntegrationTestBase {
         return request;
     }
 
+    @NonNull
     protected Long createMachine(String tenantId) {
         String locationId = uniqueId("location");
         ResponseEntity<Map<String, Object>> locationResponse = createLocation(locationId, tenantId);

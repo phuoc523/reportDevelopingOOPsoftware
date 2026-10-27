@@ -2,7 +2,11 @@ package com.scentstation;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.core.ParameterizedTypeReference;
 
 import java.util.Map;
 import java.util.LinkedHashMap;
@@ -60,8 +64,11 @@ class MachineOperationsIntegrationTest extends MachineServiceIntegrationTestBase
     void heartbeatUpdatesLastSeenAndBringsOfflineMachineOnline() {
         Long machineId = createMachine(uniqueId("tenant"));
 
-        ResponseEntity<Map<String, Object>> heartbeat =
-            postJson("/api/machines/" + machineId + "/heartbeat", Map.of());
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Internal-Service-Key", "test-integration-secret");
+        ResponseEntity<Map<String, Object>> heartbeat = rest.exchange(
+            "/api/machines/" + machineId + "/heartbeat", HttpMethod.POST,
+            new HttpEntity<>(Map.of(), headers), new ParameterizedTypeReference<>() {});
 
         assertEquals(HttpStatus.OK, heartbeat.getStatusCode());
         assertNotNull(requireBody(heartbeat).get("lastSeenAt"));

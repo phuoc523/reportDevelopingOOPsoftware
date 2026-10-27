@@ -50,6 +50,15 @@ public class Machine {
     @Column(name = "last_seen_at")
     private Instant lastSeenAt;
 
+    @Column(name = "last_heartbeat_event_id", length = 100)
+    private String lastHeartbeatEventId;
+
+    @Column(name = "firmware_version", length = 100)
+    private String firmwareVersion;
+
+    @Column(name = "configuration_version", length = 100)
+    private String configurationVersion;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -91,6 +100,12 @@ public class Machine {
     public void setOperatingHoursEnd(LocalTime value) { this.operatingHoursEnd = value; }
     public Instant getLastSeenAt() { return lastSeenAt; }
     public void setLastSeenAt(Instant value) { this.lastSeenAt = value; }
+    public String getLastHeartbeatEventId() { return lastHeartbeatEventId; }
+    public void setLastHeartbeatEventId(String value) { this.lastHeartbeatEventId = value; }
+    public String getFirmwareVersion() { return firmwareVersion; }
+    public void setFirmwareVersion(String value) { this.firmwareVersion = value; }
+    public String getConfigurationVersion() { return configurationVersion; }
+    public void setConfigurationVersion(String value) { this.configurationVersion = value; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

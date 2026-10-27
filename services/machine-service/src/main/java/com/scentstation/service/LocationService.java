@@ -7,6 +7,7 @@ import com.scentstation.exception.ConflictException;
 import com.scentstation.exception.InvalidOperationException;
 import com.scentstation.exception.ResourceNotFoundException;
 import com.scentstation.repository.LocationRepository;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,9 +23,9 @@ public class LocationService {
     }
 
     @Transactional
-    public LocationResponse create(String locationId, String tenantId, String name, String address) {
-        String normalizedLocationId = Objects.requireNonNull(locationId, "locationId").trim();
-        if (locations.existsById(Objects.requireNonNull(normalizedLocationId, "locationId"))) {
+    public LocationResponse create(@NonNull String locationId, String tenantId, String name, String address) {
+        String normalizedLocationId = Objects.requireNonNull(locationId.trim(), "locationId");
+        if (locations.existsById(normalizedLocationId)) {
             throw new ConflictException("locationId already exists");
         }
         return toResponse(locations.save(new Location(
@@ -43,13 +44,13 @@ public class LocationService {
     }
 
     @Transactional(readOnly = true)
-    public LocationResponse get(String locationId) {
+    public LocationResponse get(@NonNull String locationId) {
         return toResponse(requireLocation(locationId));
     }
 
     @Transactional
-    public LocationResponse update(String locationId, String requestedLocationId,
-                                   String tenantId, String name, String address) {
+    public LocationResponse update(@NonNull String locationId, @NonNull String requestedLocationId,
+                                   @NonNull String tenantId, String name, String address) {
         Location location = requireLocation(locationId);
         if (!locationId.equals(requestedLocationId)) {
             throw new InvalidOperationException("locationId cannot be changed");
@@ -65,14 +66,15 @@ public class LocationService {
     }
 
     @Transactional
-    public LocationResponse setActive(String locationId, boolean active) {
+    public LocationResponse setActive(@NonNull String locationId, boolean active) {
         Location location = requireLocation(locationId);
         location.setActive(active);
         return toResponse(locations.save(location));
     }
 
-    private Location requireLocation(String locationId) {
-        return locations.findById(Objects.requireNonNull(locationId, "locationId")).orElseThrow(() ->
+    private Location requireLocation(@NonNull String locationId) {
+        String requiredLocationId = Objects.requireNonNull(locationId, "locationId");
+        return locations.findById(requiredLocationId).orElseThrow(() ->
             new ResourceNotFoundException("Location not found: " + locationId));
     }
 

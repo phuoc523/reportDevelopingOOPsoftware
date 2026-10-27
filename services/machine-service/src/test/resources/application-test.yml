@@ -7,3 +7,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+machine:
+  monitor:
+    interval-ms: 60000
+  integration:
+    shared-secret: test-integration-secret
