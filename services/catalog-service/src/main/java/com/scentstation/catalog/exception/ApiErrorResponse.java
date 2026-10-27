@@ -1,7 +1,10 @@
 package com.scentstation.catalog.exception;
 
+import lombok.Builder;
+
 import java.time.LocalDateTime;
 
+@Builder
 public record ApiErrorResponse(
         int status,
         String error,
