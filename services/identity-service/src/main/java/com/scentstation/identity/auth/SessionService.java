@@ -15,13 +15,15 @@ import java.util.Set;
 public class SessionService {
     private final AuthSessionRepository sessions;
     private final TokenService tokens;
+    private final JwtSessionTokenCodec jwt;
     private final AuthProperties properties;
     private final Clock clock;
 
     public SessionService(AuthSessionRepository sessions, TokenService tokens,
-                          AuthProperties properties, Clock clock) {
+                          JwtSessionTokenCodec jwt, AuthProperties properties, Clock clock) {
         this.sessions = sessions;
         this.tokens = tokens;
+        this.jwt = jwt;
         this.properties = properties;
         this.clock = clock;
     }
@@ -30,14 +32,14 @@ public class SessionService {
     public AuthDto.LoginResponse issue(StaffUser user) {
         Instant now = clock.instant();
         Instant expiresAt = now.plus(properties.getSessionTtlMinutes(), ChronoUnit.MINUTES);
-        String raw = tokens.newToken();
+        String raw = jwt.enabled() ? jwt.issue(user.getId(), now, expiresAt) : tokens.newToken();
         sessions.save(new AuthSession(tokens.hash(raw), user, now, expiresAt));
         return new AuthDto.LoginResponse(raw, "Bearer", expiresAt, identityFor(user));
     }
 
     @Transactional(readOnly = true)
     public AuthDto.Identity resolve(String rawToken) {
-        if (!looksLikeToken(rawToken)) return null;
+        if (!isWellFormedToken(rawToken)) return null;
         AuthSession session = sessions.findByTokenHash(tokens.hash(rawToken)).orElse(null);
         if (session == null || session.getRevokedAt() != null || !session.getExpiresAt().isAfter(clock.instant())) {
             return null;
@@ -48,12 +50,14 @@ public class SessionService {
                 || (user.getTenant() != null && !user.getTenant().isActive())) {
             return null;
         }
+        // Opaque tokens rely on the random token hash; JWTs require signature and claims verification.
+        if (rawToken.indexOf('.') >= 0 && !jwt.verify(rawToken, user.getId(), clock.instant())) return null;
         return identityFor(user);
     }
 
     @Transactional
     public void revoke(String rawToken) {
-        if (!looksLikeToken(rawToken)) return;
+        if (!isWellFormedToken(rawToken)) return;
         sessions.findByTokenHash(tokens.hash(rawToken)).ifPresent(session -> {
             if (session.getRevokedAt() == null) session.setRevokedAt(clock.instant());
         });
@@ -65,8 +69,10 @@ public class SessionService {
         return sessions.revokeAllForUser(userId, clock.instant());
     }
 
-    private boolean looksLikeToken(String token) {
-        return token != null && token.length() == 43 && token.matches("[A-Za-z0-9_-]{43}");
+    private boolean isWellFormedToken(String token) {
+        if (token == null) return false;
+        if (token.length() == 43 && token.matches("[A-Za-z0-9_-]{43}")) return true;
+        return token.length() <= 8192 && token.matches("[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+");
     }
 
     public static AuthDto.Identity identityFor(StaffUser user) {

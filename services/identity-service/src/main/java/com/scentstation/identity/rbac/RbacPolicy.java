@@ -31,6 +31,8 @@ public final class RbacPolicy {
         grants.put(Role.VIEWER, EnumSet.of(
                 Permission.ORDER_READ, Permission.INVENTORY_READ,
                 Permission.MACHINE_READ, Permission.REPORT_READ));
+        // Public sign-up can only create CUSTOMER; no back-office permission.
+        grants.put(Role.CUSTOMER, EnumSet.noneOf(Permission.class));
         GRANTS = Collections.unmodifiableMap(grants);
     }
 

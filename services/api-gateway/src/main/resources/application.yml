@@ -16,7 +16,7 @@ management:
       exposure:
         include: health,info
 gateway:
-  identity-url: ${IDENTITY_URL:http://127.0.0.1:8081}
+  identity-url: ${IDENTITY_URL:${IDENTITY_SERVICE_URL:http://127.0.0.1:8081}}
   catalog-url: ${CATALOG_URL:}
   operation-url: ${OPERATION_URL:}
   order-url: ${ORDER_URL:}

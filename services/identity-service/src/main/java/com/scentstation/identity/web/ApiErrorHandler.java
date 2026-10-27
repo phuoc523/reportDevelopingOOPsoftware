@@ -1,6 +1,7 @@
 package com.scentstation.identity.web;
 
 import com.scentstation.identity.auth.AuthDto;
+import com.scentstation.identity.auth.RegistrationService;
 import com.scentstation.identity.rbac.RbacException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.HttpStatus;
@@ -13,6 +14,18 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 
 @RestControllerAdvice
 public class ApiErrorHandler {
+    @ExceptionHandler(RegistrationService.DuplicateAccountException.class)
+    public ResponseEntity<AuthDto.ErrorResponse> duplicateRegistration(Exception ignored) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).cacheControl(CacheControl.noStore())
+                .body(new AuthDto.ErrorResponse("ACCOUNT_ALREADY_EXISTS", "Username or email already in use"));
+    }
+
+    @ExceptionHandler(RegistrationService.InvalidRegistrationException.class)
+    public ResponseEntity<AuthDto.ErrorResponse> invalidRegistration(RegistrationService.InvalidRegistrationException ex) {
+        return ResponseEntity.badRequest().cacheControl(CacheControl.noStore())
+                .body(new AuthDto.ErrorResponse(ex.code(), ex.getMessage()));
+    }
+
     @ExceptionHandler(RbacException.class)
     public ResponseEntity<AuthDto.ErrorResponse> rbacFailure(RbacException ex) {
         return ResponseEntity.status(ex.status()).cacheControl(CacheControl.noStore())

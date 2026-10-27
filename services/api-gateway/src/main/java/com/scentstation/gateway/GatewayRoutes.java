@@ -30,6 +30,14 @@ public class GatewayRoutes {
                 .filters(f->f.rewritePath("/api/v1/"+id+"/(?<rest>.*)", "/api/v1/${rest}"))
                 .uri(url));
         });
+        // Legacy OOP-12 aliases; preserve existing /api/v1/identity/** routes.
+        routes.route("identity-auth-legacy", r -> r.path("/api/auth/**")
+            .filters(f -> f.rewritePath("/api/auth/(?<rest>.*)", "/api/v1/auth/${rest}"))
+            .uri(identity));
+        // Narrow admin alias: only RBAC operations; never proxy arbitrary internal paths.
+        routes.route("identity-admin-rbac-legacy", r -> r.path("/api/admin/rbac/**")
+            .filters(f -> f.rewritePath("/api/admin/rbac/(?<rest>.*)", "/api/v1/rbac/${rest}"))
+            .uri(identity));
         return routes.build();
     }
 }

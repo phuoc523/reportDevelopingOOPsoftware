@@ -4,6 +4,7 @@ import com.scentstation.identity.auth.AuthDto;
 import com.scentstation.identity.auth.AuthenticationService;
 import com.scentstation.identity.auth.LoginOutcome;
 import com.scentstation.identity.auth.SessionService;
+import com.scentstation.identity.auth.RegistrationService;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -15,10 +16,19 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
     private final AuthenticationService authentication;
     private final SessionService sessions;
+    private final RegistrationService registration;
 
-    public AuthController(AuthenticationService authentication, SessionService sessions) {
+    public AuthController(AuthenticationService authentication, SessionService sessions,
+                          RegistrationService registration) {
         this.authentication = authentication;
         this.sessions = sessions;
+        this.registration = registration;
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<AuthDto.RegisterResponse> register(@Valid @RequestBody AuthDto.RegisterRequest request) {
+        return ResponseEntity.status(201).cacheControl(CacheControl.noStore())
+                .body(registration.register(request));
     }
 
     @PostMapping("/login")

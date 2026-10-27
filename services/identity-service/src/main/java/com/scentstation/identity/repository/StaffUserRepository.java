@@ -11,6 +11,8 @@ import java.util.List;
 
 public interface StaffUserRepository extends JpaRepository<StaffUser, String> {
     Optional<StaffUser> findByUsername(String username);
+    boolean existsByUsername(String username);
+    boolean existsByEmail(String email);
     List<StaffUser> findByTenant_Id(String tenantId);
 
     /** Tenant-filtered query prevents cross-tenant object lookup leaks. */

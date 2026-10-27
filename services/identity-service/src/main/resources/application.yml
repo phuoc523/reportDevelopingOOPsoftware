@@ -20,3 +20,7 @@ auth:
   session-ttl-minutes: ${AUTH_SESSION_TTL_MINUTES:30}
   max-failed-attempts: ${AUTH_MAX_FAILED_ATTEMPTS:5}
   lock-minutes: ${AUTH_LOCK_MINUTES:15}
+  # Optional OOP-16 JWT compatibility. Opaque tokens remain default.
+  jwt:
+    enabled: ${JWT_ENABLED:false}
+    secret-base64: ${JWT_SECRET_BASE64:}

@@ -6,5 +6,6 @@ public enum Role {
     OPERATIONS_MANAGER,
     TECHNICIAN,
     INVENTORY_STAFF,
-    VIEWER
+    VIEWER,
+    CUSTOMER
 }

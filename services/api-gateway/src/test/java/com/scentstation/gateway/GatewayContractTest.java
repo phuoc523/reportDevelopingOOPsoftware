@@ -52,6 +52,17 @@ class GatewayContractTest {
             .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD,"POST")
             .exchange().expectHeader().valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,"http://localhost:5173");
     }
+    @Test void legacyAuthAliasRewritesToVersionedIdentity(){
+        web().post().uri("/api/auth/login").exchange().expectStatus().isOk()
+            .expectHeader().valueEquals("X-Test-Upstream-Path", "/api/v1/auth/login");
+    }
+    @Test void legacyAdminRbacAliasRewritesToRbac(){
+        web().get().uri("/api/admin/rbac/me").exchange().expectStatus().isOk()
+            .expectHeader().valueEquals("X-Test-Upstream-Path", "/api/v1/rbac/me");
+    }
+    @Test void legacyAdminDoesNotExposeArbitraryApi(){
+        web().get().uri("/api/admin/internal/tenant/introspect").exchange().expectStatus().isNotFound();
+    }
     @Test void proxyRewritesPathAndScrubsSpoofedInternalHeaders(){
         web().get().uri("/api/v1/identity/rbac/me")
             .header("X-Verified-Tenant-Id","FAKE_TENANT")

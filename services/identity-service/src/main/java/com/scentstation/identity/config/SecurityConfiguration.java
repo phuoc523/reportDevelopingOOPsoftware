@@ -36,6 +36,7 @@ public class SecurityConfiguration {
                         sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
                         .requestMatchers("/api/v1/auth/**").authenticated()
                         // The internal endpoint authenticates callers with a separate service key.
                         // NEVER expose it through the public API gateway.

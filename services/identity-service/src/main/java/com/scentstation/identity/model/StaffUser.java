@@ -17,6 +17,10 @@ public class StaffUser {
     @Column(nullable = false, unique = true, length = 120)
     private String username;
 
+    // Optional for legacy staff users; mandatory for new self-registered customers.
+    @Column(unique = true, length = 254)
+    private String email;
+
     @Column(name = "password_hash", nullable = false, length = 100)
     private String passwordHash;
 
@@ -58,6 +62,8 @@ public class StaffUser {
 
     public String getId() { return id; }
     public String getUsername() { return username; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
     public String getPasswordHash() { return passwordHash; }
     public Tenant getTenant() { return tenant; }
     public Set<String> getRoles() { return roles; }
