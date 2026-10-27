@@ -15,29 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: ci-root-password
-          MYSQL_DATABASE: scentstation_identity
-          MYSQL_USER: scentstation_auth
-          MYSQL_PASSWORD: ci-only-db-password
-        ports:
-          - 3307:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci-root-password"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
     env:
-      DB_URL: jdbc:mysql://127.0.0.1:3307/scentstation_identity
-      DB_USERNAME: scentstation_auth
-      DB_PASSWORD: ci-only-db-password
-      SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3307/scentstation_identity
-      SPRING_DATASOURCE_USERNAME: scentstation_auth
-      SPRING_DATASOURCE_PASSWORD: ci-only-db-password
       DEMO_ADMIN_PASSWORD: ci-only-demo-admin-password
 
     steps:
