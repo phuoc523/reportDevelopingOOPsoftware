@@ -11,6 +11,11 @@ import java.util.Optional;
 public interface StaffUserRepository extends JpaRepository<StaffUser, String> {
     Optional<StaffUser> findByUsername(String username);
 
+    /** Tenant-filtered query prevents cross-tenant object lookup leaks. */
+    @Query("select u from StaffUser u where u.id = :id and u.tenant.id = :tenantId")
+    Optional<StaffUser> findWithinTenant(@Param("id") String id,
+                                          @Param("tenantId") String tenantId);
+
     /** Serialize concurrent role updates to prevent lost writes and inconsistent audits. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from StaffUser u where u.id = :id")

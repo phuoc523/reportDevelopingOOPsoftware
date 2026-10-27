@@ -37,6 +37,10 @@ public class SecurityConfiguration {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
                         .requestMatchers("/api/v1/auth/**").authenticated()
+                        // The internal endpoint authenticates callers with a separate service key.
+                        // NEVER expose it through the public API gateway.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/internal/tenant/introspect").permitAll()
+                        .requestMatchers("/api/v1/tenant-scope/**").authenticated()
                         .requestMatchers("/api/v1/rbac/**").authenticated()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().denyAll())
