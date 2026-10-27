@@ -1,0 +1,90 @@
+name: ScentStation Platform CI
+
+on:
+  push:
+    branches:
+      - feature/p1-06-p1-11-platform
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  identity-tests:
+    name: Identity Java 21 Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-root-password
+          MYSQL_DATABASE: scentstation_identity
+          MYSQL_USER: scentstation_auth
+          MYSQL_PASSWORD: ci-only-db-password
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci-root-password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DB_URL: jdbc:mysql://127.0.0.1:3307/scentstation_identity
+      DB_USERNAME: scentstation_auth
+      DB_PASSWORD: ci-only-db-password
+      SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3307/scentstation_identity
+      SPRING_DATASOURCE_USERNAME: scentstation_auth
+      SPRING_DATASOURCE_PASSWORD: ci-only-db-password
+      DEMO_ADMIN_PASSWORD: ci-only-demo-admin-password
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run Identity tests
+        run: mvn -B -ntp -f services/identity-service/pom.xml test
+
+      - name: Upload Identity test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-test-reports
+          path: services/identity-service/target/surefire-reports/
+          if-no-files-found: ignore
+
+  gateway-tests:
+    name: Gateway Java 21 Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run Gateway tests
+        run: mvn -B -ntp -f services/api-gateway/pom.xml test
+
+      - name: Upload Gateway test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gateway-test-reports
+          path: services/api-gateway/target/surefire-reports/
+          if-no-files-found: ignore
