@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.scentstation.catalog.dto.request.UpdateProductAvailabilityRequest;
 import com.scentstation.catalog.dto.request.UpdateProductPriceRequest;
+import com.scentstation.catalog.dto.request.ProductSearchCriteria;
+import com.scentstation.catalog.specification.ProductSpecification;
+import com.scentstation.catalog.exception.InvalidProductSearchCriteriaException;
 
 import java.util.List;
 
@@ -72,5 +75,56 @@ public class ProductService {
     private Product findProductById(Long id) {
         return productRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException(id));
+    }
+
+    // Tìm và lọc sản phẩm theo các điều kiện catalog được cung cấp.
+    @Transactional(readOnly = true)
+    public List<ProductResponse> searchProducts(
+            ProductSearchCriteria criteria
+    ) {
+        validatePriceRange(criteria);
+
+        return productRepository
+                .findAll(
+                        ProductSpecification.from(criteria)
+                )
+                .stream()
+                .map(productMapper::toResponse)
+                .toList();
+    }
+
+    // Kiểm tra khoảng giá tìm kiếm không bị đảo ngược hoặc chứa giá âm.
+    private void validatePriceRange(
+            ProductSearchCriteria criteria
+    ) {
+        if (criteria.getMinPrice() != null
+                && criteria.getMinPrice()
+                .signum() < 0) {
+
+            throw new InvalidProductSearchCriteriaException(
+                    "Minimum price must not be negative"
+            );
+        }
+
+        if (criteria.getMaxPrice() != null
+                && criteria.getMaxPrice()
+                .signum() < 0) {
+
+            throw new InvalidProductSearchCriteriaException(
+                    "Maximum price must not be negative"
+            );
+        }
+
+        if (criteria.getMinPrice() != null
+                && criteria.getMaxPrice() != null
+                && criteria.getMinPrice()
+                .compareTo(
+                        criteria.getMaxPrice()
+                ) > 0) {
+
+            throw new InvalidProductSearchCriteriaException(
+                    "Minimum price must not exceed maximum price"
+            );
+        }
     }
 }
