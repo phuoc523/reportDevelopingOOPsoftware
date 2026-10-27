@@ -11,7 +11,7 @@ function Check-Status {
     $actual = 0
     try {
         $args = @{ Uri="$base$Path"; Method=$Method; Headers=$Headers; UseBasicParsing=$true; ErrorAction='Stop' }
-        if ($null -ne $Body) {
+        if ($PSBoundParameters.ContainsKey('Body') -and $Method -notin @('GET', 'HEAD')) {
             $args.ContentType = 'application/json'
             $args.Body = $Body
         }
