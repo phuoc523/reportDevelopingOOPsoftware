@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import './App.css'
 // import { mockDevices } from './data/mockDevices';
 import type { Device } from './types/device';
@@ -224,6 +225,145 @@ type Order = {
   reviewNote: string
 }
 
+
+type AlertSeverity = 'Cao' | 'Trung bình' | 'Thấp'
+type AlertStatus = 'Chưa xử lý' | 'Đang xử lý' | 'Đã xử lý'
+
+type SystemAlert = {
+  id: string
+  title: string
+  description: string
+  source: string
+  severity: AlertSeverity
+  status: AlertStatus
+  time: string
+  resolutionNote: string
+}
+
+
+type MaintenanceStatus =
+  | 'Chờ xử lý'
+  | 'Đang xử lý'
+  | 'Hoàn thành'
+
+type MaintenancePriority = 'Thấp' | 'Trung bình' | 'Cao'
+
+type MaintenanceTask = {
+  id: string
+  deviceName: string
+  title: string
+  description: string
+  priority: MaintenancePriority
+  status: MaintenanceStatus
+  assignee: string
+  createdAt: string
+  updatedAt: string
+  resolutionNote: string
+}
+
+type AuditLog = {
+  id: string
+  time: string
+  actor: string
+  action: string
+  target: string
+  detail: string
+  severity: 'info' | 'warning' | 'success'
+}
+
+const initialMaintenanceTasks: MaintenanceTask[] = [
+  {
+    id: 'MNT-001',
+    deviceName: 'Máy phun SP-003',
+    title: 'Kiểm tra mất kết nối',
+    description: 'Thiết bị không gửi trạng thái kết nối về hệ thống.',
+    priority: 'Cao',
+    status: 'Chờ xử lý',
+    assignee: 'Technician',
+    createdAt: '2026-10-27 08:30',
+    updatedAt: '2026-10-27 08:30',
+    resolutionNote: '',
+  },
+  {
+    id: 'MNT-002',
+    deviceName: 'Máy phun SP-002',
+    title: 'Kiểm tra đầu phun',
+    description: 'Kiểm tra khả năng phun và vệ sinh đầu phun.',
+    priority: 'Trung bình',
+    status: 'Đang xử lý',
+    assignee: 'Technician',
+    createdAt: '2026-10-27 09:00',
+    updatedAt: '2026-10-27 09:15',
+    resolutionNote: '',
+  },
+]
+
+const initialAuditLogs: AuditLog[] = [
+  {
+    id: 'LOG-001',
+    time: '2026-10-27 08:30:00',
+    actor: 'Admin',
+    action: 'CREATE',
+    target: 'MNT-001',
+    detail: 'Tạo phiếu kiểm tra máy phun SP-003.',
+    severity: 'warning',
+  },
+  {
+    id: 'LOG-002',
+    time: '2026-10-27 09:15:00',
+    actor: 'Technician',
+    action: 'UPDATE',
+    target: 'MNT-002',
+    detail: 'Chuyển phiếu bảo trì sang trạng thái đang xử lý.',
+    severity: 'info',
+  },
+]
+
+
+const initialAlerts: SystemAlert[] = [
+  {
+    id: 'ALT-001',
+    title: 'Máy phun mất kết nối',
+    description: 'Không nhận được trạng thái kết nối từ thiết bị.',
+    source: 'SP-003',
+    severity: 'Cao',
+    status: 'Chưa xử lý',
+    time: '09:15',
+    resolutionNote: '',
+  },
+  {
+    id: 'ALT-002',
+    title: 'Sản phẩm sắp hết hàng',
+    description: 'Lượng tồn kho đã chạm ngưỡng cảnh báo.',
+    source: 'Rose Velvet',
+    severity: 'Trung bình',
+    status: 'Chưa xử lý',
+    time: '09:21',
+    resolutionNote: '',
+  },
+  {
+    id: 'ALT-003',
+    title: 'Cần kiểm tra cấp phát',
+    description: 'Cần xác minh kết quả cấp phát sau thanh toán.',
+    source: 'ORD-1026',
+    severity: 'Trung bình',
+    status: 'Đang xử lý',
+    time: '09:30',
+    resolutionNote: '',
+  },
+  {
+    id: 'ALT-004',
+    title: 'Tồn kho đã hết',
+    description: 'Sản phẩm hiện không còn hàng.',
+    source: 'Woody Night',
+    severity: 'Cao',
+    status: 'Chưa xử lý',
+    time: '09:35',
+    resolutionNote: '',
+  },
+]
+
+
 const initialOrders: Order[] = [
   {
     id: 'ORD-1028',
@@ -283,7 +423,12 @@ function App() {
   const [orderStatusFilter, setOrderStatusFilter] = useState('all')
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [reviewNote, setReviewNote] = useState('')
-  const [reviewingOrderId, setReviewingOrderId] = useState<string | null>(null)
+  const [reviewingOrderId, setReviewingOrderId] = useState<string | null>(null) 
+  const [alerts] = useState<SystemAlert[]>(initialAlerts)
+  const [alertSearch, setAlertSearch] = useState('')
+  const [alertSeverityFilter, setAlertSeverityFilter] = useState('all')
+  const [alertStatusFilter, setAlertStatusFilter] = useState('all')
+
   const filteredOrders = orders.filter((order) => {
   const search = orderSearch.trim().toLowerCase()
 
@@ -298,6 +443,28 @@ function App() {
 
   return matchesSearch && matchesStatus
   })
+
+  
+  const filteredAlerts = alerts.filter((alert) => {
+  const keyword = alertSearch.trim().toLowerCase()
+
+  const matchesSearch =
+    alert.id.toLowerCase().includes(keyword) ||
+    alert.title.toLowerCase().includes(keyword) ||
+    alert.description.toLowerCase().includes(keyword) ||
+    alert.source.toLowerCase().includes(keyword)
+
+  const matchesSeverity =
+    alertSeverityFilter === 'all' ||
+    alert.severity === alertSeverityFilter
+
+  const matchesStatus =
+    alertStatusFilter === 'all' ||
+    alert.status === alertStatusFilter
+
+  return matchesSearch && matchesSeverity && matchesStatus
+  })
+
   const [campaigns] = useState<Campaign[]>(initialCampaigns)
   const [inventoryHistory, setInventoryHistory] =
     useState<InventoryHistory[]>([])
@@ -344,11 +511,11 @@ function App() {
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null)
   const openDeviceDetail = (device: Device) => {
   setSelectedDevice(device)
-}
+  }
 
-const closeDeviceDetail = () => {
-  setSelectedDevice(null)
-}
+  const closeDeviceDetail = () => {
+    setSelectedDevice(null)
+  }
   const [page, setPage] = useState<Page>('dashboard')
   const [loggedIn, setLoggedIn] = useState(false)
   const [email, setEmail] = useState('admin@example.com')
@@ -360,6 +527,30 @@ const closeDeviceDetail = () => {
   const [adjustmentType, setAdjustmentType] = useState<'import' | 'export'>('import')
   const [adjustmentQuantity, setAdjustmentQuantity] = useState('')
   const [adjustmentReason, setAdjustmentReason] = useState('')
+  
+  const [maintenanceTasks, setMaintenanceTasks] =
+    useState<MaintenanceTask[]>(initialMaintenanceTasks)
+
+  const [auditLogs, setAuditLogs] =
+    useState<AuditLog[]>(initialAuditLogs)
+
+  const [maintenanceSearch, setMaintenanceSearch] = useState('')
+  const [maintenanceStatusFilter, setMaintenanceStatusFilter] =
+    useState('all')
+
+  const [showMaintenanceForm, setShowMaintenanceForm] = useState(false)
+  const [selectedMaintenance, setSelectedMaintenance] =
+    useState<MaintenanceTask | null>(null)
+
+  const [maintenanceForm, setMaintenanceForm] = useState({
+    deviceName: '',
+    title: '',
+    description: '',
+    priority: 'Trung bình' as MaintenancePriority,
+    assignee: 'Technician',
+  })
+
+  const [resolutionNote, setResolutionNote] = useState('')
 
   const can = (permission: string) => {
     const permissions: Record<Role, string[]> = {
@@ -409,7 +600,7 @@ const closeDeviceDetail = () => {
     (product) => product.stock === 0,
   ).length
 
-  const login = (event: React.FormEvent<HTMLFormElement>) => {
+  const login = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     if (!email.trim() || !password.trim()) {
@@ -429,22 +620,22 @@ const closeDeviceDetail = () => {
   }
 
   
-const openInventoryAdjustment = (productName: string) => {
-  setAdjustingProduct(productName)
-  setAdjustmentType('import')
-  setAdjustmentQuantity('')
-  setAdjustmentReason('')
-  setNotice('')
-}
+  const openInventoryAdjustment = (productName: string) => {
+    setAdjustingProduct(productName)
+    setAdjustmentType('import')
+    setAdjustmentQuantity('')
+    setAdjustmentReason('')
+    setNotice('')
+  }
 
-const closeInventoryAdjustment = () => {
-  setAdjustingProduct(null)
-  setAdjustmentQuantity('')
-  setAdjustmentReason('')
-}
+  const closeInventoryAdjustment = () => {
+    setAdjustingProduct(null)
+    setAdjustmentQuantity('')
+    setAdjustmentReason('')
+  }
 
-const submitInventoryAdjustment = () => {
-  if (!adjustingProduct) return
+  const submitInventoryAdjustment = () => {
+    if (!adjustingProduct) return
 
   const quantity = Number(adjustmentQuantity)
 
@@ -547,7 +738,7 @@ const submitInventoryAdjustment = () => {
   setReviewNote('')
   }
 
-  const handleAddProduct = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleAddProduct = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
   const name = productForm.name.trim()
@@ -595,7 +786,7 @@ const submitInventoryAdjustment = () => {
     status:
       stockValue === 0
         ? 'Hết hàng'
-        : stockValue < 10
+        : stockValue <= lowStockThreshold
           ? 'Sắp hết'
           : 'Đang kinh doanh',
   }
@@ -619,8 +810,8 @@ const submitInventoryAdjustment = () => {
     stock: '0',
   })
 
+  setEditingProduct(null)
   setShowProductForm(false)
-  setNotice('Đã thêm sản phẩm thành công.')
   }
 
   if (!loggedIn) {
@@ -1501,17 +1692,15 @@ const handleDeleteProduct = (product: Product) => {
   </section>
   </>
   )
-
-
   
-const renderOrders = () => (
-  <section className="panel">
-    <div className="panel-heading">
-      <div>
-        <h3>Đơn hàng & thanh toán</h3>
-        <p>Theo dõi giao dịch và kết quả cấp phát</p>
+  const renderOrders = () => (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <h3>Đơn hàng & thanh toán</h3>
+          <p>Theo dõi giao dịch và kết quả cấp phát</p>
+        </div>
       </div>
-    </div>
 
     {/* Tìm kiếm và lọc đơn hàng */}
     <div
@@ -1619,15 +1808,18 @@ const renderOrders = () => (
                 Chi tiết
                 </button>
 
-                {order.paymentStatus !== 'Thành công' &&
-                can('payment.refund') && (
+                {(
+                order.paymentStatus !== 'Thành công' ||
+                order.fulfillmentStatus !== 'Hoàn tất'
+                ) && can('payment.refund') && (
                 <button
+                  type="button"
                   className="small-button"
                   onClick={() => openOrderReview(order)}
                 >
-                Xem xét
+                  Xem xét
                 </button>
-                )}
+              )}
               </div>
               </td>
             </tr>
@@ -1763,45 +1955,840 @@ const renderOrders = () => (
   </section>
   )
 
+  
+  // const renderPlaceholder = () => {
+  //   const isMaintenance = page === 'maintenance'
 
-  const renderPlaceholder = () => {
-    const content: Record<'alerts' | 'maintenance' | 'audit', { heading: string; description: string; rows: string[] }> = {
-      alerts: {
-        heading: 'Danh sách cảnh báo',
-        description: 'Theo dõi cảnh báo tồn kho, mất kết nối và giao dịch bất thường.',
-        rows: ['Máy phun SP-003 mất kết nối', 'Rose Velvet sắp hết hàng', 'ORD-1026 cần kiểm tra kết quả cấp phát'],
-      },
-      maintenance: {
-        heading: 'Công việc bảo trì',
-        description: 'Theo dõi phiếu bảo trì và lịch sử sửa chữa thiết bị.',
-        rows: ['Kiểm tra kết nối SP-003', 'Kiểm tra đầu phun SP-002', 'Bảo trì định kỳ SP-001'],
-      },
-      audit: {
-        heading: 'Nhật ký hoạt động',
-        description: 'Theo dõi các hoạt động quan trọng của hệ thống.',
-        rows: ['Đăng nhập quản trị', 'Cập nhật cấu hình thiết bị', 'Kiểm tra giao dịch cần xem xét'],
-      },
-    }
+  //   const heading = isMaintenance
+  //     ? 'Công việc bảo trì'
+  //     : 'Nhật ký hoạt động'
 
-    const data = content[page as 'alerts' | 'maintenance' | 'audit']
+  // const description = isMaintenance
+  //   ? 'Theo dõi phiếu bảo trì và lịch sử sửa chữa thiết bị.'
+  //   : 'Theo dõi các hoạt động quan trọng của hệ thống.'
 
-    return (
+  // return (
+  //   <section className="panel">
+  //     <div className="panel-heading">
+  //       <div>
+  //         <h3>{heading}</h3>
+  //         <p>{description}</p>
+  //       </div>
+  //     </div>
+
+  //     {isMaintenance ? (
+  //       <div className="placeholder-list">
+  //         {[
+  //           {
+  //             id: 'MNT-001',
+  //             title: 'Kiểm tra kết nối SP-003',
+  //             detail: 'Thiết bị không gửi trạng thái kết nối về hệ thống.',
+  //             status: 'Chờ xử lý',
+  //             technician: 'Technician',
+  //           },
+  //           {
+  //             id: 'MNT-002',
+  //             title: 'Kiểm tra đầu phun SP-002',
+  //             detail: 'Kiểm tra hoạt động và tình trạng đầu phun.',
+  //             status: 'Đang xử lý',
+  //             technician: 'Technician',
+  //           },
+  //           {
+  //             id: 'MNT-003',
+  //             title: 'Bảo trì định kỳ SP-001',
+  //             detail: 'Kiểm tra thiết bị theo lịch bảo trì định kỳ.',
+  //             status: 'Hoàn thành',
+  //             technician: 'Admin',
+  //           },
+  //         ].map((item) => (
+  //           <div className="placeholder-row" key={item.id}>
+  //             <span className="placeholder-number">
+  //               {item.id}
+  //             </span>
+
+  //             <div>
+  //               <strong>{item.title}</strong>
+  //               <p>{item.detail}</p>
+  //               <small>
+  //                 Người phụ trách: {item.technician}
+  //               </small>
+  //             </div>
+
+  //             <span
+  //               className={`status-pill ${
+  //                 item.status === 'Hoàn thành'
+  //                   ? 'success'
+  //                   : item.status === 'Đang xử lý'
+  //                     ? 'warning'
+  //                     : 'neutral'
+  //               }`}
+  //             >
+  //               {item.status}
+  //             </span>
+  //           </div>
+  //         ))}
+  //       </div>
+  //     ) : (
+  //       <div className="placeholder-list">
+  //         {[
+  //           {
+  //             time: '2026-10-27 08:30',
+  //             actor: 'Admin',
+  //             action: 'Đăng nhập quản trị',
+  //             detail: 'Người dùng đăng nhập vào hệ thống.',
+  //           },
+  //           {
+  //             time: '2026-10-27 08:35',
+  //             actor: 'Technician',
+  //             action: 'Kiểm tra thiết bị SP-003',
+  //             detail: 'Ghi nhận thiết bị mất kết nối.',
+  //           },
+  //           {
+  //             time: '2026-10-27 08:40',
+  //             actor: 'Admin',
+  //             action: 'Tạo phiếu bảo trì MNT-001',
+  //             detail: 'Tạo yêu cầu kiểm tra kết nối thiết bị.',
+  //           },
+  //         ].map((item, index) => (
+  //           <div
+  //             className="placeholder-row"
+  //             key={`${item.time}-${index}`}
+  //           >
+  //             <span className="placeholder-number">
+  //               {String(index + 1).padStart(2, '0')}
+  //             </span>
+
+  //             <div>
+  //               <strong>{item.action}</strong>
+  //               <p>{item.detail}</p>
+  //               <small>
+  //                 {item.time} · Người thực hiện: {item.actor}
+  //               </small>
+  //             </div>
+
+  //             <span className="status-pill neutral">
+  //               Nhật ký
+  //             </span>
+  //           </div>
+  //         ))}
+  //       </div>
+  //     )}
+
+  //     <p className="panel-note">
+  //       {isMaintenance
+  //         ? 'Dữ liệu hiện đang là dữ liệu mẫu. Chức năng cập nhật và lưu phiếu sẽ được triển khai ở bước tiếp theo.'
+  //         : 'Nhật ký hiện đang sử dụng dữ liệu mẫu, chưa được ghi tự động vào cơ sở dữ liệu.'}
+  //     </p>
+  //   </section>
+  // )
+  // }
+
+
+  const renderAlerts = () => (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <h3>Danh sách cảnh báo</h3>
+          <p>Theo dõi sự cố thiết bị, tồn kho và giao dịch bất thường</p>
+        </div>
+
+        <span className="status-pill warning">
+          {alerts.filter((alert) => alert.status !== 'Đã xử lý').length} chưa hoàn tất
+        </span>
+      </div>
+
+      <div className="filter-bar">
+        <input
+          type="text"
+          value={alertSearch}
+          onChange={(event) => setAlertSearch(event.target.value)}
+          placeholder="Tìm mã, tiêu đề, nguồn hoặc mô tả cảnh báo..."
+        />
+
+        <select
+          value={alertSeverityFilter}
+          onChange={(event) => setAlertSeverityFilter(event.target.value)}
+        >
+          <option value="all">Tất cả mức độ</option>
+          <option value="Cao">Cao</option>
+          <option value="Trung bình">Trung bình</option>
+          <option value="Thấp">Thấp</option>
+        </select>
+
+        <select
+          value={alertStatusFilter}
+          onChange={(event) => setAlertStatusFilter(event.target.value)}
+        >
+          <option value="all">Tất cả trạng thái</option>
+          <option value="Chưa xử lý">Chưa xử lý</option>
+          <option value="Đang xử lý">Đang xử lý</option>
+          <option value="Đã xử lý">Đã xử lý</option>
+        </select>
+      </div>
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Mã cảnh báo</th>
+              <th>Nội dung</th>
+              <th>Nguồn</th>
+              <th>Mức độ</th>
+              <th>Thời gian</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {filteredAlerts.map((alert) => (
+              <tr key={alert.id}>
+                <td><strong>{alert.id}</strong></td>
+                <td>
+                  <strong>{alert.title}</strong>
+                  <div className="muted">{alert.description}</div>
+                </td>
+                <td>{alert.source}</td>
+                <td>
+                  <span
+                    className={`status-pill ${
+                      alert.severity === 'Cao'
+                        ? 'danger'
+                        : alert.severity === 'Trung bình'
+                          ? 'warning'
+                          : 'neutral'
+                    }`}
+                  >
+                    {alert.severity}
+                  </span>
+                </td>
+                <td>{alert.time}</td>
+                <td>
+                  <span
+                    className={`status-pill ${
+                      alert.status === 'Đã xử lý'
+                        ? 'success'
+                        : alert.status === 'Đang xử lý'
+                          ? 'warning'
+                          : 'danger'
+                    }`}
+                  >
+                    {alert.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+
+            {filteredAlerts.length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '24px' }}>
+                  Không tìm thấy cảnh báo phù hợp.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="panel-note">
+        Dữ liệu cảnh báo hiện là dữ liệu mẫu trong bộ nhớ frontend.
+        Chưa kết nối hệ thống phát hiện hoặc lưu trữ cảnh báo trên backend.
+      </p>
+    </section>
+    )
+
+  
+  const renderMaintenance = () => {
+    const filteredTasks = maintenanceTasks.filter((task) => {
+    const keyword = maintenanceSearch.trim().toLowerCase()
+
+    const matchesSearch = [
+      task.id,
+      task.deviceName,
+      task.title,
+      task.assignee,
+    ].some((value) => value.toLowerCase().includes(keyword))
+
+    const matchesStatus =
+      maintenanceStatusFilter === 'all' ||
+      task.status === maintenanceStatusFilter
+
+    return matchesSearch && matchesStatus
+  })
+
+  const statusClass = (status: MaintenanceStatus) => {
+    if (status === 'Hoàn thành') return 'success'
+    if (status === 'Đang xử lý') return 'warning'
+    return 'neutral'
+  }
+
+  return (
+    <>
+      <div className="inventory-summary">
+        <div>
+          <span>Tổng phiếu</span>
+          <strong>{maintenanceTasks.length}</strong>
+        </div>
+        <div>
+          <span>Chờ xử lý</span>
+          <strong>
+            {maintenanceTasks.filter(
+              (task) => task.status === 'Chờ xử lý',
+            ).length}
+          </strong>
+        </div>
+        <div>
+          <span>Đang xử lý</span>
+          <strong>
+            {maintenanceTasks.filter(
+              (task) => task.status === 'Đang xử lý',
+            ).length}
+          </strong>
+        </div>
+        <div>
+          <span>Hoàn thành</span>
+          <strong>
+            {maintenanceTasks.filter(
+              (task) => task.status === 'Hoàn thành',
+            ).length}
+          </strong>
+        </div>
+      </div>
+
       <section className="panel">
         <div className="panel-heading">
-          <div><h3>{data.heading}</h3><p>{data.description}</p></div>
+          <div>
+            <h3>Danh sách phiếu bảo trì</h3>
+            <p>Theo dõi sự cố và tiến độ sửa chữa thiết bị</p>
+          </div>
+
+          {can('maintenance.manage') && (
+            <button
+              className="primary-button"
+              onClick={() => {
+                setNotice('')
+                setShowMaintenanceForm(true)
+              }}
+            >
+              + Tạo phiếu
+            </button>
+          )}
         </div>
-        <div className="placeholder-list">
-          {data.rows.map((item, index) => (
-            <div className="placeholder-row" key={item}>
-              <span className="placeholder-number">0{index + 1}</span>
-              <span>{item}</span>
-              <span className={`status-pill ${index === 0 ? 'warning' : 'neutral'}`}>{index === 0 ? 'Cần xử lý' : 'Đang theo dõi'}</span>
-            </div>
-          ))}
+
+        <div className="filter-bar">
+          <input
+            value={maintenanceSearch}
+            onChange={(event) =>
+              setMaintenanceSearch(event.target.value)
+            }
+            placeholder="Tìm mã phiếu, thiết bị hoặc công việc..."
+          />
+
+          <select
+            value={maintenanceStatusFilter}
+            onChange={(event) =>
+              setMaintenanceStatusFilter(event.target.value)
+            }
+          >
+            <option value="all">Tất cả trạng thái</option>
+            <option value="Chờ xử lý">Chờ xử lý</option>
+            <option value="Đang xử lý">Đang xử lý</option>
+            <option value="Hoàn thành">Hoàn thành</option>
+          </select>
         </div>
-        <p className="panel-note">Đây là nội dung minh họa. Chưa có API lưu trữ, phân công hoặc xác nhận xử lý.</p>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Mã phiếu</th>
+                <th>Thiết bị / Công việc</th>
+                <th>Ưu tiên</th>
+                <th>Phụ trách</th>
+                <th>Trạng thái</th>
+                <th>Cập nhật</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filteredTasks.map((task) => (
+                <tr key={task.id}>
+                  <td><strong>{task.id}</strong></td>
+
+                  <td>
+                    <strong>{task.deviceName}</strong>
+                    <div className="muted">{task.title}</div>
+                  </td>
+
+                  <td>
+                    <span className={`status-pill ${
+                      task.priority === 'Cao'
+                        ? 'danger'
+                        : task.priority === 'Trung bình'
+                          ? 'warning'
+                          : 'neutral'
+                    }`}>
+                      {task.priority}
+                    </span>
+                  </td>
+
+                  <td>{task.assignee}</td>
+
+                  <td>
+                    <span className={`status-pill ${statusClass(task.status)}`}>
+                      {task.status}
+                    </span>
+                  </td>
+
+                  <td>{task.updatedAt}</td>
+
+                  <td>
+                    <button
+                      className="secondary-button"
+                      onClick={() => {
+                        setSelectedMaintenance(task)
+                        setResolutionNote(task.resolutionNote)
+                      }}
+                    >
+                      Chi tiết
+                    </button>
+                  </td>
+                </tr>
+              ))}
+
+              {filteredTasks.length === 0 && (
+                <tr>
+                  <td colSpan={7}>
+                    Không tìm thấy phiếu bảo trì phù hợp.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
-    )
+
+      {showMaintenanceForm && (
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h3>Tạo phiếu bảo trì</h3>
+              <p>Ghi nhận công việc cần thực hiện</p>
+            </div>
+          </div>
+
+          <form
+            className="product-form"
+            onSubmit={createMaintenanceTask}
+          >
+            <div className="product-form-grid">
+              <label>
+                Thiết bị
+                <select
+                  value={maintenanceForm.deviceName}
+                  onChange={(event) =>
+                    setMaintenanceForm((current) => ({
+                      ...current,
+                      deviceName: event.target.value,
+                    }))
+                  }
+                  required
+                >
+                  <option value="">Chọn máy phun</option>
+                  {devices.map((device) => (
+                    <option key={device.name} value={device.name}>
+                      {device.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Người phụ trách
+                <select
+                  value={maintenanceForm.assignee}
+                  onChange={(event) =>
+                    setMaintenanceForm((current) => ({
+                      ...current,
+                      assignee: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="Technician">Technician</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </label>
+
+              <label>
+                Mức độ ưu tiên
+                <select
+                  value={maintenanceForm.priority}
+                  onChange={(event) =>
+                    setMaintenanceForm((current) => ({
+                      ...current,
+                      priority: event.target.value as MaintenancePriority,
+                    }))
+                  }
+                >
+                  <option value="Thấp">Thấp</option>
+                  <option value="Trung bình">Trung bình</option>
+                  <option value="Cao">Cao</option>
+                </select>
+              </label>
+
+              <label>
+                Tên công việc
+                <input
+                  value={maintenanceForm.title}
+                  onChange={(event) =>
+                    setMaintenanceForm((current) => ({
+                      ...current,
+                      title: event.target.value,
+                    }))
+                  }
+                  required
+                  placeholder="Ví dụ: Kiểm tra đầu phun"
+                />
+              </label>
+            </div>
+
+            <label>
+              Mô tả sự cố
+              <textarea
+                value={maintenanceForm.description}
+                onChange={(event) =>
+                  setMaintenanceForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                required
+                rows={3}
+              />
+            </label>
+
+            <div className="form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setShowMaintenanceForm(false)}
+              >
+                Hủy
+              </button>
+              <button className="primary-button" type="submit">
+                Tạo phiếu
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
+      {selectedMaintenance && (
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h3>{selectedMaintenance.id} — Chi tiết bảo trì</h3>
+              <p>{selectedMaintenance.title}</p>
+            </div>
+            <button
+              className="secondary-button"
+              onClick={() => {
+                setSelectedMaintenance(null)
+                setResolutionNote('')
+              }}
+            >
+              Đóng
+            </button>
+          </div>
+
+          <p><strong>Thiết bị:</strong> {selectedMaintenance.deviceName}</p>
+          <p><strong>Mô tả:</strong> {selectedMaintenance.description}</p>
+          <p><strong>Người phụ trách:</strong> {selectedMaintenance.assignee}</p>
+          <p><strong>Trạng thái:</strong> {selectedMaintenance.status}</p>
+          <p><strong>Tạo lúc:</strong> {selectedMaintenance.createdAt}</p>
+
+          {selectedMaintenance.resolutionNote && (
+            <p>
+              <strong>Kết quả xử lý:</strong>{' '}
+              {selectedMaintenance.resolutionNote}
+            </p>
+          )}
+
+          {can('maintenance.manage') &&
+            selectedMaintenance.status !== 'Hoàn thành' && (
+              <>
+                <label htmlFor="resolutionNote">
+                  Ghi chú xử lý
+                </label>
+                <textarea
+                  id="resolutionNote"
+                  value={resolutionNote}
+                  onChange={(event) => setResolutionNote(event.target.value)}
+                  rows={3}
+                  placeholder="Ghi kết quả kiểm tra hoặc sửa chữa..."
+                />
+
+                <div className="form-actions">
+                  {selectedMaintenance.status === 'Chờ xử lý' && (
+                    <button
+                      className="small-button"
+                      onClick={() =>
+                        updateMaintenanceTask(
+                          selectedMaintenance,
+                          'Đang xử lý',
+                        )
+                      }
+                    >
+                      Bắt đầu xử lý
+                    </button>
+                  )}
+
+                  <button
+                    className="primary-button"
+                    onClick={() =>
+                      updateMaintenanceTask(
+                        selectedMaintenance,
+                        'Hoàn thành',
+                      )
+                    }
+                  >
+                    Hoàn thành bảo trì
+                  </button>
+                </div>
+              </>
+            )}
+        </section>
+      )}
+    </>
+  )
+  }
+
+  
+  const renderAudit = () => {
+    const keyword = search.trim().toLowerCase()
+
+  const filteredLogs = auditLogs.filter((log) =>
+    [
+      log.id,
+      log.actor,
+      log.action,
+      log.target,
+      log.detail,
+    ].some((value) => value.toLowerCase().includes(keyword)),
+  )
+
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <h3>Lịch sử hoạt động</h3>
+          <p>Theo dõi các thao tác được ghi nhận trong phiên demo</p>
+        </div>
+
+        <span className="status-pill neutral">
+          {auditLogs.length} bản ghi
+        </span>
+      </div>
+
+      <div className="filter-bar">
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Tìm theo người thực hiện, hành động hoặc nội dung..."
+        />
+      </div>
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Thời gian</th>
+              <th>Người thực hiện</th>
+              <th>Hành động</th>
+              <th>Đối tượng</th>
+              <th>Nội dung</th>
+              <th>Loại</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {filteredLogs.map((log) => (
+              <tr key={log.id}>
+                <td>{log.time}</td>
+                <td><strong>{log.actor}</strong></td>
+                <td>
+                  <span className="status-pill neutral">
+                    {log.action}
+                  </span>
+                </td>
+                <td>{log.target}</td>
+                <td>{log.detail}</td>
+                <td>
+                  <span className={`status-pill ${
+                    log.severity === 'success'
+                      ? 'success'
+                      : log.severity === 'warning'
+                        ? 'warning'
+                        : 'neutral'
+                  }`}>
+                    {log.severity === 'success'
+                      ? 'Thành công'
+                      : log.severity === 'warning'
+                        ? 'Cảnh báo'
+                        : 'Thông tin'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+
+            {filteredLogs.length === 0 && (
+              <tr>
+                <td colSpan={6}>
+                  Không tìm thấy nhật ký phù hợp.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="panel-note">
+        Nhật ký demo có thể bị mất khi tải lại trang. Nhật ký kiểm toán
+        chính thức cần được backend ghi nhận và bảo vệ khỏi chỉnh sửa trái phép.
+      </p>
+    </section>
+  )
+  }
+
+
+  const addAuditLog = (
+    action: string,
+    target: string,
+    detail: string,
+    severity: AuditLog['severity'] = 'info',
+  ) => {
+  const now = new Date()
+
+  const time = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-') + ' ' + now.toLocaleTimeString('vi-VN', {
+    hour12: false,
+  })
+
+  const log: AuditLog = {
+    id: `LOG-${Date.now()}`,
+    time,
+    actor: role,
+    action,
+    target,
+    detail,
+    severity,
+  }
+
+  setAuditLogs((current) => [log, ...current])
+  }
+
+  
+  const createMaintenanceTask = (
+    event: FormEvent<HTMLFormElement>,
+    ) => {
+    event.preventDefault()
+
+  if (
+    !maintenanceForm.deviceName ||
+    !maintenanceForm.title.trim() ||
+    !maintenanceForm.description.trim()
+  ) {
+    setNotice('Vui lòng nhập đầy đủ thông tin bảo trì.')
+    return
+  }
+
+  const now = new Date().toLocaleString('sv-SE', {
+    hour12: false,
+  }).replace(',', '')
+
+  const task: MaintenanceTask = {
+    id: `MNT-${Date.now()}`,
+    deviceName: maintenanceForm.deviceName,
+    title: maintenanceForm.title.trim(),
+    description: maintenanceForm.description.trim(),
+    priority: maintenanceForm.priority,
+    status: 'Chờ xử lý',
+    assignee: maintenanceForm.assignee,
+    createdAt: now,
+    updatedAt: now,
+    resolutionNote: '',
+  }
+
+  setMaintenanceTasks((current) => [task, ...current])
+
+  addAuditLog(
+    'CREATE',
+    task.id,
+    `Tạo phiếu bảo trì ${task.title} cho ${task.deviceName}.`,
+    task.priority === 'Cao' ? 'warning' : 'info',
+  )
+
+  setShowMaintenanceForm(false)
+  setMaintenanceForm({
+    deviceName: '',
+    title: '',
+    description: '',
+    priority: 'Trung bình',
+    assignee: 'Technician',
+  })
+
+  setNotice(`Đã tạo phiếu bảo trì ${task.id}.`)
+  }
+
+  const updateMaintenanceTask = (
+    task: MaintenanceTask,
+    status: MaintenanceStatus,
+  ) => {
+  if (
+    status === 'Hoàn thành' &&
+    !resolutionNote.trim()
+  ) {
+    setSelectedMaintenance(task)
+    setNotice('Vui lòng nhập ghi chú kết quả trước khi hoàn thành.')
+    return
+  }
+
+  const now = new Date().toLocaleString('sv-SE', {
+    hour12: false,
+  }).replace(',', '')
+
+  const note =
+    status === 'Hoàn thành'
+      ? resolutionNote.trim()
+      : task.resolutionNote
+
+  setMaintenanceTasks((current) =>
+    current.map((item) =>
+      item.id === task.id
+        ? {
+            ...item,
+            status,
+            updatedAt: now,
+            resolutionNote: note,
+          }
+        : item,
+    ),
+  )
+
+  addAuditLog(
+    'UPDATE',
+    task.id,
+    `Cập nhật phiếu ${task.id}: ${task.status} → ${status}.` +
+      (note ? ` Kết quả: ${note}` : ''),
+    status === 'Hoàn thành' ? 'success' : 'info',
+  )
+
+  setSelectedMaintenance(null)
+  setResolutionNote('')
+  setNotice(`Đã cập nhật phiếu ${task.id}: ${status}.`)
   }
 
   return (
@@ -1809,206 +2796,172 @@ const renderOrders = () => (
       <aside className="sidebar">
         <div className="sidebar-brand">
           <div className="brand-logo">S</div>
-          <div><span className="brand-name">SCENT<span>OS</span></span><small>ADMIN CONSOLE</small></div>
+          <span className="brand-name">
+            SCENT<span>OS</span>
+          </span>
         </div>
 
-        <div className="workspace-label">WORKSPACE</div>
-        <div className="workspace-card">
-          <div className="workspace-icon">S</div>
-          <div><strong>SCENTOS Platform</strong><small>Hệ thống quản trị</small></div>
-          <span>⌄</span>
-        </div>
-
-        <div className="nav-label">QUẢN LÝ</div>
         <nav className="sidebar-nav">
           {visibleNavigation.map((item) => (
             <button
               key={item.id}
-              className={`nav-item ${page === item.id ? 'active' : ''}`}
+              type="button"
+              className={
+                page === item.id
+                  ? 'nav-item active'
+                  : 'nav-item'
+              }
               onClick={() => {
                 setPage(item.id)
-                setSearch('')
                 setNotice('')
               }}
             >
               <span className="nav-icon">{item.icon}</span>
               <span>{item.label}</span>
-              {item.id === 'alerts' && <span className="nav-count">5</span>}
             </button>
           ))}
         </nav>
 
-        <div className="sidebar-bottom">
-          <div className="help-card">
-            <span className="help-icon">?</span>
-            <strong>Cần hỗ trợ?</strong>
-            <p>Kiểm tra tài liệu hướng dẫn vận hành hệ thống.</p>
-            <button onClick={() => setNotice('Tài liệu hướng dẫn sẽ được bổ sung sau.')}>Xem hướng dẫn →</button>
-          </div>
-          <div className="sidebar-user">
-            <div className="user-avatar">AD</div>
-            <div className="user-meta"><strong>Quản trị viên</strong><small>{role}</small></div>
-            <button className="logout-icon" title="Đăng xuất" onClick={logout}>↪</button>
-          </div>
+        <div className="sidebar-footer">
+          <label htmlFor="demo-role">Vai trò demo</label>
+          <select
+            id="demo-role"
+            value={role}
+            onChange={(event) => {
+              const nextRole = event.target.value as Role
+              setRole(nextRole)
+
+              const allowedPages = navigation.filter(
+                (item) => item.permission.includes(nextRole),
+              )
+
+              if (!allowedPages.some((item) => item.id === page)) {
+                setPage('dashboard')
+              }
+
+              setNotice('')
+            }}
+          >
+            {roles.map((item) => (
+              <option key={item} value={item}>
+                {item}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={logout}
+          >
+            Đăng xuất
+          </button>
         </div>
       </aside>
 
-      <main className="main-area">
-        <header className="topbar">
-          <div className="breadcrumb">SCENTOS <span>/</span> <strong>{pageTitles[page]}</strong></div>
-          <div className="topbar-actions">
-            <span className="environment"><i className="dot online-dot" /> Demo</span>
-            <button className="notification-button" title="Cảnh báo" onClick={() => setPage('alerts')}>
-              ♧<span className="notification-dot" />
-            </button>
-            <div className="topbar-divider" />
-            <div className="topbar-user">
-              <div className="user-avatar">AD</div>
-              <div><strong>Quản trị viên</strong><small>{role}</small></div>
+      <div className="main-content">
+        <header className="page-header">
+          <div>
+            <span className="eyebrow">SCENTOS ADMIN</span>
+            <h1>{pageTitles[page]}</h1>
+          </div>
+
+          <div className="header-user">
+            <span className="user-avatar">
+              {email.charAt(0).toUpperCase()}
+            </span>
+            <div>
+              <strong>{email}</strong>
+              <small>{role}</small>
             </div>
           </div>
         </header>
 
-        <div className="page-content">
-          <div className="page-heading">
-            <div>
-              <span className="eyebrow">OVERVIEW / MANAGEMENT</span>
-              <h1>{pageTitles[page]}</h1>
-              <p>Xin chào! Đây là tình hình hoạt động của hệ thống hôm nay.</p>
-            </div>
-            <div className="heading-actions">
-              <label className="role-switcher">
-                <span>Vai trò demo</span>
-                <select
-                  value={role}
-                  onChange={(event) => {
-                    const nextRole = event.target.value as Role
-                    setRole(nextRole)
-                    const firstAllowed = navigation.find((item) => item.permission.includes(nextRole))
-                    if (firstAllowed) setPage(firstAllowed.id)
-                    setNotice('')
-                  }}
-                >
-                  {roles.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </label>
-              <button className="secondary-button" onClick={() => setNotice('Dữ liệu minh họa không cần đồng bộ.')}>↻ Làm mới</button>
-            </div>
+        {notice && (
+          <div className="notice-message" role="status">
+            <span>{notice}</span>
+            <button
+              type="button"
+              onClick={() => setNotice('')}
+              aria-label="Đóng thông báo"
+            >
+              ×
+            </button>
           </div>
+        )}
 
-          {notice && (
-            <div className="notice-banner">
-              <span>ⓘ</span>
-              <p>{notice}</p>
-              <button onClick={() => setNotice('')} aria-label="Đóng thông báo">×</button>
-            </div>
-          )}
-
+        <main className="page-content">
           {page === 'dashboard' && renderDashboard()}
           {page === 'products' && renderProducts()}
           {page === 'campaigns' && renderCampaigns()}
           {page === 'inventory' && renderInventory()}
           {page === 'devices' && renderDevices()}
+          {page === 'alerts' && renderAlerts()}
           {page === 'orders' && renderOrders()}
-          {(page === 'alerts' || page === 'maintenance' || page === 'audit') && renderPlaceholder()}
+          {page === 'maintenance' && renderMaintenance()}
+          {page === 'audit' && renderAudit()}
+        </main>
+      </div>
 
-          <footer className="page-footer">
-            <span>© 2026 SCENTOS · Admin Console</span>
-            <span>Frontend prototype · Mock data</span>
-          </footer>
-          {selectedDevice && (
-            <div
-              className="device-modal-overlay"
-              onClick={closeDeviceDetail}
-            >
-            <section
-              className="device-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="device-detail-title"
-              onClick={(event) => event.stopPropagation()}
-            >
+      {selectedDevice && (
+        <div
+          className="device-modal-overlay"
+          onClick={closeDeviceDetail}
+        >
+          <section
+            className="device-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="device-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="panel-heading">
               <div>
-                <span className="eyebrow">DEVICE DETAILS</span>
-                <h2 id="device-detail-title">
-                {selectedDevice.name}
-                </h2>
-                <p>Thông tin chi tiết thiết bị</p>
+                <h3 id="device-modal-title">Chi tiết máy phun</h3>
+                <p>{selectedDevice.name}</p>
               </div>
 
               <button
                 type="button"
                 className="secondary-button"
                 onClick={closeDeviceDetail}
-                aria-label="Đóng chi tiết thiết bị"
               >
-              Đóng ✕
+                Đóng
               </button>
             </div>
 
-      <div className="device-detail-grid">
-        <div className="device-detail-item">
-          <span>Mã thiết bị</span>
-          <strong>{selectedDevice.id}</strong>
-        </div>
+            <div className="device-detail-grid">
+              <div className="device-detail-item">
+                <span>Tên thiết bị</span>
+                <strong>{selectedDevice.name}</strong>
+              </div>
 
-        <div className="device-detail-item">
-          <span>Trạng thái kết nối</span>
-          <strong>
-            <span
-              className={`status-pill ${
-                selectedDevice.status === 'Online'
-                  ? 'success'
-                  : 'danger'
-              }`}
-            >
-              {selectedDevice.status}
-            </span>
-          </strong>
-        </div>
+              <div className="device-detail-item">
+                <span>Sản phẩm</span>
+                <strong>{selectedDevice.product}</strong>
+              </div>
 
-        <div className="device-detail-item">
-          <span>Sản phẩm sử dụng</span>
-          <strong>{selectedDevice.product}</strong>
-        </div>
+              <div className="device-detail-item">
+                <span>Vị trí</span>
+                <strong>{selectedDevice.location}</strong>
+              </div>
 
-        <div className="device-detail-item">
-          <span>Vị trí lắp đặt</span>
-          <strong>{selectedDevice.location}</strong>
-        </div>
+              <div className="device-detail-item">
+                <span>Trạng thái kết nối</span>
+                <strong>{selectedDevice.status}</strong>
+              </div>
 
-        <div className="device-detail-item device-detail-stock">
-          <span>Mức dung dịch ước tính</span>
-          <strong>{selectedDevice.stock}%</strong>
-
-          <div className="device-stock-track">
-            <div
-              className="device-stock-fill"
-              style={{
-                width: `${Math.max(
-                  0,
-                  Math.min(100, selectedDevice.stock)
-                )}%`,
-              }}
-            />
-          </div>
+              <div className="device-detail-item">
+                <span>Lượng hàng ước tính</span>
+                <strong>{selectedDevice.stock}%</strong>
+              </div>
+            </div>
+          </section>
         </div>
-      </div>
-
-      <p className="panel-note">
-        Thông tin đang sử dụng dữ liệu mẫu trên frontend.
-        Trạng thái và mức dung dịch chưa được xác nhận từ thiết bị thật.
-      </p>
-    </section>
-  </div>
-)}
-        </div>
-      </main>
+      )}
     </div>
   )
-
-  
 }
 
 export default App
+
