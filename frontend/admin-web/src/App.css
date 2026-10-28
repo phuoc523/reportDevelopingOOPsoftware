@@ -633,3 +633,297 @@ textarea { min-height: 95px; resize: vertical; }
   }
 }
 
+
+/* ===== Redesign trang đăng nhập SCENTOS ===== */
+.login-screen {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(380px, 0.9fr);
+  padding: 20px;
+  gap: 0;
+  background: #f8f5ef;
+}
+
+.login-brand {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: calc(100vh - 40px);
+  padding: 40px;
+  overflow: hidden;
+  color: #fff;
+  background:
+    linear-gradient(180deg, rgba(20, 35, 50, 0.08), rgba(20, 35, 50, 0.48)),
+    url("/flower-heart-background.png") center / cover no-repeat;
+  border-radius: 20px 0 0 20px;
+}
+
+.login-brand .brand-name,
+.login-brand .login-brand-copy,
+.login-brand .login-footer {
+  position: relative;
+  z-index: 1;
+}
+
+.login-brand .brand-name {
+  color: #fff;
+}
+
+.login-brand .brand-name span {
+  color: #f2c68c;
+}
+
+.login-brand .brand-logo {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.login-brand-copy {
+  max-width: 520px;
+  margin-top: auto;
+  margin-bottom: auto;
+  padding: 50px 0;
+}
+
+.login-brand-copy h1 {
+  color: #fff;
+  font-size: clamp(30px, 3.2vw, 48px);
+  line-height: 1.18;
+  letter-spacing: -1px;
+}
+
+.login-brand-copy p {
+  max-width: 420px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.login-brand .eyebrow {
+  color: #ffe0b5;
+}
+
+.login-feature {
+  margin-top: 14px;
+  color: #fff;
+  font-size: 12px;
+}
+
+.login-feature span {
+  margin-right: 8px;
+  color: #ffe0b5;
+}
+
+.login-footer {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.login-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: calc(100vh - 40px);
+  padding: 40px clamp(24px, 5vw, 76px);
+  background: #fff;
+  border-radius: 0 20px 20px 0;
+}
+
+.login-form {
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-form h2 {
+  margin: 12px 0;
+  color: #302b26;
+  font-size: 32px;
+  letter-spacing: -0.8px;
+}
+
+.login-form .muted {
+  margin-bottom: 28px;
+  color: #888176;
+  line-height: 1.7;
+}
+
+.login-form label {
+  display: block;
+  margin: 18px 0 8px;
+  color: #51483e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.login-form input {
+  min-height: 46px;
+  border: 1px solid #e8e0d5;
+  border-radius: 10px;
+  background: #fdfbf8;
+  color: #302b26;
+  font-size: 13px;
+}
+
+.login-form input:focus {
+  border-color: #c59b68;
+  outline: 3px solid rgba(197, 155, 104, 0.15);
+}
+
+.password-toggle {
+  color: #987044;
+}
+
+.login-button {
+  min-height: 46px;
+  margin-top: 22px;
+  border: none;
+  border-radius: 10px;
+  background: #a87945;
+  color: #fff;
+}
+
+.login-button:hover {
+  background: #896039;
+}
+
+.demo-note {
+  margin-top: 18px;
+  border: 1px solid #eee2d2;
+  border-radius: 10px;
+  background: #faf6ef;
+}
+
+.demo-note strong {
+  color: #896039;
+}
+
+.demo-note p {
+  color: #817568;
+}
+
+/* Responsive */
+@media (max-width: 760px) {
+  .login-screen {
+    grid-template-columns: 1fr;
+    padding: 0;
+  }
+
+  .login-brand {
+    display: flex;
+    min-height: 220px;
+    padding: 24px;
+    border-radius: 0;
+  }
+
+  .login-brand-copy {
+    padding: 25px 0;
+  }
+
+  .login-brand-copy h1 {
+    font-size: 28px;
+  }
+
+  .login-brand-copy p,
+  .login-feature,
+  .login-footer {
+    display: none;
+  }
+
+  .login-panel {
+    min-height: auto;
+    padding: 32px 24px;
+    border-radius: 0;
+  }
+
+  .mobile-brand {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .login-button {
+    transition: background-color 180ms ease;
+  }
+}
+
+
+/* ===== Dong bo mau xanh voi giao dien chinh ===== */
+
+.login-screen {
+  background: #f1f6fb;
+}
+
+.login-panel {
+  background: #ffffff;
+}
+
+.login-form h2 {
+  color: #1e293b;
+}
+
+.login-form .muted {
+  color: #64748b;
+}
+
+.login-form label {
+  color: #334155;
+}
+
+.login-form input {
+  border-color: #d8e4f0;
+  background: #f8fbff;
+  color: #1e293b;
+}
+
+.login-form input:focus {
+  border-color: #2563a6;
+  outline: 3px solid rgba(37, 99, 166, 0.15);
+}
+
+.password-toggle {
+  color: #2563a6;
+}
+
+.login-button {
+  background: #2563a6;
+  color: #ffffff;
+}
+
+.login-button:hover {
+  background: #174a7e;
+}
+
+.demo-note {
+  border-color: #d8e7f5;
+  background: #eff6fc;
+}
+
+.demo-note strong {
+  color: #2563a6;
+}
+
+.demo-note p {
+  color: #64748b;
+}
+
+.login-brand .eyebrow {
+  color: #dbeafe;
+}
+
+.login-brand .brand-name span {
+  color: #93c5fd;
+}
+
+.login-brand .brand-logo {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.login-feature span {
+  color: #bfdbfe;
+}
+
+
