@@ -8,6 +8,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -149,5 +150,39 @@ public class GlobalExceptionHandler {
                 .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())
                 .build();
+        }
+
+        // Trả về 409 khi Machine Service trả thông tin không khớp resource Catalog yêu cầu.
+        @ExceptionHandler(MachineAvailabilityReferenceMismatchException.class)
+        public ResponseEntity<ApiErrorResponse> handleMachineAvailabilityReferenceMismatch(
+                MachineAvailabilityReferenceMismatchException ex,
+                HttpServletRequest request
+        ) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(
+                        buildError(
+                                HttpStatus.CONFLICT,
+                                ex.getMessage(),
+                                request
+                        )
+                );
+        }
+
+        // Trả về 400 khi tham số path/query không thỏa constraint validation.
+        @ExceptionHandler(ConstraintViolationException.class)
+        public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
+                ConstraintViolationException ex,
+                HttpServletRequest request
+        ) {
+        return ResponseEntity
+                .badRequest()
+                .body(
+                        buildError(
+                                HttpStatus.BAD_REQUEST,
+                                ex.getMessage(),
+                                request
+                        )
+                );
         }
 }
