@@ -12,6 +12,8 @@ Business logic has not been implemented yet.
 
 ## Run with Maven
 
+Requires JDK 25 or newer.
+
 ```bash
 mvn spring-boot:run
 ```
