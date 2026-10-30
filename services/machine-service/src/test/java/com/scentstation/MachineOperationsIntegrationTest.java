@@ -1,0 +1,77 @@
+package com.scentstation;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.core.ParameterizedTypeReference;
+
+import java.util.Map;
+import java.util.LinkedHashMap;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+
+class MachineOperationsIntegrationTest extends MachineServiceIntegrationTestBase {
+    @Test
+    void disabledMachineMustUseControlEndpointToReEnable() {
+        Long machineId = createMachine(uniqueId("tenant"));
+        assertEquals(HttpStatus.OK, patchJson(
+            "/api/machines/" + machineId + "/operational-status",
+            Map.of("status", "DISABLED")
+        ).getStatusCode());
+
+        ResponseEntity<Map<String, Object>> bypass = patchJson(
+            "/api/machines/" + machineId + "/operational-status",
+            Map.of("status", "ONLINE")
+        );
+        assertEquals(HttpStatus.BAD_REQUEST, bypass.getStatusCode());
+
+        ResponseEntity<Map<String, Object>> enabled = patchJson(
+            "/api/machines/" + machineId + "/control",
+            Map.of("action", "ENABLE")
+        );
+        assertEquals(HttpStatus.OK, enabled.getStatusCode());
+        assertEquals("OFFLINE", requireBody(enabled).get("operationalStatus"));
+    }
+
+    @Test
+    void operatingHoursCanBeClearedToAllowAllDayAvailability() {
+        Long machineId = createMachine(uniqueId("tenant"));
+        ResponseEntity<Map<String, Object>> configured = putJson(
+            "/api/machines/" + machineId + "/operating-hours",
+            Map.of("startTime", "08:00:00", "endTime", "17:00:00")
+        );
+        assertEquals(HttpStatus.OK, configured.getStatusCode());
+
+        Map<String, Object> clearRequest = new LinkedHashMap<>();
+        clearRequest.put("startTime", null);
+        clearRequest.put("endTime", null);
+        ResponseEntity<Map<String, Object>> cleared = putJson(
+            "/api/machines/" + machineId + "/operating-hours",
+            clearRequest
+        );
+
+        assertEquals(HttpStatus.OK, cleared.getStatusCode());
+        assertNull(requireBody(cleared).get("operatingHoursStart"));
+        assertNull(requireBody(cleared).get("operatingHoursEnd"));
+    }
+
+    @Test
+    void heartbeatUpdatesLastSeenAndBringsOfflineMachineOnline() {
+        Long machineId = createMachine(uniqueId("tenant"));
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-Internal-Service-Key", "test-integration-secret");
+        ResponseEntity<Map<String, Object>> heartbeat = rest.exchange(
+            "/api/machines/" + machineId + "/heartbeat", HttpMethod.POST,
+            new HttpEntity<>(Map.of(), headers), new ParameterizedTypeReference<>() {});
+
+        assertEquals(HttpStatus.OK, heartbeat.getStatusCode());
+        assertNotNull(requireBody(heartbeat).get("lastSeenAt"));
+        assertEquals("ONLINE", requireBody(heartbeat).get("operationalStatus"));
+    }
+}

@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:machine-service-test;DB_CLOSE_DELAY=-1;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+machine:
+  monitor:
+    interval-ms: 60000
+  integration:
+    shared-secret: test-integration-secret
