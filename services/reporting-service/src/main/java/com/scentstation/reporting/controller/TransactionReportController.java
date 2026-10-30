@@ -44,7 +44,8 @@ public class TransactionReportController {
 
         try {
             reportPeriod = ReportPeriod.valueOf(
-                    period.trim().toUpperCase(Locale.ROOT));
+                    period.trim().toUpperCase(Locale.ROOT)
+            );
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
@@ -53,9 +54,13 @@ public class TransactionReportController {
         }
 
         reportDateRangeValidator.validate(
-                reportPeriod, startDate, endDate);
+                reportPeriod, startDate, endDate
+        );
 
         return transactionReportService.getSummary(
-                reportPeriod.name().toLowerCase(Locale.ROOT));
+                reportPeriod,
+                startDate,
+                endDate
+        );
     }
 }
