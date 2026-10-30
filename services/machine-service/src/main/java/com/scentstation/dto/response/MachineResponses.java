@@ -151,6 +151,8 @@ public final class MachineResponses {
         private final LocalTime operatingHoursStart;
         private final LocalTime operatingHoursEnd;
         private final Instant lastSeenAt;
+        private final boolean maintenanceChecklistComplete;
+        private final boolean postMaintenanceTestPassed;
         private final Instant createdAt;
         private final Instant updatedAt;
 
@@ -159,7 +161,8 @@ public final class MachineResponses {
                                DeviceRegistrationStatus deviceRegistrationStatus,
                                MachineOperationalStatus operationalStatus,
                                LocalTime operatingHoursStart, LocalTime operatingHoursEnd,
-                               Instant lastSeenAt, Instant createdAt, Instant updatedAt) {
+                               Instant lastSeenAt, boolean maintenanceChecklistComplete,
+                               boolean postMaintenanceTestPassed, Instant createdAt, Instant updatedAt) {
             this.id = id;
             this.serialNumber = serialNumber;
             this.deviceIdentity = deviceIdentity;
@@ -171,6 +174,8 @@ public final class MachineResponses {
             this.operatingHoursStart = operatingHoursStart;
             this.operatingHoursEnd = operatingHoursEnd;
             this.lastSeenAt = lastSeenAt;
+            this.maintenanceChecklistComplete = maintenanceChecklistComplete;
+            this.postMaintenanceTestPassed = postMaintenanceTestPassed;
             this.createdAt = createdAt;
             this.updatedAt = updatedAt;
         }
@@ -188,6 +193,8 @@ public final class MachineResponses {
                 machine.getOperatingHoursStart(),
                 machine.getOperatingHoursEnd(),
                 machine.getLastSeenAt(),
+                machine.isMaintenanceChecklistComplete(),
+                machine.isPostMaintenanceTestPassed(),
                 machine.getCreatedAt(),
                 machine.getUpdatedAt()
             );
@@ -235,6 +242,14 @@ public final class MachineResponses {
 
         public Instant getLastSeenAt() {
             return lastSeenAt;
+        }
+
+        public boolean isMaintenanceChecklistComplete() {
+            return maintenanceChecklistComplete;
+        }
+
+        public boolean isPostMaintenanceTestPassed() {
+            return postMaintenanceTestPassed;
         }
 
         public Instant getCreatedAt() {

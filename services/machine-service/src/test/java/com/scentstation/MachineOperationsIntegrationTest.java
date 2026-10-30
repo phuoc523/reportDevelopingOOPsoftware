@@ -39,6 +39,39 @@ class MachineOperationsIntegrationTest extends MachineServiceIntegrationTestBase
     }
 
     @Test
+    void maintenanceCannotBeCompletedWithoutChecklistAndPostTest() {
+        Long machineId = createMachine(uniqueId("tenant"));
+        ResponseEntity<Map<String, Object>> maintenance = patchJson(
+            "/api/machines/" + machineId + "/control",
+            Map.of("action", "ENTER_MAINTENANCE")
+        );
+        assertEquals(HttpStatus.OK, maintenance.getStatusCode());
+
+        ResponseEntity<Map<String, Object>> incomplete = postJson(
+            "/api/machines/" + machineId + "/maintenance-completion",
+            Map.of("checklistItems", java.util.List.of("HARDWARE_INSPECTION"),
+                   "postMaintenanceTestPassed", false)
+        );
+        assertEquals(HttpStatus.BAD_REQUEST, incomplete.getStatusCode());
+
+        ResponseEntity<Map<String, Object>> complete = postJson(
+            "/api/machines/" + machineId + "/maintenance-completion",
+            Map.of("checklistItems", java.util.List.of("HARDWARE_INSPECTION", "CLEANING", "CALIBRATION_CHECK"),
+                   "postMaintenanceTestPassed", true)
+        );
+        assertEquals(HttpStatus.OK, complete.getStatusCode());
+
+        ResponseEntity<Map<String, Object>> enabled = patchJson(
+            "/api/machines/" + machineId + "/control",
+            Map.of("action", "ENABLE")
+        );
+        assertEquals(HttpStatus.OK, enabled.getStatusCode());
+        assertEquals("OFFLINE", requireBody(enabled).get("operationalStatus"));
+        assertEquals(true, requireBody(enabled).get("maintenanceChecklistComplete"));
+        assertEquals(true, requireBody(enabled).get("postMaintenanceTestPassed"));
+    }
+
+    @Test
     void operatingHoursCanBeClearedToAllowAllDayAvailability() {
         Long machineId = createMachine(uniqueId("tenant"));
         ResponseEntity<Map<String, Object>> configured = putJson(
@@ -60,18 +93,4 @@ class MachineOperationsIntegrationTest extends MachineServiceIntegrationTestBase
         assertNull(requireBody(cleared).get("operatingHoursEnd"));
     }
 
-    @Test
-    void heartbeatUpdatesLastSeenAndBringsOfflineMachineOnline() {
-        Long machineId = createMachine(uniqueId("tenant"));
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("X-Internal-Service-Key", "test-integration-secret");
-        ResponseEntity<Map<String, Object>> heartbeat = rest.exchange(
-            "/api/machines/" + machineId + "/heartbeat", HttpMethod.POST,
-            new HttpEntity<>(Map.of(), headers), new ParameterizedTypeReference<>() {});
-
-        assertEquals(HttpStatus.OK, heartbeat.getStatusCode());
-        assertNotNull(requireBody(heartbeat).get("lastSeenAt"));
-        assertEquals("ONLINE", requireBody(heartbeat).get("operationalStatus"));
-    }
 }

@@ -14,6 +14,9 @@ import java.util.Optional;
 
 public interface MachineCommandRepository extends JpaRepository<MachineCommand, Long> {
     boolean existsByCommandId(String commandId);
+    Optional<com.scentstation.entity.MachineCommand> findByCommandId(String commandId);
+    boolean existsByOrderIdAndStatusIn(String orderId,
+        java.util.Collection<com.scentstation.entity.MachineCommandStatus> statuses);
 
     @Modifying
     @Transactional
@@ -22,7 +25,8 @@ public interface MachineCommandRepository extends JpaRepository<MachineCommand, 
         set command.status = com.scentstation.entity.MachineCommandStatus.EXPIRED,
             command.completedAt = :expiredAt
         where command.status in (
-            com.scentstation.entity.MachineCommandStatus.PENDING,
+            com.scentstation.entity.MachineCommandStatus.ACCEPTED,
+            com.scentstation.entity.MachineCommandStatus.PROCESSING,
             com.scentstation.entity.MachineCommandStatus.ACKNOWLEDGED
         )
         and command.expiresAt <= :expiredAt

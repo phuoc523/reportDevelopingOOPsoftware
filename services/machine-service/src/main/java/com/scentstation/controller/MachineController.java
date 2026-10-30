@@ -1,9 +1,9 @@
 package com.scentstation.controller;
 
 import com.scentstation.dto.request.MachineRequests.*;
+import com.scentstation.dto.request.MaintenanceCompletionRequest;
 import com.scentstation.dto.response.MachineResponses.*;
 import com.scentstation.service.AvailabilityService;
-import com.scentstation.service.InternalServiceKeyVerifier;
 import com.scentstation.service.MachineService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -17,13 +17,10 @@ import java.util.List;
 public class MachineController {
     private final MachineService machineService;
     private final AvailabilityService availabilityService;
-    private final InternalServiceKeyVerifier serviceKeyVerifier;
 
-    public MachineController(MachineService machineService, AvailabilityService availabilityService,
-                             InternalServiceKeyVerifier serviceKeyVerifier) {
+    public MachineController(MachineService machineService, AvailabilityService availabilityService) {
         this.machineService = machineService;
         this.availabilityService = availabilityService;
-        this.serviceKeyVerifier = serviceKeyVerifier;
     }
 
     @PostMapping
@@ -72,19 +69,18 @@ public class MachineController {
         return machineService.control(machineId, request, actorId);
     }
 
+    @PostMapping("/{machineId}/maintenance-completion")
+    public MachineResponse completeMaintenance(@PathVariable @NonNull Long machineId,
+                                               @Valid @RequestBody MaintenanceCompletionRequest request) {
+        return machineService.completeMaintenance(machineId, request);
+    }
+
     @PutMapping("/{machineId}/operating-hours")
     public MachineResponse updateOperatingHours(
             @PathVariable @NonNull Long machineId,
             @Valid @RequestBody UpdateOperatingHoursRequest request,
             @RequestHeader(value = "X-Actor-Id", required = false) String actorId) {
         return machineService.updateOperatingHours(machineId, request, actorId);
-    }
-
-    @PostMapping("/{machineId}/heartbeat")
-    public MachineResponse heartbeat(@PathVariable @NonNull Long machineId,
-            @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
-        serviceKeyVerifier.verify(serviceKey);
-        return machineService.heartbeat(machineId);
     }
 
     @GetMapping("/{machineId}/availability")

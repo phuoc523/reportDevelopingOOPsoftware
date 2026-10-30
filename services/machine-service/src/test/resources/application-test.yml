@@ -12,3 +12,6 @@ machine:
     interval-ms: 60000
   integration:
     shared-secret: test-integration-secret
+  alerts:
+    escalate-after-ms: 1
+    escalation-interval-ms: 3600000

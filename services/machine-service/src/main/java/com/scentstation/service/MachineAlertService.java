@@ -1,6 +1,7 @@
 package com.scentstation.service;
 
 import com.scentstation.entity.Machine;
+import com.scentstation.entity.AlertHandoffOutbox;
 import com.scentstation.entity.MachineAlert;
 import com.scentstation.entity.MachineAlertSeverity;
 import com.scentstation.entity.MachineAlertSource;
@@ -11,9 +12,11 @@ import com.scentstation.event.MachineAlertChangedEvent;
 import com.scentstation.dto.request.LowStockAlertRequest;
 import com.scentstation.exception.InvalidOperationException;
 import com.scentstation.exception.ResourceNotFoundException;
+import com.scentstation.repository.AlertHandoffOutboxRepository;
 import com.scentstation.repository.MachineAlertRepository;
 import com.scentstation.repository.MachineRepository;
 import com.scentstation.repository.MachineSlotRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
@@ -38,13 +41,22 @@ public class MachineAlertService {
     private final MachineRepository machines;
     private final MachineSlotRepository slots;
     private final ApplicationEventPublisher events;
+    private final AlertHandoffOutboxRepository handoffOutbox;
+    private final String notificationUrl;
+    private final String maintenanceUrl;
 
     public MachineAlertService(MachineAlertRepository alerts, MachineRepository machines,
-                               MachineSlotRepository slots, ApplicationEventPublisher events) {
+                               MachineSlotRepository slots, ApplicationEventPublisher events,
+                               AlertHandoffOutboxRepository handoffOutbox,
+                               @Value("${machine.integration.notification-service-url:}") String notificationUrl,
+                               @Value("${machine.integration.maintenance-service-url:}") String maintenanceUrl) {
         this.alerts = alerts;
         this.machines = machines;
         this.slots = slots;
         this.events = events;
+        this.handoffOutbox = handoffOutbox;
+        this.notificationUrl = notificationUrl;
+        this.maintenanceUrl = maintenanceUrl;
     }
 
     @Transactional
@@ -161,7 +173,7 @@ public class MachineAlertService {
     @Transactional
     public void resolveMachineOfflineAlerts(Machine machine, Instant now) {
         resolveObservedAlert(machine, MachineAlertType.MACHINE_OFFLINE, null,
-            MachineAlertSource.MONITOR, "Device heartbeat restored", now);
+            MachineAlertSource.MONITOR, "Machine connectivity restored", now);
     }
 
     @Transactional
@@ -225,12 +237,25 @@ public class MachineAlertService {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
             throw new IllegalStateException("Alert events must be published within a transaction");
         }
+        if ("CRITICAL".equals(alert.getSeverity().name()) || "ESCALATED".equals(alert.getStatus().name())) {
+            enqueueHandoff("notification", notificationUrl, alert, event);
+            enqueueHandoff("maintenance", maintenanceUrl, alert, event);
+        }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
                 events.publishEvent(event);
             }
         });
+    }
+
+    private void enqueueHandoff(String target, String url, MachineAlert alert,
+                                MachineAlertChangedEvent event) {
+        if (url != null && !url.isBlank()) {
+            handoffOutbox.save(new AlertHandoffOutbox(target, event.getEventId(), alert.getId(),
+                alert.getTenantId(), alert.getMachineId(), alert.getLocationId(), alert.getType().name(),
+                alert.getSeverity().name(), alert.getStatus().name(), event.getOccurredAt()));
+        }
     }
 
     private String requireTenantId(String tenantId) {

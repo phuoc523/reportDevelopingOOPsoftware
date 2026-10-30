@@ -9,6 +9,7 @@ import com.scentstation.entity.MachineAlertStatus;
 import com.scentstation.entity.MachineOperationalStatus;
 import com.scentstation.repository.MachineAlertRepository;
 import com.scentstation.repository.MachineSlotRepository;
+import com.scentstation.exception.InvalidOperationException;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +37,20 @@ public class AvailabilityService {
         this.slots = slots;
         this.alerts = alerts;
         this.operatingHoursZone = ZoneId.of(operatingHoursZone);
+    }
+
+    public void requireAvailableForDispense(@NonNull Long machineId, @NonNull Long slotId) {
+        MachineAvailabilityResponse availability = getAvailability(machineId);
+        if (!availability.isMachineAvailable()) {
+            throw new InvalidOperationException("Machine is not available: " + availability.getReason());
+        }
+        SlotResponse slot = availability.getSlots().stream()
+            .filter(item -> item.getId().equals(slotId))
+            .findFirst()
+            .orElseThrow(() -> new com.scentstation.exception.ResourceNotFoundException("Slot not found on machine: " + slotId));
+        if (!slot.isAvailable()) {
+            throw new InvalidOperationException("Slot is not available: " + slot.getAvailabilityReason());
+        }
     }
 
     @Transactional(readOnly = true)
