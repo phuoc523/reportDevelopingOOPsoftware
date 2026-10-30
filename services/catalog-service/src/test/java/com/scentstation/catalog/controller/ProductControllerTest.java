@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scentstation.catalog.dto.request.CreateProductRequest;
 import com.scentstation.catalog.dto.response.ProductResponse;
 import com.scentstation.catalog.exception.GlobalExceptionHandler;
+import com.scentstation.catalog.exception.InvalidProductSearchCriteriaException;
 import com.scentstation.catalog.exception.ProductNotFoundException;
 import com.scentstation.catalog.service.ProductService;
 import org.junit.jupiter.api.Test;
@@ -18,7 +19,14 @@ import com.scentstation.catalog.dto.request.UpdateProductPriceRequest;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import com.scentstation.catalog.dto.response.ProductResponse;
+import com.scentstation.catalog.exception.InvalidProductSearchCriteriaException;
 
+import java.math.BigDecimal;
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.mockito.ArgumentMatchers.any;
@@ -140,6 +148,17 @@ class ProductControllerTest {
         }
 
         @Test
+        void searchProducts_shouldRejectMissingTenantId()
+                throws Exception {
+
+        mockMvc.perform(
+                        get("/api/products/search")
+                                .param("keyword", "rose")
+                )
+                .andExpect(status().isBadRequest());
+        }
+
+        @Test
         void shouldChangeProductAvailability() throws Exception {
         UpdateProductAvailabilityRequest request =
                 UpdateProductAvailabilityRequest.builder()
@@ -249,4 +268,93 @@ class ProductControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
     }
+
+        @Test
+        void searchProducts_shouldReturnFilteredProducts()
+                throws Exception {
+
+        ProductResponse response =
+                ProductResponse.builder()
+                        .id(10L)
+                        .tenantId(1L)
+                        .name("Rose Garden")
+                        .defaultPrice(
+                                new BigDecimal("200000.00")
+                        )
+                        .available(true)
+                        .build();
+
+        when(productService.searchProducts(any()))
+                .thenReturn(List.of(response));
+
+        mockMvc.perform(
+                        get("/api/products/search")
+                                .param("tenantId", "1")
+                                .param("keyword", "rose")
+                                .param("available", "true")
+                                .param(
+                                        "minPrice",
+                                        "100000"
+                                )
+                                .param(
+                                        "maxPrice",
+                                        "300000"
+                                )
+                )
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$[0].id")
+                                .value(10)
+                )
+                .andExpect(
+                        jsonPath("$[0].name")
+                                .value("Rose Garden")
+                )
+                .andExpect(
+                        jsonPath("$[0].available")
+                                .value(true)
+                );
+        }
+
+        @Test
+        void searchProducts_shouldReturnBadRequestForInvalidPriceRange()
+                throws Exception {
+
+        when(productService.searchProducts(any()))
+                .thenThrow(
+                        new InvalidProductSearchCriteriaException(
+                                "Minimum price must not exceed maximum price"
+                        )
+                );
+
+        mockMvc.perform(
+                        get("/api/products/search")
+                                .param("tenantId", "1")
+                                .param(
+                                        "minPrice",
+                                        "500000"
+                                )
+                                .param(
+                                        "maxPrice",
+                                        "100000"
+                                )
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(
+                        jsonPath("$.status")
+                                .value(400)
+                )
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(
+                                        "Minimum price must not exceed maximum price"
+                                )
+                )
+                .andExpect(
+                        jsonPath("$.path")
+                                .value(
+                                        "/api/products/search"
+                                )
+                );
+        }
 }

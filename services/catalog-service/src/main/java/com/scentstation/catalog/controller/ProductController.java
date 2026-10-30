@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.scentstation.catalog.dto.request.UpdateProductAvailabilityRequest;
 import com.scentstation.catalog.dto.request.UpdateProductPriceRequest;
+import com.scentstation.catalog.dto.request.ProductSearchCriteria;
 
 import java.util.List;
 
@@ -62,5 +63,15 @@ public class ProductController {
             @Valid @RequestBody UpdateProductPriceRequest request
     ) {
         return ResponseEntity.ok(productService.updatePrice(id, request));
+    }
+
+    // Tìm kiếm và lọc catalog theo tenant, keyword, availability và khoảng giá.
+    @GetMapping("/search")
+    public ResponseEntity<List<ProductResponse>> searchProducts(
+            @Valid @ModelAttribute ProductSearchCriteria criteria
+    ) {
+        return ResponseEntity.ok(
+                productService.searchProducts(criteria)
+        );
     }
 }
