@@ -35,3 +35,13 @@ mvn clean test
 ```bash
 docker build -t scentstation/catalog-service .
 ```
+## Sample Data
+
+Catalog sample data is disabled by default.
+
+To enable it for local development, update:
+
+```yaml
+catalog:
+  sample-data:
+    enabled: true
