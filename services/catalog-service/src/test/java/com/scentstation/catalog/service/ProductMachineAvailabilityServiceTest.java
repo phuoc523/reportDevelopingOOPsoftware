@@ -7,6 +7,7 @@ import com.scentstation.catalog.exception.ProductNotFoundException;
 import com.scentstation.catalog.integration.machine.client.MachineAvailabilityClient;
 import com.scentstation.catalog.integration.machine.dto.MachineAvailabilityInfo;
 import com.scentstation.catalog.repository.ProductRepository;
+import com.scentstation.catalog.security.CurrentActorContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,6 +30,9 @@ class ProductMachineAvailabilityServiceTest {
     @Mock
     private MachineAvailabilityClient machineAvailabilityClient;
 
+    @Mock
+    private CurrentActorContext currentActorContext;
+
     @InjectMocks
     private ProductMachineAvailabilityService availabilityService;
 
@@ -36,6 +40,9 @@ class ProductMachineAvailabilityServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(currentActorContext.requireTenant(1L))
+                .thenReturn(1L);
+
         product = Product.builder()
                 .id(10L)
                 .tenantId(1L)
@@ -47,7 +54,7 @@ class ProductMachineAvailabilityServiceTest {
 
     @Test
     void getAvailability_shouldReturnTrueWhenCatalogAndMachineAreAvailable() {
-        when(productRepository.findById(10L))
+        when(productRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(product));
 
         when(machineAvailabilityClient
@@ -79,7 +86,7 @@ class ProductMachineAvailabilityServiceTest {
     void getAvailability_shouldReturnFalseWhenCatalogIsUnavailable() {
         product.setAvailable(false);
 
-        when(productRepository.findById(10L))
+        when(productRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(product));
 
         when(machineAvailabilityClient
@@ -106,7 +113,7 @@ class ProductMachineAvailabilityServiceTest {
 
     @Test
     void getAvailability_shouldReturnFalseWhenMachineIsUnavailable() {
-        when(productRepository.findById(10L))
+        when(productRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(product));
 
         when(machineAvailabilityClient
@@ -136,8 +143,8 @@ class ProductMachineAvailabilityServiceTest {
     void getAvailability_shouldRejectProductFromAnotherTenant() {
         product.setTenantId(2L);
 
-        when(productRepository.findById(10L))
-                .thenReturn(Optional.of(product));
+        when(productRepository.findByIdAndTenantId(10L, 1L))
+                .thenReturn(Optional.empty());
 
         assertThrows(
                 ProductNotFoundException.class,
@@ -151,7 +158,7 @@ class ProductMachineAvailabilityServiceTest {
 
     @Test
     void getAvailability_shouldRejectMismatchedMachineResponse() {
-        when(productRepository.findById(10L))
+        when(productRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(product));
 
         when(machineAvailabilityClient
@@ -176,7 +183,7 @@ class ProductMachineAvailabilityServiceTest {
 
     @Test
     void getAvailability_shouldRejectNullMachineResponse() {
-        when(productRepository.findById(10L))
+        when(productRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(product));
 
         when(machineAvailabilityClient
@@ -193,7 +200,7 @@ class ProductMachineAvailabilityServiceTest {
 
     @Test
     void getAvailability_shouldRejectNegativeAvailableSlotCount() {
-        when(productRepository.findById(10L))
+        when(productRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(product));
 
         when(machineAvailabilityClient

@@ -1,6 +1,7 @@
 package com.scentstation.catalog.integration;
 
 import com.scentstation.catalog.entity.Product;
+import com.scentstation.catalog.security.HeaderCurrentActorContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -60,6 +61,7 @@ class ProductSearchApiIntegrationTest
 
         mockMvc.perform(
                         get("/api/products/search")
+                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
                                 .param("tenantId", "1")
                                 .param("keyword", "rose")
                                 .param("available", "true")
@@ -81,6 +83,7 @@ class ProductSearchApiIntegrationTest
 
         mockMvc.perform(
                         get("/api/products/search")
+                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
                                 .param("tenantId", "1")
                                 .param(
                                         "minPrice",
@@ -103,13 +106,16 @@ class ProductSearchApiIntegrationTest
     }
 
     @Test
-    void shouldRejectMissingTenantId()
+    void shouldUseTrustedTenantWhenQueryTenantIsMissing()
             throws Exception {
 
         mockMvc.perform(
                         get("/api/products/search")
+                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
                                 .param("keyword", "rose")
                 )
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].name").value("Rose Garden"));
     }
 }

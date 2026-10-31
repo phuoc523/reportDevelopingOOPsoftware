@@ -1,6 +1,5 @@
 package com.scentstation.catalog.exception;
 
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -173,6 +172,40 @@ public class GlobalExceptionHandler {
         @ExceptionHandler(ConstraintViolationException.class)
         public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
                 ConstraintViolationException ex,
+                HttpServletRequest request
+        ) {
+        return ResponseEntity
+                .badRequest()
+                .body(
+                        buildError(
+                                HttpStatus.BAD_REQUEST,
+                                ex.getMessage(),
+                                request
+                        )
+                );
+        }
+
+        // Trả về 401 khi authentication boundary chưa cung cấp trusted tenant context hợp lệ.
+        @ExceptionHandler(TrustedActorContextException.class)
+        public ResponseEntity<ApiErrorResponse> handleTrustedActorContext(
+                TrustedActorContextException ex,
+                HttpServletRequest request
+        ) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(
+                        buildError(
+                                HttpStatus.UNAUTHORIZED,
+                                ex.getMessage(),
+                                request
+                        )
+                );
+        }
+
+        // Trả về 400 khi tenant claim cũ không khớp tenant đã được xác minh.
+        @ExceptionHandler(TenantClaimMismatchException.class)
+        public ResponseEntity<ApiErrorResponse> handleTenantClaimMismatch(
+                TenantClaimMismatchException ex,
                 HttpServletRequest request
         ) {
         return ResponseEntity

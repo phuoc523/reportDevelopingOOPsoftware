@@ -9,10 +9,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class CampaignMapper {
 
-    // Chuyển request tạo campaign thành entity để lưu.
-    public Campaign toEntity(CreateCampaignRequest request) {
+    // Chuyển request thành Campaign bằng tenant đã được xác minh.
+    public Campaign toEntity(CreateCampaignRequest request, Long tenantId) {
         return Campaign.builder()
-                .tenantId(request.getTenantId())
+                .tenantId(tenantId)
                 .productId(request.getProductId())
                 .name(request.getName())
                 .discountType(request.getDiscountType())

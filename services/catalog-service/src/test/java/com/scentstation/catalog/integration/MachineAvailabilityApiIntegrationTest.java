@@ -2,6 +2,7 @@ package com.scentstation.catalog.integration;
 
 import com.scentstation.catalog.entity.Product;
 import com.scentstation.catalog.integration.machine.dto.MachineAvailabilityInfo;
+import com.scentstation.catalog.security.HeaderCurrentActorContext;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -53,6 +54,7 @@ class MachineAvailabilityApiIntegrationTest
                                 3L,
                                 product.getId()
                         )
+                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
                                 .param("tenantId", "1")
                 )
                 .andExpect(status().isOk())
@@ -114,6 +116,7 @@ class MachineAvailabilityApiIntegrationTest
                                 3L,
                                 product.getId()
                         )
+                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
                                 .param("tenantId", "1")
                 )
                 .andExpect(status().isOk())

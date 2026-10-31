@@ -14,6 +14,7 @@ import com.scentstation.catalog.dto.request.UpdateProductPriceRequest;
 import com.scentstation.catalog.dto.request.ProductSearchCriteria;
 import com.scentstation.catalog.specification.ProductSpecification;
 import com.scentstation.catalog.exception.InvalidProductSearchCriteriaException;
+import com.scentstation.catalog.security.CurrentActorContext;
 
 import java.util.List;
 
@@ -23,65 +24,74 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
+    private final CurrentActorContext currentActorContext;
 
-    // Tạo và lưu một sản phẩm mới từ dữ liệu đầu vào.
+    // Tạo sản phẩm bằng tenant đã xác minh và từ chối body giả tenant khác.
     @Transactional
     public ProductResponse createProduct(CreateProductRequest request) {
-        Product product = productMapper.toEntity(request);
+        Long tenantId = currentActorContext.requireTenant(request.getTenantId());
+        Product product = productMapper.toEntity(request, tenantId);
 
         Product savedProduct = productRepository.save(product);
 
         return productMapper.toResponse(savedProduct);
     }
 
-    // Lấy toàn bộ sản phẩm và chuyển chúng sang dữ liệu phản hồi.
+    // Chỉ liệt kê sản phẩm thuộc tenant hiện tại.
     @Transactional(readOnly = true)
     public List<ProductResponse> getProducts() {
-        return productRepository.findAll()
+        return productRepository.findAllByTenantId(
+                        currentActorContext.getTenantId()
+                )
                 .stream()
                 .map(productMapper::toResponse)
                 .toList();
     }
 
-    // Lấy thông tin một sản phẩm theo mã định danh.
+    // Chỉ trả sản phẩm thuộc tenant hiện tại để tránh đọc chéo tenant.
     @Transactional(readOnly = true)
     public ProductResponse getProductById(Long id) {
-        Product product = findProductById(id);
+        Product product = findProductForCurrentTenant(id);
 
         return productMapper.toResponse(product);
     }
 
-    // Thay đổi trạng thái có sẵn của sản phẩm và lưu kết quả.
+    // Chỉ thay đổi availability của sản phẩm thuộc tenant hiện tại.
     @Transactional
     public ProductResponse changeAvailability(Long id, UpdateProductAvailabilityRequest request) {
-        Product product = findProductById(id);
+        Product product = findProductForCurrentTenant(id);
         product.setAvailable(request.getAvailable());
         Product updatedProduct = productRepository.save(product);
 
         return productMapper.toResponse(updatedProduct);
     }
 
-    // Thay đổi giá mặc định của sản phẩm và lưu kết quả.
+    // Chỉ thay đổi giá của sản phẩm thuộc tenant hiện tại.
     @Transactional 
     public ProductResponse updatePrice(Long id, UpdateProductPriceRequest request) {
-        Product product = findProductById(id);
+        Product product = findProductForCurrentTenant(id);
         product.setDefaultPrice(request.getDefaultPrice());
         Product updatedProduct = productRepository.save(product);
 
         return productMapper.toResponse(updatedProduct);
     }
 
-    // Tìm entity sản phẩm hoặc báo lỗi nếu mã định danh không tồn tại.
-    private Product findProductById(Long id) {
-        return productRepository.findById(id)
+    // Tìm sản phẩm theo id và trusted tenant, đồng thời che resource tenant khác bằng 404.
+    private Product findProductForCurrentTenant(Long id) {
+        return productRepository.findByIdAndTenantId(
+                        id,
+                        currentActorContext.getTenantId()
+                )
                 .orElseThrow(() -> new ProductNotFoundException(id));
     }
 
-    // Tìm và lọc sản phẩm theo các điều kiện catalog được cung cấp.
+    // Tìm sản phẩm bằng tenant đã xác minh và không cho query override tenant.
     @Transactional(readOnly = true)
     public List<ProductResponse> searchProducts(
             ProductSearchCriteria criteria
     ) {
+        Long tenantId = currentActorContext.requireTenant(criteria.getTenantId());
+        criteria.setTenantId(tenantId);
         validatePriceRange(criteria);
 
         return productRepository

@@ -4,6 +4,7 @@ import com.scentstation.catalog.dto.request.ProductSearchCriteria;
 import com.scentstation.catalog.exception.InvalidProductSearchCriteriaException;
 import com.scentstation.catalog.mapper.ProductMapper;
 import com.scentstation.catalog.repository.ProductRepository;
+import com.scentstation.catalog.security.CurrentActorContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,6 +26,9 @@ class ProductSearchServiceTest {
 
     @Mock
     private ProductMapper productMapper;
+
+    @Mock
+    private CurrentActorContext currentActorContext;
 
     @InjectMocks
     private ProductService productService;

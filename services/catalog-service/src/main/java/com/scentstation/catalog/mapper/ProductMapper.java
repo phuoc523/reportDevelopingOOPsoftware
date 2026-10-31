@@ -10,10 +10,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class ProductMapper {
 
-    // Chuyển dữ liệu yêu cầu tạo sản phẩm thành entity để lưu vào cơ sở dữ liệu.
-    public Product toEntity(CreateProductRequest request) {
+    // Chuyển request thành Product bằng tenant đã được xác minh thay vì tenant do caller tự khai báo.
+    public Product toEntity(CreateProductRequest request, Long tenantId) {
         return Product.builder()
-                .tenantId(request.getTenantId())
+                .tenantId(tenantId)
                 .name(request.getName())
                 .description(request.getDescription())
                 .fragranceNotes(request.getFragranceNotes())

@@ -7,6 +7,7 @@ import com.scentstation.catalog.enums.DiscountType;
 import com.scentstation.catalog.exception.ProductNotFoundException;
 import com.scentstation.catalog.repository.CampaignRepository;
 import com.scentstation.catalog.repository.ProductRepository;
+import com.scentstation.catalog.security.CurrentActorContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,30 +24,27 @@ public class PromotionalPricingService {
 
     private final ProductRepository productRepository;
     private final CampaignRepository campaignRepository;
+    private final CurrentActorContext currentActorContext;
 
-    // Tính giá hiệu lực hiện tại của sản phẩm dựa trên campaign đang active.
+    // Tính giá hiệu lực chỉ cho product thuộc trusted tenant.
     @Transactional(readOnly = true)
     public EffectivePriceResponse getEffectivePrice(
             Long tenantId,
             Long productId
     ) {
+        Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
         Product product = productRepository
-                .findById(productId)
+                .findByIdAndTenantId(productId, verifiedTenantId)
                 .orElseThrow(() ->
                         new ProductNotFoundException(productId)
                 );
-
-        // Không để tenant khác đọc pricing của product không thuộc mình.
-        if (!product.getTenantId().equals(tenantId)) {
-            throw new ProductNotFoundException(productId);
-        }
 
         LocalDateTime now = LocalDateTime.now();
 
         List<Campaign> campaigns =
                 campaignRepository
                         .findAllByTenantIdAndProductIdAndActiveTrueAndStartAtLessThanEqualAndEndAtGreaterThanEqual(
-                                tenantId,
+                                verifiedTenantId,
                                 productId,
                                 now,
                                 now
@@ -54,7 +52,7 @@ public class PromotionalPricingService {
 
         if (campaigns.isEmpty()) {
             return EffectivePriceResponse.builder()
-                    .tenantId(tenantId)
+                    .tenantId(verifiedTenantId)
                     .productId(productId)
                     .defaultPrice(product.getDefaultPrice())
                     .effectivePrice(product.getDefaultPrice())
@@ -75,7 +73,7 @@ public class PromotionalPricingService {
                 );
 
         return EffectivePriceResponse.builder()
-                .tenantId(tenantId)
+                .tenantId(verifiedTenantId)
                 .productId(productId)
                 .defaultPrice(product.getDefaultPrice())
                 .effectivePrice(effectivePrice)

@@ -7,6 +7,7 @@ import com.scentstation.catalog.enums.DiscountType;
 import com.scentstation.catalog.exception.ProductNotFoundException;
 import com.scentstation.catalog.repository.CampaignRepository;
 import com.scentstation.catalog.repository.ProductRepository;
+import com.scentstation.catalog.security.CurrentActorContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +22,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -32,6 +34,9 @@ class PromotionalPricingServiceTest {
     @Mock
     private CampaignRepository campaignRepository;
 
+    @Mock
+    private CurrentActorContext currentActorContext;
+
     @InjectMocks
     private PromotionalPricingService promotionalPricingService;
 
@@ -39,6 +44,9 @@ class PromotionalPricingServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(currentActorContext.requireTenant(1L))
+                .thenReturn(1L);
+
         product = Product.builder()
                 .id(10L)
                 .tenantId(1L)
@@ -50,7 +58,7 @@ class PromotionalPricingServiceTest {
 
     @Test
     void getEffectivePrice_shouldReturnDefaultPriceWhenNoCampaignExists() {
-        when(productRepository.findById(10L))
+        when(productRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(product));
 
         when(campaignRepository
@@ -94,7 +102,7 @@ class PromotionalPricingServiceTest {
                 .active(true)
                 .build();
 
-        when(productRepository.findById(10L))
+        when(productRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(product));
 
         when(campaignRepository
@@ -137,7 +145,7 @@ class PromotionalPricingServiceTest {
                 .active(true)
                 .build();
 
-        when(productRepository.findById(10L))
+        when(productRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(product));
 
         when(campaignRepository
@@ -183,7 +191,7 @@ class PromotionalPricingServiceTest {
                 .active(true)
                 .build();
 
-        when(productRepository.findById(10L))
+        when(productRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(product));
 
         when(campaignRepository
@@ -226,7 +234,7 @@ class PromotionalPricingServiceTest {
                 .active(true)
                 .build();
 
-        when(productRepository.findById(10L))
+        when(productRepository.findByIdAndTenantId(10L, 1L))
                 .thenReturn(Optional.of(product));
 
         when(campaignRepository
@@ -254,8 +262,8 @@ class PromotionalPricingServiceTest {
     void getEffectivePrice_shouldRejectProductFromAnotherTenant() {
         product.setTenantId(2L);
 
-        when(productRepository.findById(10L))
-                .thenReturn(Optional.of(product));
+        when(productRepository.findByIdAndTenantId(10L, 1L))
+                .thenReturn(Optional.empty());
 
         assertThrows(
                 ProductNotFoundException.class,
