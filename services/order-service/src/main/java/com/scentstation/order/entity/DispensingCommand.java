@@ -22,13 +22,32 @@ public class DispensingCommand {
             String machineId,
             String slotId
     ) {
+        this(commandId, orderId, paymentReference, machineId, slotId, LocalDateTime.now(),
+                DispensingStatus.REQUESTED, null, false, null);
+    }
+
+    public DispensingCommand(
+            String commandId,
+            Long orderId,
+            String paymentReference,
+            String machineId,
+            String slotId,
+            LocalDateTime createdAt,
+            DispensingStatus status,
+            LocalDateTime resultReceivedAt,
+            boolean manualReviewRequired,
+            String manualReviewReason
+    ) {
         this.commandId = commandId;
         this.orderId = orderId;
         this.paymentReference = paymentReference;
         this.machineId = machineId;
         this.slotId = slotId;
-        this.createdAt = LocalDateTime.now();
-        this.status = DispensingStatus.REQUESTED;
+        this.createdAt = createdAt;
+        this.status = status;
+        this.resultReceivedAt = resultReceivedAt;
+        this.manualReviewRequired = manualReviewRequired;
+        this.manualReviewReason = manualReviewReason;
     }
 
     public String getCommandId() {

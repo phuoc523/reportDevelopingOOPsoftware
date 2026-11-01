@@ -10,6 +10,8 @@ public interface PaymentRepository {
 
     Payment saveIfAbsent(Payment payment);
 
+    Payment save(Payment payment);
+
     Optional<Payment> findByReference(String reference);
 
     Optional<Payment> findByOrderId(Long orderId);

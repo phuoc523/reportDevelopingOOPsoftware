@@ -2,7 +2,6 @@ package com.scentstation.order.repository;
 
 import com.scentstation.order.entity.Order;
 import com.scentstation.order.entity.OrderStatus;
-import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -12,7 +11,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-@Repository
 public class InMemoryOrderRepository implements OrderRepository {
 
     private final ConcurrentMap<Long, Order> orders = new ConcurrentHashMap<>();

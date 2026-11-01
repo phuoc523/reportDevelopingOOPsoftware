@@ -10,6 +10,7 @@ import java.util.List;
 public record OrderResponse(
         Long id,
         Long customerId,
+        String tenantId,
         String machineId,
         String slotId,
         List<OrderItemResponse> items,
@@ -20,6 +21,8 @@ public record OrderResponse(
         boolean manualReviewRequired,
         String manualReviewReason,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        String currency,
+        LocalDateTime expiresAt
 ) {
 }

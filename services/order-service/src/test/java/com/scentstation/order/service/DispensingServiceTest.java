@@ -36,7 +36,7 @@ class DispensingServiceTest {
     private final FakeMachineServiceGateway machineServiceClient = new FakeMachineServiceGateway();
     private final InMemoryTransactionReviewRepository reviews = new InMemoryTransactionReviewRepository();
     private final DispensingService dispensingService = new DispensingService(
-            orders, payments, commands, machineServiceClient, reviews, "TENANT-TEST"
+            orders, payments, commands, machineServiceClient, reviews
     );
 
     private Order order;

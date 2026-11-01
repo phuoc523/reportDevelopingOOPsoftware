@@ -12,12 +12,14 @@ import com.scentstation.order.entity.OrderItem;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Component
 public class OrderMapper {
 
-    public Order toEntity(CreateOrderRequest request) {
+    public Order toEntity(CreateOrderRequest request, Duration orderExpiration) {
         List<OrderItem> items = request.items()
                 .stream()
                 .map(this::toEntity)
@@ -26,7 +28,16 @@ public class OrderMapper {
                 .map(OrderItem::lineTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        return new Order(request.customerId(), request.machineId(), request.slotId(), items, totalAmount);
+        return new Order(
+                request.tenantId(),
+                request.customerId(),
+                request.machineId(),
+                request.slotId(),
+                items,
+                totalAmount,
+                "VND",
+                LocalDateTime.now().plus(orderExpiration)
+        );
     }
 
     public OrderResponse toResponse(Order order, DispensingCommand command) {
@@ -44,6 +55,7 @@ public class OrderMapper {
         return new OrderResponse(
                 order.getId(),
                 order.getCustomerId(),
+                order.getTenantId(),
                 order.getMachineId(),
                 order.getSlotId(),
                 items,
@@ -54,7 +66,9 @@ public class OrderMapper {
                 command != null && command.isManualReviewRequired(),
                 command == null ? null : command.getManualReviewReason(),
                 order.getCreatedAt(),
-                order.getUpdatedAt()
+                order.getUpdatedAt(),
+                order.getCurrency(),
+                order.getExpiresAt()
         );
     }
 

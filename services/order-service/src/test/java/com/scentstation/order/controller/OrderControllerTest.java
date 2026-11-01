@@ -1,6 +1,7 @@
 package com.scentstation.order.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scentstation.order.OrderServiceTestConfiguration;
 import com.scentstation.order.repository.OrderRepository;
 import com.scentstation.order.repository.DispensingRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -19,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(OrderServiceTestConfiguration.class)
 class OrderControllerTest {
 
     @Autowired
@@ -45,8 +48,11 @@ class OrderControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validOrderRequest()))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.customerId").value(7))
+                .andExpect(jsonPath("$.tenantId").value("TENANT-001"))
+                .andExpect(jsonPath("$.currency").value("VND"))
+                .andExpect(jsonPath("$.expiresAt").isNotEmpty())
                 .andExpect(jsonPath("$.items[0].productId").value(3))
                 .andExpect(jsonPath("$.items[0].productName").value("Scent Sample"))
                 .andExpect(jsonPath("$.items[0].quantity").value(2))
@@ -133,6 +139,7 @@ class OrderControllerTest {
                         .content("""
                                 {
                                   "customerId": 7,
+                                  "tenantId": "TENANT-001",
                                   "machineId": "MACHINE-001",
                                   "slotId": "SLOT-01",
                                   "items": [
@@ -190,6 +197,7 @@ class OrderControllerTest {
         return """
                 {
                   "customerId": 7,
+                  "tenantId": "TENANT-001",
                   "machineId": "MACHINE-001",
                   "slotId": "SLOT-01",
                   "items": [

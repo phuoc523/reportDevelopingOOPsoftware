@@ -1,13 +1,11 @@
 package com.scentstation.order.repository;
 
 import com.scentstation.order.entity.DispensingCommand;
-import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-@Repository
 public class InMemoryDispensingRepository implements DispensingRepository {
 
     private final ConcurrentMap<Long, DispensingCommand> commandsByOrderId = new ConcurrentHashMap<>();
@@ -19,6 +17,13 @@ public class InMemoryDispensingRepository implements DispensingRepository {
         if (existing != null) {
             return existing;
         }
+        commandsById.put(command.getCommandId(), command);
+        return command;
+    }
+
+    @Override
+    public DispensingCommand save(DispensingCommand command) {
+        commandsByOrderId.put(command.getOrderId(), command);
         commandsById.put(command.getCommandId(), command);
         return command;
     }

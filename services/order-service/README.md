@@ -4,23 +4,33 @@ Order Service creates orders with product snapshots, calculates order totals,
 returns order details, manages order status, and provides a simulated QR
 payment flow.
 
-Orders and payments are currently held in memory. Data is lost when the service restarts.
-No database or catalog-service connection is required; product name and price
-are captured from the create-order request.
-Dispensing commands and manual-review markers are also held in memory for this
-simulation and are lost on restart.
-Transaction review cases and reconciliation results are in-memory as well; this
-service intentionally does not configure a database.
+Orders, item snapshots, payments, callback events, dispensing commands, and
+transaction reviews are persisted in MySQL. Product name and price are captured
+from the create-order request; no catalog-service lookup is performed.
 
 ## Run
 
-Requires JDK 25 or newer.
+Requires JDK 25 or newer and a running MySQL database. Configure `DB_HOST`,
+`DB_PORT`, `DB_NAME`, `DB_USERNAME`, and `DB_PASSWORD` as needed.
 
 ```bash
 mvn spring-boot:run
 ```
 
-The default port is `8083`; override it with `ORDER_SERVICE_PORT`.
+The default port is `8083`; override it with `ORDER_SERVICE_PORT`. The schema is
+defined in [`database/schema.sql`](./database/schema.sql) and initialized
+automatically when the service starts.
+
+To run the service and its MySQL database with Docker:
+
+```bash
+docker compose -f compose.yml up --build
+```
+
+The local Compose setup exposes the service at `http://localhost:8083` and
+MySQL at `localhost:3306`. Override the documented environment variables (or
+put them in a `.env` file beside `compose.yml`) for local credentials and
+ports. The default credentials are for local development only.
 
 ## API
 
@@ -54,9 +64,12 @@ The QR response contains a `qrPayload` URI (`scentstation://pay/...`) that a
 client can render as a QR image. This is a mock payload, not a connection to a
 payment provider. Payments use VND and expire 15 minutes after creation by
 default (`PAYMENT_QR_EXPIRATION`, ISO-8601 duration, for example `PT15M`).
-Expiration is enforced when a payment is read or processed; an expired pending
-payment also moves its order to `EXPIRED`. Expired payments cannot be paid or
-replaced with a new QR.
+Orders also expire after `ORDER_EXPIRATION` (default `PT15M`); this is an
+independent setting and a payment QR cannot outlive its order.
+Order expiry is enforced when an order is read or processed. Payment expiry is
+enforced when a payment is read or its callback is processed; an expired
+pending payment also moves its order to `EXPIRED`. Expired payments cannot be
+paid or replaced with a new QR.
 
 ### Swagger UI: which section to open
 
@@ -91,6 +104,7 @@ the Swagger screenshot; the routes still use `/api/payments/...`.
    ```json
    {
      "customerId": 7,
+     "tenantId": "TENANT-001",
      "machineId": "MACHINE-001",
      "slotId": "SLOT-01",
      "items": [
@@ -198,6 +212,7 @@ message identifies the field that failed:
 ```json
 {
   "customerId": 7,
+  "tenantId": "TENANT-001",
   "machineId": "MACHINE-001",
   "slotId": "SLOT-01",
   "items": []
@@ -252,8 +267,7 @@ expired payments cannot be confirmed. The same `eventId` and payload can be
 retried safely; reusing an event ID with a different payload returns `409`.
 Error responses retain the numeric HTTP code in `status` (for example `404`)
 and use an uppercase HTTP code name in `error` (for example `NOT_FOUND`).
-Callback event outcomes and payment data are held in memory for this stage and
-are lost when the service restarts.
+Callback event outcomes and payment data are persisted in MySQL.
 
 ### Transaction review and reconciliation
 
@@ -287,14 +301,12 @@ generated mock callback through the same verification and idempotency flow.
 A paid order cannot be cancelled; the API returns `409 Conflict`. An unpaid
 payment cannot be processed after its order is cancelled.
 
-The `Payment` model is intentionally backed by an in-memory repository for this
-project stage. No MySQL schema, datasource, or database dependency is enabled.
-
 Create-order request example:
 
 ```json
 {
   "customerId": 7,
+  "tenantId": "TENANT-001",
   "machineId": "MACHINE-001",
   "slotId": "SLOT-01",
   "items": [
@@ -324,22 +336,22 @@ status transitions return `409`.
 ## Dispensing orchestration
 
 After a payment callback has been verified and the order is marked `CONFIRMED`,
-Order Service creates one in-memory `commandId` and submits
+Order Service persists one `commandId` and submits
 `POST /api/machines/dispense-commands` to Machine Service. `tenantId` comes from
-`MACHINE_SERVICE_TENANT_ID` (default `TENANT-001`); the client cannot set it.
-Set `MACHINE_SERVICE_BASE_URL` to the Machine Service base URL (default
+the order creation request and is persisted with the order. Set
+`MACHINE_SERVICE_BASE_URL` to the Machine Service base URL (default
 `http://localhost:8084`). Machine/slot IDs are supplied in the create-order
 request and captured on the order.
 
-For this assignment's local demo, `MACHINE_SERVICE_SIMULATION_ENABLED` defaults
-to `true`. In this mode Order Service does not call another service: its client
-simulates an `ACCEPTED` response followed by the configured final result
-(`MACHINE_SERVICE_SIMULATED_RESULT`, default `DISPENSED`) on the dispensing
-lookup. This lets the full payment-to-dispensed flow run with only
-`order-service`. The mock command results are in memory and reset on restart.
-To use the real Machine Service later, set
-`MACHINE_SERVICE_SIMULATION_ENABLED=false` and configure
-`MACHINE_SERVICE_BASE_URL`.
+Order Service always sends dispensing requests and status lookups to Machine
+Service using the shared API contract. It does not create simulated machine
+responses or keep machine results in memory. Configure
+`MACHINE_SERVICE_BASE_URL` to the reachable Machine Service URL (default
+`http://localhost:8084`). When running Order Service in Docker while Machine
+Service runs on the host, use `http://host.docker.internal:8084` or the
+appropriate address for your environment. The payment `/simulate` route is
+still available for the mock payment flow; it does not simulate Machine
+Service's dispensing result.
 
 `ACCEPTED` and `PROCESSING` are not proof of dispensing. Order status changes
 to `DISPENSED` only after a matching `orderId` and `commandId` result explicitly
@@ -350,8 +362,7 @@ with `manualReviewRequired: true`; the same command ID is retained and no
 second dispense request is automatically created. A confirmed `FAILED` machine
 result moves the order to `FAILED` and is not retried. See
 [`contracts/openapi/order-machine-dispensing.yaml`](../../contracts/openapi/order-machine-dispensing.yaml)
-for the shared API contract. The tagged coordination document says this
-endpoint proposal is pending confirmation by both service owners.
+for the shared API contract.
 
 ## Test
 
@@ -361,14 +372,11 @@ mvn test
 
 ## Docker
 
-From this directory, build and run the service without a database:
+To run both order-service and MySQL from this directory:
 
 ```bash
-docker build -t scentstation/order-service .
-docker run --rm -p 8083:8083 scentstation/order-service
+docker compose -f compose.yml up --build
 ```
 
-Configure the payment and Machine Service environment variables documented
-above as needed. The container exposes port `8083`; an API Gateway can route
-`/api/orders/**` and `/api/payments/**` to this service. Gateway routing and the
-repository-level Compose file are outside this service's scope.
+The application container exposes port `8083`; an API Gateway can route
+`/api/orders/**` and `/api/payments/**` to this service.

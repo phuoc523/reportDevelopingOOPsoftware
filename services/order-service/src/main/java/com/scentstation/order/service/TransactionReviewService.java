@@ -47,6 +47,7 @@ public class TransactionReviewService {
         TransactionReview review = reviewRepository.findByReference(reference)
                 .orElseThrow(() -> new TransactionReviewNotFoundException(reference));
         review.resolve();
+        reviewRepository.save(review);
         return toResponse(review);
     }
 

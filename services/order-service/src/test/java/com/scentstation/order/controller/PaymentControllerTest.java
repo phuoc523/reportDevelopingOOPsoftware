@@ -2,6 +2,7 @@ package com.scentstation.order.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scentstation.order.OrderServiceTestConfiguration;
 import com.scentstation.order.entity.Payment;
 import com.scentstation.order.entity.PaymentCallbackEvent;
 import com.scentstation.order.repository.OrderRepository;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -27,6 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(OrderServiceTestConfiguration.class)
 class PaymentControllerTest {
 
     private static final String CALLBACK_TOKEN = "local-mock-callback-token";
@@ -442,6 +445,8 @@ class PaymentControllerTest {
                 ).value(2))
                 .andExpect(jsonPath("$.components.schemas.CreateOrderRequest.properties.customerId.example")
                         .value(7))
+                .andExpect(jsonPath("$.components.schemas.CreateOrderRequest.properties.tenantId.example")
+                        .value("TENANT-001"))
                 .andExpect(jsonPath("$.paths['/api/orders'].post.responses['201'].description")
                         .value("Order created; status is PENDING"))
                 .andExpect(jsonPath("$.paths['/api/orders'].post.responses['400'].description")
@@ -471,6 +476,7 @@ class PaymentControllerTest {
                         .content("""
                                 {
                                   "customerId": 7,
+                                  "tenantId": "TENANT-001",
                                   "machineId": "MACHINE-001",
                                   "slotId": "SLOT-01",
                                   "items": [

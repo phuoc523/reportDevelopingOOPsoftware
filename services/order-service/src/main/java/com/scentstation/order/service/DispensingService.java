@@ -18,7 +18,6 @@ import com.scentstation.order.repository.PaymentRepository;
 import com.scentstation.order.repository.TransactionReviewRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 
@@ -35,22 +34,18 @@ public class DispensingService {
     private final DispensingRepository dispensingRepository;
     private final MachineServiceGateway machineServiceClient;
     private final TransactionReviewRepository transactionReviewRepository;
-    private final String tenantId;
-
     public DispensingService(
             OrderRepository orderRepository,
             PaymentRepository paymentRepository,
             DispensingRepository dispensingRepository,
             MachineServiceGateway machineServiceClient,
-            TransactionReviewRepository transactionReviewRepository,
-            @Value("${machine-service.tenant-id:TENANT-001}") String tenantId
+            TransactionReviewRepository transactionReviewRepository
     ) {
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
         this.dispensingRepository = dispensingRepository;
         this.machineServiceClient = machineServiceClient;
         this.transactionReviewRepository = transactionReviewRepository;
-        this.tenantId = tenantId;
     }
 
     public DispensingResponse requestDispensing(Long orderId) {
@@ -104,7 +99,7 @@ public class DispensingService {
     private void submit(Order order, DispensingCommand command) {
         try {
             MachineCommandResponse response = machineServiceClient.submit(new MachineCommandRequest(
-                    tenantId,
+                    order.getTenantId(),
                     command.getOrderId(),
                     command.getPaymentReference(),
                     command.getMachineId(),
@@ -143,6 +138,7 @@ public class DispensingService {
             default -> null;
         };
         command.recordResult(result, reviewReason);
+        dispensingRepository.save(command);
         if (command.isManualReviewRequired()) {
             transactionReviewRepository.openOrUpdate(
                     command.getPaymentReference(),
@@ -180,6 +176,7 @@ public class DispensingService {
 
     private void markUnknown(DispensingCommand command, String reason) {
         command.recordResult(DispensingStatus.UNKNOWN, reason);
+        dispensingRepository.save(command);
         transactionReviewRepository.openOrUpdate(
                 command.getPaymentReference(),
                 command.getOrderId(),

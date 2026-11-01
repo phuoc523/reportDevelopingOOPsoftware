@@ -32,14 +32,29 @@ public class Payment {
             LocalDateTime createdAt,
             LocalDateTime expiresAt
     ) {
+        this(reference, orderId, amount, currency, qrPayload, createdAt, expiresAt, PaymentStatus.PENDING, null);
+    }
+
+    public Payment(
+            String reference,
+            Long orderId,
+            BigDecimal amount,
+            String currency,
+            String qrPayload,
+            LocalDateTime createdAt,
+            LocalDateTime expiresAt,
+            PaymentStatus status,
+            LocalDateTime paidAt
+    ) {
         this.reference = reference;
         this.orderId = orderId;
         this.amount = amount;
         this.currency = currency;
         this.qrPayload = qrPayload;
-        this.status = PaymentStatus.PENDING;
+        this.status = status;
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
+        this.paidAt = paidAt;
     }
 
     public String getReference() {

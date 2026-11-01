@@ -12,11 +12,23 @@ public class TransactionReview {
     private LocalDateTime resolvedAt;
 
     public TransactionReview(String reference, Long orderId, String reason) {
+        this(reference, orderId, reason, TransactionReviewStatus.OPEN, LocalDateTime.now(), null);
+    }
+
+    public TransactionReview(
+            String reference,
+            Long orderId,
+            String reason,
+            TransactionReviewStatus status,
+            LocalDateTime createdAt,
+            LocalDateTime resolvedAt
+    ) {
         this.reference = reference;
         this.orderId = orderId;
         this.reason = reason;
-        this.status = TransactionReviewStatus.OPEN;
-        this.createdAt = LocalDateTime.now();
+        this.status = status;
+        this.createdAt = createdAt;
+        this.resolvedAt = resolvedAt;
     }
 
     public synchronized void updateReason(String newReason) {

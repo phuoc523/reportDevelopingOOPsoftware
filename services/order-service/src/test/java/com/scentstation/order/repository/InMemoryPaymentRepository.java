@@ -2,7 +2,6 @@ package com.scentstation.order.repository;
 
 import com.scentstation.order.entity.Payment;
 import com.scentstation.order.entity.PaymentCallbackEvent;
-import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.util.Comparator;
@@ -10,7 +9,6 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-@Repository
 public class InMemoryPaymentRepository implements PaymentRepository {
 
     private final ConcurrentMap<String, Payment> paymentsByReference = new ConcurrentHashMap<>();
@@ -23,7 +21,13 @@ public class InMemoryPaymentRepository implements PaymentRepository {
         if (existingReference != null) {
             return paymentsByReference.get(existingReference);
         }
+        paymentsByReference.put(payment.getReference(), payment);
+        referencesByOrderId.put(payment.getOrderId(), payment.getReference());
+        return payment;
+    }
 
+    @Override
+    public Payment save(Payment payment) {
         paymentsByReference.put(payment.getReference(), payment);
         referencesByOrderId.put(payment.getOrderId(), payment.getReference());
         return payment;

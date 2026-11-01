@@ -14,7 +14,7 @@ public class OpenApiConfig {
                 .title("ScentStation Order Service API")
                 .version("v1")
                 .description("""
-                        Order and mock-payment API. No database is required; service data is in memory.
+                        Order and mock-payment API. Order and payment records are persisted in MySQL.
 
                         **Swagger demo:** execute `POST /api/orders` using its valid example body. Copy the returned \
                         `id` into `POST /api/orders/{orderId}/payments/qr`. For payment, call the returned \

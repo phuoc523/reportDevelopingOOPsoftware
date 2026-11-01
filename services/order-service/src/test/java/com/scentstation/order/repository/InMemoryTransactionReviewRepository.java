@@ -1,7 +1,6 @@
 package com.scentstation.order.repository;
 
 import com.scentstation.order.entity.TransactionReview;
-import org.springframework.stereotype.Repository;
 
 import java.util.Comparator;
 import java.util.List;
@@ -9,7 +8,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-@Repository
 public class InMemoryTransactionReviewRepository implements TransactionReviewRepository {
 
     private final ConcurrentMap<String, TransactionReview> reviews = new ConcurrentHashMap<>();
@@ -23,6 +21,12 @@ public class InMemoryTransactionReviewRepository implements TransactionReviewRep
             existing.updateReason(reason);
             return existing;
         });
+    }
+
+    @Override
+    public TransactionReview save(TransactionReview review) {
+        reviews.put(review.getReference(), review);
+        return review;
     }
 
     @Override
