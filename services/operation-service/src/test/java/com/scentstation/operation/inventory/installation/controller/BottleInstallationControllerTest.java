@@ -48,6 +48,7 @@ class BottleInstallationControllerTest {
                         .machineId(3L)
                         .slotId(2L)
                         .actorId(5L)
+                        .measuredQuantityBefore(new java.math.BigDecimal("100.000"))
                         .build();
 
         BottleInstallationResponse response =
@@ -85,6 +86,7 @@ class BottleInstallationControllerTest {
                         .bottleId(10L)
                         .actorId(5L)
                         .reason("Bottle nearly empty")
+                        .measuredQuantityAfter(new java.math.BigDecimal("5.000"))
                         .build();
 
         BottleInstallationResponse response =
@@ -122,6 +124,8 @@ class BottleInstallationControllerTest {
                         .newBottleId(20L)
                         .actorId(5L)
                         .reason("Replace nearly empty bottle")
+                        .oldBottleMeasuredQuantityAfter(new java.math.BigDecimal("5.000"))
+                        .newBottleMeasuredQuantityBefore(new java.math.BigDecimal("100.000"))
                         .build();
 
         BottleInstallationResponse response =
@@ -160,6 +164,7 @@ class BottleInstallationControllerTest {
                         .machineId(3L)
                         .slotId(2L)
                         .actorId(5L)
+                        .measuredQuantityBefore(new java.math.BigDecimal("100.000"))
                         .build();
 
         when(bottleInstallationService.installBottle(
@@ -186,6 +191,7 @@ class BottleInstallationControllerTest {
                         .machineId(3L)
                         .slotId(2L)
                         .actorId(5L)
+                        .measuredQuantityBefore(new java.math.BigDecimal("100.000"))
                         .build();
 
         when(bottleInstallationService.installBottle(
@@ -215,6 +221,7 @@ class BottleInstallationControllerTest {
                         .machineId(3L)
                         .slotId(2L)
                         .actorId(5L)
+                        .measuredQuantityBefore(new java.math.BigDecimal("100.000"))
                         .build();
 
         when(bottleInstallationService.installBottle(
@@ -242,6 +249,7 @@ class BottleInstallationControllerTest {
                         .tenantId(1L)
                         .bottleId(10L)
                         .actorId(5L)
+                        .measuredQuantityAfter(new java.math.BigDecimal("5.000"))
                         .build();
 
         when(bottleInstallationService.removeBottle(
@@ -270,6 +278,7 @@ class BottleInstallationControllerTest {
                 .machineId(3L)
                 .slotId(2L)
                 .actorId(5L)
+                .measuredQuantityBefore(new java.math.BigDecimal("100.000"))
                 .build();
 
         when(bottleInstallationService.installBottle(
@@ -293,6 +302,7 @@ class BottleInstallationControllerTest {
                 .machineId(3L)
                 .slotId(2L)
                 .actorId(5L)
+                .measuredQuantityBefore(new java.math.BigDecimal("100.000"))
                 .build();
 
         when(bottleInstallationService.installBottle(

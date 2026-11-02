@@ -105,6 +105,11 @@ abstract class InventoryIntegrationTestSupport {
                 .machineId(MACHINE_ID)
                 .slotId(SLOT_ID)
                 .actorId(ACTOR_ID)
+                .measuredQuantityBefore(
+                        bottleRepository.findByIdAndTenantId(bottleId, tenantId)
+                                .orElseThrow()
+                                .getCurrentQuantity()
+                )
                 .build());
     }
 }

@@ -123,9 +123,10 @@ public class BottleInstallationService {
                                 )
                         );
 
-        installation.setActive(false);
+        installation.setActive(null);
         installation.setRemovedBy(request.getActorId());
         installation.setRemovedAt(LocalDateTime.now());
+        installation.setQuantityAfterRemoval(request.getMeasuredQuantityAfter());
 
         BottleInstallation savedInstallation =
                 bottleInstallationRepository.save(installation);
@@ -197,9 +198,12 @@ public class BottleInstallationService {
                 oldInstallation.getSlotId()
         );
 
-        oldInstallation.setActive(false);
+        oldInstallation.setActive(null);
         oldInstallation.setRemovedBy(request.getActorId());
         oldInstallation.setRemovedAt(LocalDateTime.now());
+        oldInstallation.setQuantityAfterRemoval(
+                request.getOldBottleMeasuredQuantityAfter()
+        );
 
         bottleInstallationRepository.save(oldInstallation);
 
@@ -213,6 +217,9 @@ public class BottleInstallationService {
                         .machineId(oldInstallation.getMachineId())
                         .slotId(oldInstallation.getSlotId())
                         .installedBy(request.getActorId())
+                        .quantityBeforeInstallation(
+                                request.getNewBottleMeasuredQuantityBefore()
+                        )
                         .active(true)
                         .build();
 
@@ -337,6 +344,8 @@ public class BottleInstallationService {
                 slotId
         );
 
+        validateSlotIdentity(slot, tenantId, machineId, slotId);
+
         if (!slot.isActive() || slot.isMaintenanceMode()) {
             throw new MachineSlotUnavailableException(
                     machineId,
@@ -352,6 +361,21 @@ public class BottleInstallationService {
                     bottle.getProductId(),
                     slot.getProductId()
             );
+        }
+    }
+
+    // Từ chối snapshot Machine không khớp tenant, machine hoặc slot đã yêu cầu.
+    private void validateSlotIdentity(
+            MachineSlotInfo slot,
+            Long tenantId,
+            Long machineId,
+            Long slotId
+    ) {
+        if (slot == null
+                || !tenantId.equals(slot.getTenantId())
+                || !machineId.equals(slot.getMachineId())
+                || !slotId.equals(slot.getSlotId())) {
+            throw new MachineSlotUnavailableException(machineId, slotId);
         }
     }
 

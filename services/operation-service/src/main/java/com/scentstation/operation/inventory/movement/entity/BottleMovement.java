@@ -61,6 +61,9 @@ public class BottleMovement {
     @Column(name = "reason", length = 500)
     private String reason;
 
+    @Column(name = "reference_id", length = 150)
+    private String referenceId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Setter(AccessLevel.NONE)
     private LocalDateTime createdAt;

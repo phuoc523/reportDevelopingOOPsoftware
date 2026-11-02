@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 @Getter
 @Setter
@@ -34,4 +35,8 @@ public class BottleInstallationResponse {
     private LocalDateTime removedAt;
 
     private Boolean active;
+
+    private BigDecimal quantityBeforeInstallation;
+
+    private BigDecimal quantityAfterRemoval;
 }

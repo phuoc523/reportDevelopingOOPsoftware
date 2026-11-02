@@ -51,6 +51,8 @@ class InstallationContractIntegrationTest extends InventoryIntegrationTestSuppor
                         .newBottleId(newBottle.getId())
                         .actorId(ACTOR_ID)
                         .reason("Routine replacement")
+                        .oldBottleMeasuredQuantityAfter(new java.math.BigDecimal("10.000"))
+                        .newBottleMeasuredQuantityBefore(new java.math.BigDecimal("10.000"))
                         .build()));
 
         assertTrue(installationRepository
@@ -93,6 +95,7 @@ class InstallationContractIntegrationTest extends InventoryIntegrationTestSuppor
                         .machineId(MACHINE_ID)
                         .slotId(SLOT_ID)
                         .actorId(ACTOR_ID)
+                        .measuredQuantityBefore(new java.math.BigDecimal("10.000"))
                         .build()));
     }
 
@@ -120,6 +123,7 @@ class InstallationContractIntegrationTest extends InventoryIntegrationTestSuppor
                 .machineId(MACHINE_ID)
                 .slotId(rejectedSlotId)
                 .actorId(ACTOR_ID)
+                .measuredQuantityBefore(new java.math.BigDecimal("10.000"))
                 .build()));
 
         assertEquals(BottleStatus.AVAILABLE,

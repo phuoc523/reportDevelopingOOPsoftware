@@ -5,6 +5,8 @@ public enum BottleMovementType {
     REMOVE,
     REPLACE,
     REFILL,
+    CUSTOMER_CONSUMPTION,
+    DIAGNOSTIC_CONSUMPTION,
     DISPOSE,
     ADJUSTMENT
 }

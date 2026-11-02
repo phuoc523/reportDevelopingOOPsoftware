@@ -142,6 +142,7 @@ public class BottleMovementService {
                 .difference(difference)
                 .actorId(movement.getActorId())
                 .reason(movement.getReason())
+                .referenceId(movement.getReferenceId())
                 .createdAt(movement.getCreatedAt())
                 .build();
     }
