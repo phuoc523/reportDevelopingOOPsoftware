@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.scentstation.operation.inventory.reconciliation.exception.SensorInstallationMismatchException;
 import com.scentstation.operation.maintenance.exception.MaintenanceNotFoundException;
 import com.scentstation.operation.maintenance.exception.InvalidMaintenanceTicketException;
+import com.scentstation.operation.maintenance.exception.MaintenanceChecklistNotFoundException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -48,6 +49,19 @@ public class OperationExceptionHandler {
                 request
         );
     }
+
+        // Trả 404 khi không tìm thấy checklist item trong đúng tenant hoặc ticket.
+        @ExceptionHandler(MaintenanceChecklistNotFoundException.class)
+        public ResponseEntity<ApiErrorResponse> handleMaintenanceChecklistNotFound(
+                MaintenanceChecklistNotFoundException exception,
+                HttpServletRequest request
+        ) {
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage(),
+                request
+        );
+        }
 
     // Trả 404 khi không tìm thấy bottle trong tenant.
     @ExceptionHandler(BottleNotFoundException.class)
