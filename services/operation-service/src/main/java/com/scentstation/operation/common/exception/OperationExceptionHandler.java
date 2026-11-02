@@ -27,6 +27,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.scentstation.operation.inventory.reconciliation.exception.SensorInstallationMismatchException;
+import com.scentstation.operation.maintenance.exception.MaintenanceNotFoundException;
+import com.scentstation.operation.maintenance.exception.InvalidMaintenanceTicketException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -342,6 +344,32 @@ public class OperationExceptionHandler {
                 request
         );
     }
+
+        // Trả 404 khi không tìm thấy maintenance ticket trong tenant.
+        @ExceptionHandler(MaintenanceNotFoundException.class)
+        public ResponseEntity<ApiErrorResponse> handleMaintenanceNotFound(
+                MaintenanceNotFoundException exception,
+                HttpServletRequest request
+        ) {
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage(),
+                request
+        );
+        }
+
+        // Trả 400 khi dữ liệu hoặc thao tác trên maintenance ticket không hợp lệ.
+        @ExceptionHandler(InvalidMaintenanceTicketException.class)
+        public ResponseEntity<ApiErrorResponse> handleInvalidMaintenanceTicket(
+                InvalidMaintenanceTicketException exception,
+                HttpServletRequest request
+        ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                exception.getMessage(),
+                request
+        );
+        }
 
         // Trả 409 khi sensor reading không khớp installation.
         @ExceptionHandler(SensorInstallationMismatchException.class)
