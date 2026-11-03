@@ -30,6 +30,7 @@ import com.scentstation.operation.inventory.reconciliation.exception.SensorInsta
 import com.scentstation.operation.maintenance.exception.MaintenanceNotFoundException;
 import com.scentstation.operation.maintenance.exception.InvalidMaintenanceTicketException;
 import com.scentstation.operation.maintenance.exception.MaintenanceChecklistNotFoundException;
+import com.scentstation.operation.maintenance.exception.CriticalAlertAlreadyProcessedException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -75,6 +76,19 @@ public class OperationExceptionHandler {
                 request
         );
     }
+
+        // Trả 409 khi critical alert đã được xử lý trước đó.
+        @ExceptionHandler(CriticalAlertAlreadyProcessedException.class)
+        public ResponseEntity<ApiErrorResponse> handleCriticalAlertAlreadyProcessed(
+                CriticalAlertAlreadyProcessedException exception,
+                HttpServletRequest request
+        ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                exception.getMessage(),
+                request
+        );
+        }
 
     // Trả 409 khi mã batch đã tồn tại.
     @ExceptionHandler(InventoryBatchAlreadyExistsException.class)
