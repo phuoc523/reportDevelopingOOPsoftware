@@ -35,6 +35,13 @@ public interface MaintenanceTicketRepository
             Long machineId
     );
 
+    // Lấy lịch sử ticket của machine theo thứ tự mới nhất và ổn định.
+    List<MaintenanceTicket>
+    findAllByTenantIdAndMachineIdOrderByCreatedAtDescIdDesc(
+            Long tenantId,
+            Long machineId
+    );
+
     // Lấy maintenance ticket của một kỹ thuật viên được phân công.
     List<MaintenanceTicket> findAllByTenantIdAndAssignedToActorId(
             Long tenantId,

@@ -24,6 +24,13 @@ public interface MaintenanceRepairLogRepository
             Long ticketId
     );
 
+    // Lấy repair log theo thời gian tăng dần với id làm tie-breaker.
+    List<MaintenanceRepairLog>
+    findAllByTenantIdAndTicketIdOrderByCreatedAtAscIdAsc(
+            Long tenantId,
+            Long ticketId
+    );
+
     // Kiểm tra maintenance ticket đã có ít nhất một repair result hay chưa.
     boolean existsByTenantIdAndTicketId(
             Long tenantId,

@@ -25,6 +25,13 @@ public interface PostMaintenanceTestRepository
             Long ticketId
     );
 
+    // Lấy lịch sử test theo thời gian tăng dần với id làm tie-breaker.
+    List<PostMaintenanceTest>
+    findAllByTenantIdAndTicketIdOrderByRequestedAtAscIdAsc(
+            Long tenantId,
+            Long ticketId
+    );
+
     // Tìm test theo external id do Machine Service trả về.
     Optional<PostMaintenanceTest>
     findByTenantIdAndExternalTestId(

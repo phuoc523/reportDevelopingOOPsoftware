@@ -17,6 +17,13 @@ public interface MaintenanceAssignmentHistoryRepository
             Long ticketId
     );
 
+    // Lấy assignment history theo thời gian tăng dần với id làm tie-breaker.
+    List<MaintenanceAssignmentHistory>
+    findAllByTenantIdAndTicketIdOrderByCreatedAtAscIdAsc(
+            Long tenantId,
+            Long ticketId
+    );
+
     // Lấy lịch sử công việc đã được phân cho một technician trong tenant.
     List<MaintenanceAssignmentHistory>
     findAllByTenantIdAndTechnicianActorIdOrderByCreatedAtDesc(

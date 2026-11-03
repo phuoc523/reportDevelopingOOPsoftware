@@ -21,4 +21,11 @@ public interface MaintenanceAlertLinkRepository
             Long tenantId,
             String sourceAlertId
     );
+
+    // Tìm alert link đầu tiên của ticket trong đúng tenant.
+    Optional<MaintenanceAlertLink>
+    findFirstByTenantIdAndTicketIdOrderByIdAsc(
+            Long tenantId,
+            Long ticketId
+    );
 }
