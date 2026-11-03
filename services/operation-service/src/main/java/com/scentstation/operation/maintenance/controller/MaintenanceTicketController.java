@@ -1,6 +1,8 @@
 package com.scentstation.operation.maintenance.controller;
 
+import com.scentstation.operation.maintenance.dto.request.CloseMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.request.CreateMaintenanceTicketRequest;
+import com.scentstation.operation.maintenance.dto.request.ReopenMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.request.UpdateMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.response.MaintenanceTicketResponse;
 import com.scentstation.operation.maintenance.enums.MaintenanceStatus;
@@ -87,6 +89,28 @@ public class MaintenanceTicketController {
                                 ticketId,
                                 request
                         )
+        );
+    }
+
+    // Đóng maintenance ticket qua workflow kiểm tra điều kiện chuyên biệt.
+    @PostMapping("/{ticketId}/close")
+    public ResponseEntity<MaintenanceTicketResponse> closeTicket(
+            @PathVariable @Positive Long ticketId,
+            @Valid @RequestBody CloseMaintenanceTicketRequest request
+    ) {
+        return ResponseEntity.ok(
+                maintenanceTicketService.closeTicket(ticketId, request)
+        );
+    }
+
+    // Mở lại maintenance ticket đã hoàn thành để tiếp tục xử lý.
+    @PostMapping("/{ticketId}/reopen")
+    public ResponseEntity<MaintenanceTicketResponse> reopenTicket(
+            @PathVariable @Positive Long ticketId,
+            @Valid @RequestBody ReopenMaintenanceTicketRequest request
+    ) {
+        return ResponseEntity.ok(
+                maintenanceTicketService.reopenTicket(ticketId, request)
         );
     }
 }

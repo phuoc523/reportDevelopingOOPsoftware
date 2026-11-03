@@ -1,17 +1,27 @@
 package com.scentstation.operation.maintenance.service;
 
+import com.scentstation.operation.maintenance.dto.request.CloseMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.request.CreateMaintenanceTicketRequest;
+import com.scentstation.operation.maintenance.dto.request.ReopenMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.request.UpdateMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.response.MaintenanceTicketResponse;
 import com.scentstation.operation.maintenance.entity.MaintenanceTicket;
+import com.scentstation.operation.maintenance.entity.PostMaintenanceTest;
 import com.scentstation.operation.maintenance.enums.MaintenancePriority;
 import com.scentstation.operation.maintenance.enums.MaintenanceSeverity;
 import com.scentstation.operation.maintenance.enums.MaintenanceStatus;
+import com.scentstation.operation.maintenance.enums.PostMaintenanceTestStatus;
+import com.scentstation.operation.maintenance.exception.InvalidMaintenanceTicketException;
 import com.scentstation.operation.maintenance.mapper.MaintenanceTicketMapper;
+import com.scentstation.operation.maintenance.repository.MaintenanceChecklistRepository;
+import com.scentstation.operation.maintenance.repository.MaintenanceRepairLogRepository;
 import com.scentstation.operation.maintenance.repository.MaintenanceTicketRepository;
+import com.scentstation.operation.maintenance.repository.PostMaintenanceTestRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,6 +38,15 @@ class MaintenanceTicketServiceTest {
 
     @Mock
     private MaintenanceTicketRepository maintenanceTicketRepository;
+
+    @Mock
+    private MaintenanceChecklistRepository maintenanceChecklistRepository;
+
+    @Mock
+    private MaintenanceRepairLogRepository maintenanceRepairLogRepository;
+
+    @Mock
+    private PostMaintenanceTestRepository postMaintenanceTestRepository;
 
     @Mock
     private MaintenanceTicketMapper maintenanceTicketMapper;
@@ -231,5 +250,201 @@ class MaintenanceTicketServiceTest {
                         .getTickets(10L);
 
         assertEquals(1, results.size());
+    }
+
+    @Test
+    void shouldCloseEligibleTicket() {
+        stubEligibleClose();
+        when(maintenanceTicketRepository.save(ticket)).thenReturn(ticket);
+        when(maintenanceTicketMapper.toResponse(ticket)).thenAnswer(invocation ->
+                MaintenanceTicketResponse.builder()
+                        .status(ticket.getStatus())
+                        .closedAt(ticket.getClosedAt())
+                        .build()
+        );
+
+        MaintenanceTicketResponse result = maintenanceTicketService
+                .closeTicket(1L, closeRequest());
+
+        assertEquals(MaintenanceStatus.COMPLETED, result.getStatus());
+        assertNotNull(result.getClosedAt());
+    }
+
+    @Test
+    void shouldRejectCloseWithIncompleteRequiredChecklist() {
+        stubTicketLookup();
+        when(maintenanceChecklistRepository
+                .existsByTenantIdAndTicketIdAndRequiredTrueAndCompletedFalse(10L, 1L))
+                .thenReturn(true);
+        assertThrows(
+                InvalidMaintenanceTicketException.class,
+                () -> maintenanceTicketService.closeTicket(1L, closeRequest())
+        );
+    }
+
+    @Test
+    void shouldAllowOptionalIncompleteChecklist() {
+        stubEligibleClose();
+        when(maintenanceTicketRepository.save(ticket)).thenReturn(ticket);
+        when(maintenanceTicketMapper.toResponse(ticket)).thenReturn(response);
+        assertDoesNotThrow(() ->
+                maintenanceTicketService.closeTicket(1L, closeRequest())
+        );
+    }
+
+    @Test
+    void shouldRejectCloseWithoutRepairResult() {
+        stubTicketLookup();
+        assertThrows(
+                InvalidMaintenanceTicketException.class,
+                () -> maintenanceTicketService.closeTicket(1L, closeRequest())
+        );
+    }
+
+    @Test
+    void shouldRejectCloseWithoutPassedTest() {
+        stubTicketLookup();
+        when(maintenanceRepairLogRepository.existsByTenantIdAndTicketId(10L, 1L))
+                .thenReturn(true);
+        assertThrows(
+                InvalidMaintenanceTicketException.class,
+                () -> maintenanceTicketService.closeTicket(1L, closeRequest())
+        );
+    }
+
+    @Test
+    void shouldRejectCloseWhenLatestTestFailedAfterPassed() {
+        stubTicketLookup();
+        when(maintenanceRepairLogRepository.existsByTenantIdAndTicketId(10L, 1L))
+                .thenReturn(true);
+        when(postMaintenanceTestRepository.existsByTenantIdAndTicketIdAndStatus(
+                10L, 1L, PostMaintenanceTestStatus.PASSED
+        )).thenReturn(true);
+        when(postMaintenanceTestRepository
+                .findFirstByTenantIdAndTicketIdOrderByRequestedAtDescIdDesc(10L, 1L))
+                .thenReturn(Optional.of(postTest(PostMaintenanceTestStatus.FAILED)));
+
+        assertThrows(
+                InvalidMaintenanceTicketException.class,
+                () -> maintenanceTicketService.closeTicket(1L, closeRequest())
+        );
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = MaintenanceStatus.class, names = {"COMPLETED", "CANCELLED"})
+    void shouldRejectCloseForFinalTicket(MaintenanceStatus status) {
+        ticket.setStatus(status);
+        stubTicketLookup();
+        assertThrows(
+                InvalidMaintenanceTicketException.class,
+                () -> maintenanceTicketService.closeTicket(1L, closeRequest())
+        );
+        verifyNoInteractions(maintenanceChecklistRepository);
+    }
+
+    @Test
+    void shouldReopenCompletedAssignedTicketToInProgress() {
+        ticket.setStatus(MaintenanceStatus.COMPLETED);
+        ticket.setAssignedToActorId(200L);
+        ticket.setClosedAt(java.time.LocalDateTime.now());
+        stubTicketLookup();
+        when(maintenanceTicketRepository.save(ticket)).thenReturn(ticket);
+        when(maintenanceTicketMapper.toResponse(ticket)).thenAnswer(invocation ->
+                MaintenanceTicketResponse.builder()
+                        .status(ticket.getStatus())
+                        .closedAt(ticket.getClosedAt())
+                        .build()
+        );
+
+        MaintenanceTicketResponse result = maintenanceTicketService
+                .reopenTicket(1L, reopenRequest());
+
+        assertEquals(MaintenanceStatus.IN_PROGRESS, result.getStatus());
+        assertNull(result.getClosedAt());
+    }
+
+    @Test
+    void shouldReopenCompletedUnassignedTicketToOpen() {
+        ticket.setStatus(MaintenanceStatus.COMPLETED);
+        stubTicketLookup();
+        when(maintenanceTicketRepository.save(ticket)).thenReturn(ticket);
+        when(maintenanceTicketMapper.toResponse(ticket)).thenReturn(response);
+        maintenanceTicketService.reopenTicket(1L, reopenRequest());
+        assertEquals(MaintenanceStatus.OPEN, ticket.getStatus());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = MaintenanceStatus.class, names = {
+            "OPEN", "ASSIGNED", "IN_PROGRESS", "WAITING_FOR_PARTS",
+            "READY_FOR_TEST", "CANCELLED"
+    })
+    void shouldRejectReopenUnlessCompleted(MaintenanceStatus status) {
+        ticket.setStatus(status);
+        stubTicketLookup();
+        assertThrows(
+                InvalidMaintenanceTicketException.class,
+                () -> maintenanceTicketService.reopenTicket(1L, reopenRequest())
+        );
+    }
+
+    @Test
+    void shouldRejectCrossTenantCloseAndReopenAsNotFound() {
+        when(maintenanceTicketRepository.findByIdAndTenantId(1L, 99L))
+                .thenReturn(Optional.empty());
+        CloseMaintenanceTicketRequest close = closeRequest();
+        close.setTenantId(99L);
+        ReopenMaintenanceTicketRequest reopen = reopenRequest();
+        reopen.setTenantId(99L);
+
+        assertThrows(
+                MaintenanceNotFoundException.class,
+                () -> maintenanceTicketService.closeTicket(1L, close)
+        );
+        assertThrows(
+                MaintenanceNotFoundException.class,
+                () -> maintenanceTicketService.reopenTicket(1L, reopen)
+        );
+    }
+
+    private void stubEligibleClose() {
+        stubTicketLookup();
+        when(maintenanceRepairLogRepository.existsByTenantIdAndTicketId(10L, 1L))
+                .thenReturn(true);
+        when(postMaintenanceTestRepository.existsByTenantIdAndTicketIdAndStatus(
+                10L, 1L, PostMaintenanceTestStatus.PASSED
+        )).thenReturn(true);
+        when(postMaintenanceTestRepository
+                .findFirstByTenantIdAndTicketIdOrderByRequestedAtDescIdDesc(10L, 1L))
+                .thenReturn(Optional.of(postTest(PostMaintenanceTestStatus.PASSED)));
+    }
+
+    private void stubTicketLookup() {
+        when(maintenanceTicketRepository.findByIdAndTenantId(1L, 10L))
+                .thenReturn(Optional.of(ticket));
+    }
+
+    private PostMaintenanceTest postTest(PostMaintenanceTestStatus status) {
+        return PostMaintenanceTest.builder()
+                .tenantId(10L)
+                .ticketId(1L)
+                .machineId(20L)
+                .requestedByActorId(100L)
+                .status(status)
+                .build();
+    }
+
+    private CloseMaintenanceTicketRequest closeRequest() {
+        CloseMaintenanceTicketRequest request = new CloseMaintenanceTicketRequest();
+        request.setTenantId(10L);
+        request.setClosedByActorId(100L);
+        return request;
+    }
+
+    private ReopenMaintenanceTicketRequest reopenRequest() {
+        ReopenMaintenanceTicketRequest request = new ReopenMaintenanceTicketRequest();
+        request.setTenantId(10L);
+        request.setReopenedByActorId(100L);
+        request.setReason("Issue recurred");
+        return request;
     }
 }

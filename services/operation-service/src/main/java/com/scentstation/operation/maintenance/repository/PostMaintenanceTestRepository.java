@@ -38,4 +38,11 @@ public interface PostMaintenanceTestRepository
             Long ticketId,
             PostMaintenanceTestStatus status
     );
+
+    // Lấy bài test mới nhất của ticket để không đóng ticket sau một kết quả FAILED mới hơn.
+    Optional<PostMaintenanceTest>
+    findFirstByTenantIdAndTicketIdOrderByRequestedAtDescIdDesc(
+            Long tenantId,
+            Long ticketId
+    );
 }

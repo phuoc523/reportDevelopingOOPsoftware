@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -243,5 +244,49 @@ class MaintenanceTicketControllerTest {
                 )
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    void shouldCloseMaintenanceTicket() throws Exception {
+        when(maintenanceTicketService.closeTicket(eq(5L), any()))
+                .thenReturn(MaintenanceTicketResponse.builder()
+                        .id(5L)
+                        .status(MaintenanceStatus.COMPLETED)
+                        .build());
+
+        mockMvc.perform(post("/api/maintenance/tickets/5/close")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"tenantId":1,"closedByActorId":100,"closeNote":"Verified"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+    }
+
+    @Test
+    void shouldReopenMaintenanceTicket() throws Exception {
+        when(maintenanceTicketService.reopenTicket(eq(5L), any()))
+                .thenReturn(MaintenanceTicketResponse.builder()
+                        .id(5L)
+                        .status(MaintenanceStatus.IN_PROGRESS)
+                        .build());
+
+        mockMvc.perform(post("/api/maintenance/tickets/5/reopen")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"tenantId":1,"reopenedByActorId":100,"reason":"Issue recurred"}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+    }
+
+    @Test
+    void shouldRejectReopenWithoutReason() throws Exception {
+        mockMvc.perform(post("/api/maintenance/tickets/5/reopen")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"tenantId":1,"reopenedByActorId":100,"reason":""}
+                                """))
+                .andExpect(status().isBadRequest());
     }
 }
