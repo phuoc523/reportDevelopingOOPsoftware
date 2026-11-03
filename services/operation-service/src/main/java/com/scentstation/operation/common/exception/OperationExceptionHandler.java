@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.scentstation.operation.inventory.reconciliation.exception.SensorInstallationMismatchException;
 import com.scentstation.operation.maintenance.exception.MaintenanceNotFoundException;
 import com.scentstation.operation.maintenance.exception.InvalidMaintenanceTicketException;
+import com.scentstation.operation.maintenance.exception.PostMaintenanceTestNotFoundException;
 import com.scentstation.operation.maintenance.exception.MaintenanceChecklistNotFoundException;
 import com.scentstation.operation.maintenance.exception.CriticalAlertAlreadyProcessedException;
 
@@ -377,6 +378,19 @@ public class OperationExceptionHandler {
         @ExceptionHandler(MaintenanceNotFoundException.class)
         public ResponseEntity<ApiErrorResponse> handleMaintenanceNotFound(
                 MaintenanceNotFoundException exception,
+                HttpServletRequest request
+        ) {
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage(),
+                request
+        );
+        }
+
+        // Trả 404 khi không tìm thấy post-maintenance test trong tenant.
+        @ExceptionHandler(PostMaintenanceTestNotFoundException.class)
+        public ResponseEntity<ApiErrorResponse> handlePostMaintenanceTestNotFound(
+                PostMaintenanceTestNotFoundException exception,
                 HttpServletRequest request
         ) {
         return buildResponse(
