@@ -3,8 +3,10 @@ package com.scentstation.operation.maintenance.service;
 import com.scentstation.operation.maintenance.dto.request.CompleteChecklistItemRequest;
 import com.scentstation.operation.maintenance.dto.request.CreateChecklistItemRequest;
 import com.scentstation.operation.maintenance.dto.response.MaintenanceChecklistItemResponse;
+import com.scentstation.operation.maintenance.entity.MaintenanceAuditEvent;
 import com.scentstation.operation.maintenance.entity.MaintenanceChecklistItem;
 import com.scentstation.operation.maintenance.entity.MaintenanceTicket;
+import com.scentstation.operation.maintenance.enums.MaintenanceAuditAction;
 import com.scentstation.operation.maintenance.enums.MaintenanceStatus;
 import com.scentstation.operation.maintenance.exception.InvalidMaintenanceTicketException;
 import com.scentstation.operation.maintenance.exception.MaintenanceChecklistNotFoundException;
@@ -32,6 +34,8 @@ public class MaintenanceChecklistService {
     private final MaintenanceChecklistMapper
             maintenanceChecklistMapper;
 
+    private final MaintenanceAuditService maintenanceAuditService;
+
     // Thêm checklist item vào maintenance ticket đang còn hiệu lực.
     @Transactional
     public MaintenanceChecklistItemResponse createChecklistItem(
@@ -54,6 +58,15 @@ public class MaintenanceChecklistService {
 
         MaintenanceChecklistItem saved =
                 maintenanceChecklistRepository.save(item);
+
+        recordAudit(
+                ticket,
+                saved,
+                MaintenanceAuditAction.CHECKLIST_CREATED,
+                null,
+                null,
+                "completed=false"
+        );
 
         return maintenanceChecklistMapper
                 .toResponse(saved);
@@ -111,6 +124,15 @@ public class MaintenanceChecklistService {
 
         MaintenanceChecklistItem saved =
                 maintenanceChecklistRepository.save(item);
+
+        recordAudit(
+                ticket,
+                saved,
+                MaintenanceAuditAction.CHECKLIST_COMPLETED,
+                request.getCompletedByActorId(),
+                "completed=false",
+                "completed=true"
+        );
 
         return maintenanceChecklistMapper
                 .toResponse(saved);
@@ -187,5 +209,30 @@ public class MaintenanceChecklistService {
                     "Checklist cannot be changed for completed or cancelled ticket"
             );
         }
+    }
+
+    // Ghi audit cho thay đổi checklist trong transaction hiện tại.
+    private void recordAudit(
+            MaintenanceTicket ticket,
+            MaintenanceChecklistItem item,
+            MaintenanceAuditAction action,
+            Long actorId,
+            String beforeState,
+            String afterState
+    ) {
+        maintenanceAuditService.record(
+                MaintenanceAuditEvent.builder()
+                        .tenantId(ticket.getTenantId())
+                        .action(action)
+                        .entityType("CHECKLIST_ITEM")
+                        .entityId(item.getId())
+                        .actorId(actorId)
+                        .ticketId(ticket.getId())
+                        .machineId(ticket.getMachineId())
+                        .beforeState(beforeState)
+                        .afterState(afterState)
+                        .source("MAINTENANCE")
+                        .build()
+        );
     }
 }

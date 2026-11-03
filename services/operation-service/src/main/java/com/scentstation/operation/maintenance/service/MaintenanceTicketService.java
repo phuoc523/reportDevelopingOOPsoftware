@@ -5,7 +5,9 @@ import com.scentstation.operation.maintenance.dto.request.CreateMaintenanceTicke
 import com.scentstation.operation.maintenance.dto.request.ReopenMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.request.UpdateMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.response.MaintenanceTicketResponse;
+import com.scentstation.operation.maintenance.entity.MaintenanceAuditEvent;
 import com.scentstation.operation.maintenance.entity.MaintenanceTicket;
+import com.scentstation.operation.maintenance.enums.MaintenanceAuditAction;
 import com.scentstation.operation.maintenance.enums.MaintenanceStatus;
 import com.scentstation.operation.maintenance.enums.PostMaintenanceTestStatus;
 import com.scentstation.operation.maintenance.exception.InvalidMaintenanceTicketException;
@@ -31,6 +33,7 @@ public class MaintenanceTicketService {
     private final MaintenanceRepairLogRepository maintenanceRepairLogRepository;
     private final PostMaintenanceTestRepository postMaintenanceTestRepository;
     private final MaintenanceTicketMapper maintenanceTicketMapper;
+    private final MaintenanceAuditService maintenanceAuditService;
 
     // Tạo maintenance ticket mới với trạng thái OPEN mặc định.
     @Transactional
@@ -42,6 +45,14 @@ public class MaintenanceTicketService {
 
         MaintenanceTicket saved =
                 maintenanceTicketRepository.save(ticket);
+
+        recordTicketAudit(
+                saved,
+                MaintenanceAuditAction.TICKET_CREATED,
+                saved.getReportedByActorId(),
+                null,
+                "status=" + saved.getStatus()
+        );
 
         return maintenanceTicketMapper.toResponse(saved);
     }
@@ -96,6 +107,8 @@ public class MaintenanceTicketService {
         MaintenanceTicket ticket =
                 findTicketForTenant(tenantId, ticketId);
 
+        String beforeState = ticketMetadata(ticket);
+
         ticket.setTitle(request.getTitle());
         ticket.setDescription(request.getDescription());
         ticket.setCategory(request.getCategory());
@@ -113,6 +126,14 @@ public class MaintenanceTicketService {
         MaintenanceTicket saved =
                 maintenanceTicketRepository.save(ticket);
 
+        recordTicketAudit(
+                saved,
+                MaintenanceAuditAction.TICKET_UPDATED,
+                null,
+                beforeState,
+                ticketMetadata(saved)
+        );
+
         return maintenanceTicketMapper.toResponse(saved);
     }
 
@@ -128,12 +149,20 @@ public class MaintenanceTicketService {
         );
 
         validateClose(ticket);
+        MaintenanceStatus beforeStatus = ticket.getStatus();
         ticket.setStatus(MaintenanceStatus.COMPLETED);
         ticket.setClosedAt(LocalDateTime.now());
 
-        return maintenanceTicketMapper.toResponse(
-                maintenanceTicketRepository.save(ticket)
+        MaintenanceTicket saved = maintenanceTicketRepository.save(ticket);
+        recordTicketAudit(
+                saved,
+                MaintenanceAuditAction.TICKET_CLOSED,
+                request.getClosedByActorId(),
+                "status=" + beforeStatus,
+                "status=" + saved.getStatus()
         );
+
+        return maintenanceTicketMapper.toResponse(saved);
     }
 
     // Mở lại ticket COMPLETED để tiếp tục xử lý mà không xóa dữ liệu cũ.
@@ -153,6 +182,7 @@ public class MaintenanceTicketService {
             );
         }
 
+        MaintenanceStatus beforeStatus = ticket.getStatus();
         ticket.setStatus(
                 ticket.getAssignedToActorId() == null
                         ? MaintenanceStatus.OPEN
@@ -160,9 +190,16 @@ public class MaintenanceTicketService {
         );
         ticket.setClosedAt(null);
 
-        return maintenanceTicketMapper.toResponse(
-                maintenanceTicketRepository.save(ticket)
+        MaintenanceTicket saved = maintenanceTicketRepository.save(ticket);
+        recordTicketAudit(
+                saved,
+                MaintenanceAuditAction.TICKET_REOPENED,
+                request.getReopenedByActorId(),
+                "status=" + beforeStatus,
+                "status=" + saved.getStatus()
         );
+
+        return maintenanceTicketMapper.toResponse(saved);
     }
 
     // Kiểm tra toàn bộ điều kiện nghiệp vụ trước khi đóng ticket.
@@ -231,5 +268,38 @@ public class MaintenanceTicketService {
                 .orElseThrow(() ->
                         new MaintenanceNotFoundException(ticketId)
                 );
+    }
+
+    // Ghi audit ticket bằng dữ liệu scalar để không lưu object graph.
+    private void recordTicketAudit(
+            MaintenanceTicket ticket,
+            MaintenanceAuditAction action,
+            Long actorId,
+            String beforeState,
+            String afterState
+    ) {
+        maintenanceAuditService.record(
+                MaintenanceAuditEvent.builder()
+                        .tenantId(ticket.getTenantId())
+                        .action(action)
+                        .entityType("TICKET")
+                        .entityId(ticket.getId())
+                        .actorId(actorId)
+                        .ticketId(ticket.getId())
+                        .machineId(ticket.getMachineId())
+                        .beforeState(beforeState)
+                        .afterState(afterState)
+                        .source("MAINTENANCE")
+                        .build()
+        );
+    }
+
+    // Tóm tắt metadata cần thiết cho audit update ticket.
+    private String ticketMetadata(MaintenanceTicket ticket) {
+        return "title=" + ticket.getTitle()
+                + ",category=" + ticket.getCategory()
+                + ",severity=" + ticket.getSeverity()
+                + ",priority=" + ticket.getPriority()
+                + ",dueAt=" + ticket.getDueAt();
     }
 }

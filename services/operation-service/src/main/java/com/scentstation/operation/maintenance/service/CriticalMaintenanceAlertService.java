@@ -2,8 +2,10 @@ package com.scentstation.operation.maintenance.service;
 
 import com.scentstation.operation.maintenance.dto.request.CriticalMaintenanceAlertRequest;
 import com.scentstation.operation.maintenance.dto.response.CriticalMaintenanceAlertResponse;
+import com.scentstation.operation.maintenance.entity.MaintenanceAuditEvent;
 import com.scentstation.operation.maintenance.entity.MaintenanceAlertLink;
 import com.scentstation.operation.maintenance.entity.MaintenanceTicket;
+import com.scentstation.operation.maintenance.enums.MaintenanceAuditAction;
 import com.scentstation.operation.maintenance.enums.MaintenancePriority;
 import com.scentstation.operation.maintenance.enums.MaintenanceSeverity;
 import com.scentstation.operation.maintenance.enums.MaintenanceStatus;
@@ -24,6 +26,8 @@ public class CriticalMaintenanceAlertService {
 
     private final MaintenanceTicketRepository
             maintenanceTicketRepository;
+
+    private final MaintenanceAuditService maintenanceAuditService;
 
     // Tạo maintenance ticket tự động từ critical alert theo cơ chế idempotent.
     @Transactional
@@ -87,6 +91,20 @@ public class CriticalMaintenanceAlertService {
                         .build();
 
         saveAlertLink(link, request.getAlertId());
+
+        maintenanceAuditService.record(
+                MaintenanceAuditEvent.builder()
+                        .tenantId(savedTicket.getTenantId())
+                        .action(MaintenanceAuditAction.CRITICAL_ALERT_TICKET_CREATED)
+                        .entityType("ALERT")
+                        .entityId(link.getId())
+                        .actorId(0L)
+                        .ticketId(savedTicket.getId())
+                        .machineId(savedTicket.getMachineId())
+                        .afterState("alertId=" + request.getAlertId())
+                        .source("CRITICAL_ALERT")
+                        .build()
+        );
 
         return CriticalMaintenanceAlertResponse.builder()
                 .alertId(

@@ -51,6 +51,9 @@ class MaintenanceTicketServiceTest {
     @Mock
     private MaintenanceTicketMapper maintenanceTicketMapper;
 
+    @Mock
+    private MaintenanceAuditService maintenanceAuditService;
+
     @InjectMocks
     private MaintenanceTicketService maintenanceTicketService;
 

@@ -2,8 +2,10 @@ package com.scentstation.operation.maintenance.service;
 
 import com.scentstation.operation.maintenance.dto.request.CreateMaintenanceRepairLogRequest;
 import com.scentstation.operation.maintenance.dto.response.MaintenanceRepairLogResponse;
+import com.scentstation.operation.maintenance.entity.MaintenanceAuditEvent;
 import com.scentstation.operation.maintenance.entity.MaintenanceRepairLog;
 import com.scentstation.operation.maintenance.entity.MaintenanceTicket;
+import com.scentstation.operation.maintenance.enums.MaintenanceAuditAction;
 import com.scentstation.operation.maintenance.enums.MaintenanceStatus;
 import com.scentstation.operation.maintenance.exception.InvalidMaintenanceTicketException;
 import com.scentstation.operation.maintenance.exception.MaintenanceNotFoundException;
@@ -28,6 +30,8 @@ public class MaintenanceRepairLogService {
 
     private final MaintenanceRepairLogMapper
             maintenanceRepairLogMapper;
+
+    private final MaintenanceAuditService maintenanceAuditService;
 
     // Ghi repair log cho maintenance ticket đang trong quá trình xử lý.
     @Transactional
@@ -55,6 +59,20 @@ public class MaintenanceRepairLogService {
                 maintenanceRepairLogRepository.save(
                         repairLog
                 );
+
+        maintenanceAuditService.record(
+                MaintenanceAuditEvent.builder()
+                        .tenantId(ticket.getTenantId())
+                        .action(MaintenanceAuditAction.REPAIR_RECORDED)
+                        .entityType("REPAIR_LOG")
+                        .entityId(saved.getId())
+                        .actorId(saved.getDiagnosedByActorId())
+                        .ticketId(ticket.getId())
+                        .machineId(ticket.getMachineId())
+                        .afterState("result=" + saved.getRepairResult())
+                        .source("MAINTENANCE")
+                        .build()
+        );
 
         return maintenanceRepairLogMapper
                 .toResponse(saved);

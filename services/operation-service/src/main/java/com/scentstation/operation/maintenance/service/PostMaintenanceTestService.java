@@ -3,8 +3,10 @@ package com.scentstation.operation.maintenance.service;
 import com.scentstation.operation.maintenance.dto.request.PostMaintenanceTestResultRequest;
 import com.scentstation.operation.maintenance.dto.request.RequestPostMaintenanceTestRequest;
 import com.scentstation.operation.maintenance.dto.response.PostMaintenanceTestResponse;
+import com.scentstation.operation.maintenance.entity.MaintenanceAuditEvent;
 import com.scentstation.operation.maintenance.entity.MaintenanceTicket;
 import com.scentstation.operation.maintenance.entity.PostMaintenanceTest;
+import com.scentstation.operation.maintenance.enums.MaintenanceAuditAction;
 import com.scentstation.operation.maintenance.enums.MaintenanceStatus;
 import com.scentstation.operation.maintenance.enums.PostMaintenanceTestStatus;
 import com.scentstation.operation.maintenance.exception.InvalidMaintenanceTicketException;
@@ -34,6 +36,7 @@ public class PostMaintenanceTestService {
     private final PostMaintenanceTestRepository postMaintenanceTestRepository;
     private final Optional<PostMaintenanceMachineClient> postMaintenanceMachineClient;
     private final PostMaintenanceTestMapper postMaintenanceTestMapper;
+    private final MaintenanceAuditService maintenanceAuditService;
 
     // Tạo yêu cầu test hợp lệ và chuyển lệnh sang Machine trong cùng transaction.
     @Transactional
@@ -64,9 +67,16 @@ public class PostMaintenanceTestService {
                 );
         saved.setExternalTestId(externalTestId);
 
-        return postMaintenanceTestMapper.toResponse(
-                postMaintenanceTestRepository.save(saved)
+        PostMaintenanceTest persisted = postMaintenanceTestRepository.save(saved);
+        recordAudit(
+                persisted,
+                MaintenanceAuditAction.POST_TEST_REQUESTED,
+                persisted.getRequestedByActorId(),
+                null,
+                "status=" + persisted.getStatus()
         );
+
+        return postMaintenanceTestMapper.toResponse(persisted);
     }
 
     // Ghi nhận một kết quả cuối PASSED hoặc FAILED từ Machine.
@@ -91,13 +101,23 @@ public class PostMaintenanceTestService {
             );
         }
 
+        PostMaintenanceTestStatus beforeStatus = test.getStatus();
         test.setStatus(request.getStatus());
         test.setResultMessage(request.getResultMessage());
         test.setCompletedAt(LocalDateTime.now());
 
-        return postMaintenanceTestMapper.toResponse(
-                postMaintenanceTestRepository.save(test)
+        PostMaintenanceTest saved = postMaintenanceTestRepository.save(test);
+        recordAudit(
+                saved,
+                request.getStatus() == PostMaintenanceTestStatus.PASSED
+                        ? MaintenanceAuditAction.POST_TEST_PASSED
+                        : MaintenanceAuditAction.POST_TEST_FAILED,
+                null,
+                "status=" + beforeStatus,
+                "status=" + saved.getStatus()
         );
+
+        return postMaintenanceTestMapper.toResponse(saved);
     }
 
     // Lấy lịch sử test của ticket sau khi xác nhận ticket thuộc đúng tenant.
@@ -178,5 +198,29 @@ public class PostMaintenanceTestService {
     private boolean isFinal(PostMaintenanceTestStatus status) {
         return status == PostMaintenanceTestStatus.PASSED
                 || status == PostMaintenanceTestStatus.FAILED;
+    }
+
+    // Ghi audit cho yêu cầu và kết quả post-maintenance test.
+    private void recordAudit(
+            PostMaintenanceTest test,
+            MaintenanceAuditAction action,
+            Long actorId,
+            String beforeState,
+            String afterState
+    ) {
+        maintenanceAuditService.record(
+                MaintenanceAuditEvent.builder()
+                        .tenantId(test.getTenantId())
+                        .action(action)
+                        .entityType("POST_MAINTENANCE_TEST")
+                        .entityId(test.getId())
+                        .actorId(actorId)
+                        .ticketId(test.getTicketId())
+                        .machineId(test.getMachineId())
+                        .beforeState(beforeState)
+                        .afterState(afterState)
+                        .source("POST_MAINTENANCE_TEST")
+                        .build()
+        );
     }
 }

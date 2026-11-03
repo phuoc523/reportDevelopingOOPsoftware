@@ -2,8 +2,10 @@ package com.scentstation.operation.maintenance.service;
 
 import com.scentstation.operation.maintenance.dto.request.AssignMaintenanceRequest;
 import com.scentstation.operation.maintenance.dto.response.MaintenanceAssignmentResponse;
+import com.scentstation.operation.maintenance.entity.MaintenanceAuditEvent;
 import com.scentstation.operation.maintenance.entity.MaintenanceAssignmentHistory;
 import com.scentstation.operation.maintenance.entity.MaintenanceTicket;
+import com.scentstation.operation.maintenance.enums.MaintenanceAuditAction;
 import com.scentstation.operation.maintenance.enums.MaintenanceAssignmentEventType;
 import com.scentstation.operation.maintenance.enums.MaintenanceStatus;
 import com.scentstation.operation.maintenance.exception.InvalidMaintenanceTicketException;
@@ -22,6 +24,8 @@ public class MaintenanceAssignmentService {
 
     private final MaintenanceAssignmentHistoryRepository
             assignmentHistoryRepository;
+
+    private final MaintenanceAuditService maintenanceAuditService;
 
     // Phân công hoặc phân công lại technician cho maintenance ticket.
     @Transactional
@@ -72,6 +76,17 @@ public class MaintenanceAssignmentService {
                         eventType
                 );
 
+        recordAudit(
+                ticket,
+                history,
+                eventType == MaintenanceAssignmentEventType.ASSIGNED
+                        ? MaintenanceAuditAction.TECHNICIAN_ASSIGNED
+                        : MaintenanceAuditAction.TECHNICIAN_REASSIGNED,
+                request.getAssignedByActorId(),
+                "technician=" + previousTechnician,
+                "technician=" + request.getTechnicianActorId()
+        );
+
         return toResponse(
                 ticket,
                 history
@@ -110,6 +125,15 @@ public class MaintenanceAssignmentService {
                         technicianActorId,
                         MaintenanceAssignmentEventType.ACKNOWLEDGED
                 );
+
+        recordAudit(
+                ticket,
+                history,
+                MaintenanceAuditAction.ASSIGNMENT_ACKNOWLEDGED,
+                technicianActorId,
+                "status=" + MaintenanceStatus.ASSIGNED,
+                "status=" + MaintenanceStatus.IN_PROGRESS
+        );
 
         return toResponse(
                 ticket,
@@ -227,5 +251,30 @@ public class MaintenanceAssignmentService {
                         history.getCreatedAt()
                 )
                 .build();
+    }
+
+    // Ghi audit cho assign, reassign và acknowledge trong transaction hiện tại.
+    private void recordAudit(
+            MaintenanceTicket ticket,
+            MaintenanceAssignmentHistory history,
+            MaintenanceAuditAction action,
+            Long actorId,
+            String beforeState,
+            String afterState
+    ) {
+        maintenanceAuditService.record(
+                MaintenanceAuditEvent.builder()
+                        .tenantId(ticket.getTenantId())
+                        .action(action)
+                        .entityType("ASSIGNMENT")
+                        .entityId(history.getId())
+                        .actorId(actorId)
+                        .ticketId(ticket.getId())
+                        .machineId(ticket.getMachineId())
+                        .beforeState(beforeState)
+                        .afterState(afterState)
+                        .source("MAINTENANCE")
+                        .build()
+        );
     }
 }

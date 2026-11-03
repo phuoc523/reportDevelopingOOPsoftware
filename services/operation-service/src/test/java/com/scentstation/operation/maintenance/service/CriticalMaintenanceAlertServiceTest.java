@@ -36,6 +36,9 @@ class CriticalMaintenanceAlertServiceTest {
     private MaintenanceTicketRepository
             maintenanceTicketRepository;
 
+    @Mock
+    private MaintenanceAuditService maintenanceAuditService;
+
     @InjectMocks
     private CriticalMaintenanceAlertService
             criticalMaintenanceAlertService;

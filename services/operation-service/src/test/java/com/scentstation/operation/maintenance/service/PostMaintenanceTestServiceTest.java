@@ -33,6 +33,7 @@ class PostMaintenanceTestServiceTest {
     private MaintenanceChecklistRepository checklistRepository;
     private PostMaintenanceTestRepository testRepository;
     private PostMaintenanceMachineClient machineClient;
+    private MaintenanceAuditService auditService;
     private PostMaintenanceTestService service;
 
     @BeforeEach
@@ -42,13 +43,15 @@ class PostMaintenanceTestServiceTest {
         checklistRepository = mock(MaintenanceChecklistRepository.class);
         testRepository = mock(PostMaintenanceTestRepository.class);
         machineClient = mock(PostMaintenanceMachineClient.class);
+        auditService = mock(MaintenanceAuditService.class);
         service = new PostMaintenanceTestService(
                 ticketRepository,
                 repairLogRepository,
                 checklistRepository,
                 testRepository,
                 Optional.of(machineClient),
-                new PostMaintenanceTestMapper()
+                new PostMaintenanceTestMapper(),
+                auditService
         );
     }
 

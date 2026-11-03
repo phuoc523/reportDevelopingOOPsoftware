@@ -39,6 +39,9 @@ class MaintenanceRepairLogServiceTest {
     @Mock
     private MaintenanceRepairLogMapper maintenanceRepairLogMapper;
 
+    @Mock
+    private MaintenanceAuditService maintenanceAuditService;
+
     @InjectMocks
     private MaintenanceRepairLogService maintenanceRepairLogService;
 

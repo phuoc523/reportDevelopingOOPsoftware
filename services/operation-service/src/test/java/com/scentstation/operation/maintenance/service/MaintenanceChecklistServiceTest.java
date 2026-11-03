@@ -43,6 +43,9 @@ class MaintenanceChecklistServiceTest {
     private MaintenanceChecklistMapper
             maintenanceChecklistMapper;
 
+    @Mock
+    private MaintenanceAuditService maintenanceAuditService;
+
     @InjectMocks
     private MaintenanceChecklistService
             maintenanceChecklistService;

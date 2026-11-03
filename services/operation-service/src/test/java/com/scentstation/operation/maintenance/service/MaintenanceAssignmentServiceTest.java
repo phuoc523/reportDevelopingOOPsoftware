@@ -34,6 +34,9 @@ class MaintenanceAssignmentServiceTest {
     private MaintenanceAssignmentHistoryRepository
             assignmentHistoryRepository;
 
+    @Mock
+    private MaintenanceAuditService maintenanceAuditService;
+
     @InjectMocks
     private MaintenanceAssignmentService maintenanceAssignmentService;
 
