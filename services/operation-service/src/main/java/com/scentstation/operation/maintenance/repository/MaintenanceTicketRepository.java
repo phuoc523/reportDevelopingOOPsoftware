@@ -54,4 +54,7 @@ public interface MaintenanceTicketRepository
             Long machineId,
             MaintenanceStatus status
     );
+
+    // Kiểm tra marker sample theo tenant và tiêu đề để seed idempotent.
+    boolean existsByTenantIdAndTitle(Long tenantId, String title);
 }
