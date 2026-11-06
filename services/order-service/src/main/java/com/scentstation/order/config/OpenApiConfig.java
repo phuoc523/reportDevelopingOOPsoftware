@@ -16,11 +16,11 @@ public class OpenApiConfig {
                 .description("""
                         Order and mock-payment API. Order and payment records are persisted in MySQL.
 
-                        **Swagger demo:** execute `POST /api/orders` using its valid example body. Copy the returned \
-                        `id` into `POST /api/orders/{orderId}/payments/qr`. For payment, call the returned \
-                        reference's `/simulate` endpoint, then inspect `/api/payments/{reference}` and \
-                        `/api/orders/{id}/status`. To demonstrate a provider callback instead of `/simulate`, \
-                        create a new order and QR payment, then call `POST /api/payments/callback` with the values \
+                        **Swagger demo:** execute `POST /api/v1/orders` using its valid example body. Copy the returned \
+                        `id` into `POST /api/v1/orders/{orderId}/payments/qr`. For payment, call the returned \
+                        reference's `/simulate` endpoint, then inspect `/api/v1/payments/{reference}` and \
+                        `/api/v1/orders/{id}/status`. To demonstrate a provider callback instead of `/simulate`, \
+                        create a new order and QR payment, then call `POST /api/v1/payments/callback` with the values \
                         returned by QR and the `X-Payment-Callback-Token` header. The local default token is \
                         `local-mock-callback-token`; deployments may configure `PAYMENT_CALLBACK_TOKEN`.
 

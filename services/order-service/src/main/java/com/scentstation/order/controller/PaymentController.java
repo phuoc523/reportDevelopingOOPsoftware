@@ -31,7 +31,7 @@ public class PaymentController {
         this.paymentService = paymentService;
     }
 
-    @PostMapping("/api/orders/{orderId}/payments/qr")
+    @PostMapping("/api/v1/orders/{orderId}/payments/qr")
     @Operation(summary = "Create or retrieve mock QR payment",
             description = "Call after creating an order. Repeated calls for the same order return its existing payment.")
     @ApiResponses({
@@ -50,7 +50,7 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.createOrGetQr(orderId));
     }
 
-    @GetMapping("/api/payments/{reference}")
+    @GetMapping("/api/v1/payments/{reference}")
     @Operation(summary = "Get payment", description = "Returns the payment status and details for a payment reference.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Payment details"),
@@ -62,7 +62,7 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.getPayment(reference));
     }
 
-    @PostMapping("/api/payments/{reference}/simulate")
+    @PostMapping("/api/v1/payments/{reference}/simulate")
     @Operation(summary = "Simulate successful payment",
             description = "Development/demo only. Simulates a PAID callback through the same verification flow.")
     @ApiResponses({
@@ -78,7 +78,7 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.simulatePayment(reference));
     }
 
-    @PostMapping("/api/payments/callback")
+    @PostMapping("/api/v1/payments/callback")
     @Operation(
             summary = "Receive payment callback",
             description = "Submit the reference, orderId and amount returned by the QR endpoint. "

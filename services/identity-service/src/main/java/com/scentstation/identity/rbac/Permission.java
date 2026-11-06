@@ -1,0 +1,18 @@
+package com.scentstation.identity.rbac;
+
+public enum Permission {
+    PLATFORM_ADMIN,
+    USER_READ,
+    ROLE_READ,
+    ROLE_ASSIGN,
+    ROLE_REVOKE,
+    ROLE_AUDIT_READ,
+    ORDER_READ,
+    REFUND_APPROVE,
+    INVENTORY_READ,
+    INVENTORY_ADJUST,
+    MACHINE_READ,
+    MACHINE_DIAGNOSTIC_SPRAY,
+    MACHINE_CONFIGURE,
+    REPORT_READ
+}

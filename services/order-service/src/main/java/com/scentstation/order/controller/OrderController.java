@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/orders")
+@RequestMapping("/api/v1/orders")
 @Tag(name = "Orders", description = "Create and manage customer orders.")
 public class OrderController {
 
@@ -83,7 +83,7 @@ public class OrderController {
                                       "status": 400,
                                       "error": "BAD_REQUEST",
                                       "message": "customerId: must be greater than 0",
-                                      "path": "/api/orders",
+                                      "path": "/api/v1/orders",
                                       "timestamp": "2026-10-25T10:00:00"
                                     }
                                     """)))

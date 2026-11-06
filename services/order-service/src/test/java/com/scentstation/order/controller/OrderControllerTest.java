@@ -44,7 +44,7 @@ class OrderControllerTest {
 
     @Test
     void createsOrderWithProductSnapshotAndCalculatedTotal() throws Exception {
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validOrderRequest()))
                 .andExpect(status().isCreated())
@@ -65,17 +65,17 @@ class OrderControllerTest {
     void retrievesOrderDetailsAndStatus() throws Exception {
         long orderId = createOrder();
 
-        mockMvc.perform(get("/api/orders"))
+        mockMvc.perform(get("/api/v1/orders"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].id").value(orderId));
 
-        mockMvc.perform(get("/api/orders/{id}", orderId))
+        mockMvc.perform(get("/api/v1/orders/{id}", orderId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(orderId))
                 .andExpect(jsonPath("$.items.length()").value(1));
 
-        mockMvc.perform(get("/api/orders/{id}/status", orderId))
+        mockMvc.perform(get("/api/v1/orders/{id}/status", orderId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderId").value(orderId))
                 .andExpect(jsonPath("$.status").value("PENDING"));
@@ -83,7 +83,7 @@ class OrderControllerTest {
 
     @Test
     void returnsEmptyListWhenThereAreNoOrders() throws Exception {
-        mockMvc.perform(get("/api/orders"))
+        mockMvc.perform(get("/api/v1/orders"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(0));
@@ -93,24 +93,24 @@ class OrderControllerTest {
     void updatesOrderStatusWhenTransitionIsAllowed() throws Exception {
         long orderId = createOrder();
 
-        mockMvc.perform(patch("/api/orders/{id}/status", orderId)
+        mockMvc.perform(patch("/api/v1/orders/{id}/status", orderId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"status": "CONFIRMED"}
                                 """))
                 .andExpect(status().isConflict());
 
-        String paymentResponse = mockMvc.perform(post("/api/orders/{id}/payments/qr", orderId))
+        String paymentResponse = mockMvc.perform(post("/api/v1/orders/{id}/payments/qr", orderId))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
         String reference = objectMapper.readTree(paymentResponse).get("reference").asText();
-        mockMvc.perform(post("/api/payments/{reference}/simulate", reference))
+        mockMvc.perform(post("/api/v1/payments/{reference}/simulate", reference))
                 .andExpect(status().isOk());
 
         for (String nextStatus : new String[]{"PROCESSING", "SHIPPED", "DELIVERED"}) {
-            mockMvc.perform(patch("/api/orders/{id}/status", orderId)
+            mockMvc.perform(patch("/api/v1/orders/{id}/status", orderId)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(
                                     java.util.Map.of("status", nextStatus)
@@ -122,7 +122,7 @@ class OrderControllerTest {
 
     @Test
     void rejectsInvalidOrderDataAndStatusTransitions() throws Exception {
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"customerId": 7, "items": []}
@@ -130,11 +130,11 @@ class OrderControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
-                .andExpect(jsonPath("$.path").value("/api/orders"))
+                .andExpect(jsonPath("$.path").value("/api/v1/orders"))
                 .andExpect(jsonPath("$.message").isNotEmpty())
                 .andExpect(jsonPath("$.timestamp").isNotEmpty());
 
-        mockMvc.perform(post("/api/orders")
+        mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -157,7 +157,7 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
 
         long orderId = createOrder();
-        mockMvc.perform(patch("/api/orders/{id}/status", orderId)
+        mockMvc.perform(patch("/api/v1/orders/{id}/status", orderId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"status": "DELIVERED"}
@@ -168,7 +168,7 @@ class OrderControllerTest {
 
     @Test
     void returnsNotFoundForUnknownOrder() throws Exception {
-        mockMvc.perform(get("/api/orders/999"))
+        mockMvc.perform(get("/api/v1/orders/999"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.error").value("NOT_FOUND"));
@@ -176,14 +176,14 @@ class OrderControllerTest {
 
     @Test
     void returnsJsonErrorWhenOrderIdIsNotNumeric() throws Exception {
-        mockMvc.perform(get("/api/orders/$($order.id)/status"))
+        mockMvc.perform(get("/api/v1/orders/$($order.id)/status"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.message").value("Invalid value for 'id': a numeric ID is required"));
     }
 
     private long createOrder() throws Exception {
-        String response = mockMvc.perform(post("/api/orders")
+        String response = mockMvc.perform(post("/api/v1/orders")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validOrderRequest()))
                 .andExpect(status().isCreated())
