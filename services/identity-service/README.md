@@ -76,3 +76,16 @@ git push -u origin feature/p1-03-auth-session
 ```
 
 Create a PR from `feature/p1-03-auth-session` into `main`, request a code review, and resolve schema/contracts with teammates before merging.
+
+## OOP-8 — Identity and Platform contributions
+
+The ScentStation use case specification assumes the Platform Super Administrator has already authenticated before UC-11 (Manage Tenants & Users). A successful staff login establishes identity. UC-11 also requires platform administration privileges. A brand administrator's authenticated session alone does not satisfy that requirement.
+
+| Work by Hoàng Đình Phùng | Commit on the test branch |
+|---|---|
+| Staff login and session lifecycle | [fb0bd91](https://github.com/phuoc523/reportDevelopingOOPsoftware/commit/fb0bd91) |
+| Role-based authorization and audit | [0cac2cd](https://github.com/phuoc523/reportDevelopingOOPsoftware/commit/0cac2cd) |
+| Tenant isolation | [9049912](https://github.com/phuoc523/reportDevelopingOOPsoftware/commit/9049912) |
+| Platform modules and gateway tests | [442826b](https://github.com/phuoc523/reportDevelopingOOPsoftware/commit/442826b) |
+
+The login scenarios documented for OOP-8 correspond to the success, invalid-password, lockout and logout cases in [AuthIntegrationTest](src/test/java/com/scentstation/identity/AuthIntegrationTest.java).
