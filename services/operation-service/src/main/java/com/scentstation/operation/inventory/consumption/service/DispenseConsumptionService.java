@@ -17,6 +17,9 @@ import com.scentstation.operation.inventory.consumption.repository.DispenseConsu
 import com.scentstation.operation.inventory.installation.entity.BottleInstallation;
 import com.scentstation.operation.inventory.installation.exception.ActiveInstallationNotFoundException;
 import com.scentstation.operation.inventory.installation.repository.BottleInstallationRepository;
+import com.scentstation.operation.inventory.movement.entity.BottleMovement;
+import com.scentstation.operation.inventory.movement.enums.BottleMovementType;
+import com.scentstation.operation.inventory.movement.repository.BottleMovementRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +35,7 @@ public class DispenseConsumptionService {
     private final DispenseConsumptionRepository dispenseConsumptionRepository;
     private final BottleRepository bottleRepository;
     private final BottleInstallationRepository bottleInstallationRepository;
+    private final BottleMovementRepository bottleMovementRepository;
     private final InventoryAuditService auditService;
 
     // Ghi nhận một lần dispense; chỉ trừ tồn kho khi kết quả thành công.
@@ -86,6 +90,8 @@ public class DispenseConsumptionService {
 
             bottleRepository.save(bottle);
 
+            saveConsumptionMovement(request, quantityBefore, quantityAfter);
+
             inventoryDeducted = true;
         }
 
@@ -117,6 +123,7 @@ public class DispenseConsumptionService {
                         .slotId(request.getSlotId())
                         .beforeValue(quantityBefore.toPlainString())
                         .afterValue(quantityAfter.toPlainString())
+                        .reason(request.getDispenseType().name())
                         .referenceId(request.getCommandId())
                         .build()
         );
@@ -124,6 +131,33 @@ public class DispenseConsumptionService {
         return toResponse(
                 saved,
                 bottle
+        );
+    }
+
+    // Ghi movement riêng cho customer và diagnostic sau dispense vật lý thành công.
+    private void saveConsumptionMovement(
+            RecordDispenseRequest request,
+            BigDecimal quantityBefore,
+            BigDecimal quantityAfter
+    ) {
+        BottleMovementType movementType =
+                request.getDispenseType()
+                        == com.scentstation.operation.inventory.consumption.enums.DispenseType.CUSTOMER
+                        ? BottleMovementType.CUSTOMER_CONSUMPTION
+                        : BottleMovementType.DIAGNOSTIC_CONSUMPTION;
+
+        bottleMovementRepository.save(
+                BottleMovement.builder()
+                        .tenantId(request.getTenantId())
+                        .bottleId(request.getBottleId())
+                        .movementType(movementType)
+                        .machineId(request.getMachineId())
+                        .slotId(request.getSlotId())
+                        .quantityBefore(quantityBefore)
+                        .quantityAfter(quantityAfter)
+                        .reason("Confirmed physical dispense")
+                        .referenceId(request.getCommandId())
+                        .build()
         );
     }
 

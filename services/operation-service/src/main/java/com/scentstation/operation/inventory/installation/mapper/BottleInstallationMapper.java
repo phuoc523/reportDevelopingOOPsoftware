@@ -18,6 +18,7 @@ public class BottleInstallationMapper {
                 .machineId(request.getMachineId())
                 .slotId(request.getSlotId())
                 .installedBy(request.getActorId())
+                .quantityBeforeInstallation(request.getMeasuredQuantityBefore())
                 .active(true)
                 .build();
     }
@@ -36,7 +37,9 @@ public class BottleInstallationMapper {
                 .installedAt(installation.getInstalledAt())
                 .removedBy(installation.getRemovedBy())
                 .removedAt(installation.getRemovedAt())
-                .active(installation.getActive())
+                .quantityBeforeInstallation(installation.getQuantityBeforeInstallation())
+                .quantityAfterRemoval(installation.getQuantityAfterRemoval())
+                .active(Boolean.TRUE.equals(installation.getActive()))
                 .build();
     }
 }

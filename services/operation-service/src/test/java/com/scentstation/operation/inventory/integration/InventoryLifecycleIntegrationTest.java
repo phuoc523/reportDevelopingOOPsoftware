@@ -57,6 +57,9 @@ class InventoryLifecycleIntegrationTest extends InventoryIntegrationTestSupport 
         assertEquals(1, movementRepository
                 .findAllByTenantIdAndMovementTypeOrderByCreatedAtDesc(
                         TENANT_ID, BottleMovementType.INSTALL).size());
+        assertEquals(1, movementRepository
+                .findAllByTenantIdAndMovementTypeOrderByCreatedAtDesc(
+                        TENANT_ID, BottleMovementType.CUSTOMER_CONSUMPTION).size());
         assertEquals(1, auditRepository
                 .findAllByTenantIdAndActionOrderByCreatedAtDesc(
                         TENANT_ID, InventoryAuditAction.DISPENSE_RECORDED).size());

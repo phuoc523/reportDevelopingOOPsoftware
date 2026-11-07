@@ -333,7 +333,7 @@ class BottleInstallationServiceTest {
 
         bottleInstallationService.removeBottle(request);
 
-        assertFalse(installation.getActive());
+        assertNull(installation.getActive());
         assertNotNull(installation.getRemovedAt());
 
         assertEquals(
@@ -445,7 +445,7 @@ class BottleInstallationServiceTest {
                 newBottle.getStatus()
         );
 
-        assertFalse(installation.getActive());
+        assertNull(installation.getActive());
 
         verify(bottleMovementRepository, times(2))
                 .save(any(BottleMovement.class));

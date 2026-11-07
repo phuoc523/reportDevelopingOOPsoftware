@@ -2,23 +2,29 @@
 
 Operation Service is an independent ScentStation microservice for operational workflows. It owns its own `operation_db` database and must not directly access another service's database or create cross-service foreign keys.
 
-Planned modules:
+Modules:
 
 - Inventory
 - Alert
 - Maintenance
 
-Member 2 is currently responsible only for Inventory. The planned Inventory scope includes:
+Inventory is implemented on this branch and currently includes:
 
 - Batch
 - Bottle / Cartridge
 - Installation
+- Removal and atomic replacement
 - Refill
 - Adjustment
+- Sensor reconciliation and remaining-spray estimation
+- Idempotent customer/diagnostic dispense consumption
+- Tenant-scoped movement and local audit history
 
-References to data owned by other services will use identifiers such as `productId`, `machineId`, and `slotId`; this bootstrap does not define those fields or entities.
+References to data owned by other services use scalar identifiers such as `productId`, `machineId`, and `slotId`; Operation does not define their entities.
 
-Business logic has not been implemented yet.
+`MachineSlotClient` is the Machine integration boundary. Its simulator is available only in the `local` and `test` profiles. A production/default deployment must provide a real adapter.
+
+Alert and Maintenance remain future modules and are not implemented by the Inventory stabilization work.
 
 ## Environment Variables
 

@@ -39,5 +39,7 @@ public class BottleMovementResponse {
 
     private String reason;
 
+    private String referenceId;
+
     private LocalDateTime createdAt;
 }

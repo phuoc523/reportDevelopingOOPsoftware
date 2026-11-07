@@ -9,9 +9,22 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 @Entity
-@Table(name = "bottle_installations")
+@Table(
+        name = "bottle_installations",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_active_installation_slot",
+                        columnNames = {"tenant_id", "machine_id", "slot_id", "active"}
+                ),
+                @UniqueConstraint(
+                        name = "uk_active_installation_bottle",
+                        columnNames = {"tenant_id", "bottle_id", "active"}
+                )
+        }
+)
 @Getter
 @Setter
 @Builder
@@ -47,7 +60,17 @@ public class BottleInstallation {
     @Column(name = "removed_at")
     private LocalDateTime removedAt;
 
-    @Column(name = "active", nullable = false)
+    @Column(name = "quantity_before_installation", nullable = false, precision = 12, scale = 3)
+    private BigDecimal quantityBeforeInstallation;
+
+    @Column(name = "quantity_after_removal", precision = 12, scale = 3)
+    private BigDecimal quantityAfterRemoval;
+
+    /*
+     * TRUE đánh dấu installation đang hoạt động; NULL cho phép lưu nhiều
+     * bản ghi lịch sử trong khi unique constraint chặn hai bản ghi active.
+     */
+    @Column(name = "active")
     @Builder.Default
     private Boolean active = true;
 

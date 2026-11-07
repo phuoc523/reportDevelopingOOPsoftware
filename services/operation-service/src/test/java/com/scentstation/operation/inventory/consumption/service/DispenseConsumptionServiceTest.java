@@ -15,6 +15,7 @@ import com.scentstation.operation.inventory.consumption.exception.InsufficientBo
 import com.scentstation.operation.inventory.consumption.repository.DispenseConsumptionRepository;
 import com.scentstation.operation.inventory.installation.entity.BottleInstallation;
 import com.scentstation.operation.inventory.installation.repository.BottleInstallationRepository;
+import com.scentstation.operation.inventory.movement.repository.BottleMovementRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +44,9 @@ class DispenseConsumptionServiceTest {
 
     @Mock
     private BottleInstallationRepository bottleInstallationRepository;
+
+    @Mock
+    private BottleMovementRepository bottleMovementRepository;
 
     @InjectMocks
     private DispenseConsumptionService dispenseConsumptionService;

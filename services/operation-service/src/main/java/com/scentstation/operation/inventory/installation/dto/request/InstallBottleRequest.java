@@ -7,6 +7,9 @@ import lombok.AllArgsConstructor;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Builder;
+import jakarta.validation.constraints.DecimalMin;
+
+import java.math.BigDecimal;
 
 @Getter 
 @Setter 
@@ -33,4 +36,8 @@ public class InstallBottleRequest {
     @NotNull 
     @Positive
     private Long actorId;
+
+    @NotNull
+    @DecimalMin(value = "0.000")
+    private BigDecimal measuredQuantityBefore;
 }

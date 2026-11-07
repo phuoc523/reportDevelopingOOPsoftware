@@ -9,6 +9,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import jakarta.validation.constraints.DecimalMin;
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 @Builder
@@ -34,4 +37,12 @@ public class ReplaceBottleRequest {
 
     @Size(max = 500)
     private String reason;
+
+    @NotNull
+    @DecimalMin(value = "0.000")
+    private BigDecimal oldBottleMeasuredQuantityAfter;
+
+    @NotNull
+    @DecimalMin(value = "0.000")
+    private BigDecimal newBottleMeasuredQuantityBefore;
 }
