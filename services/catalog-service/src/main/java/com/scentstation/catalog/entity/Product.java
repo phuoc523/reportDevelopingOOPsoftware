@@ -12,7 +12,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "products")
+@Table(
+        name = "products",
+        indexes = @Index(
+                name = "idx_products_tenant_id_id",
+                columnList = "tenant_id,id"
+        )
+)
 @Getter
 @Setter
 @Builder
@@ -22,34 +28,36 @@ public class Product {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private Long id;
 
-    @Column(nullable = false)
+    @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
 
-    @Column(nullable = false)
+    @Column(name = "name", nullable = false, length = 255)
     private String name;
 
-    @Column(length = 1000)
+    @Column(name = "description", length = 1000)
     private String description;
 
-    @Column(length = 500)
+    @Column(name = "fragrance_notes", length = 500)
     private String fragranceNotes;
 
+    @Column(name = "image_url", length = 255)
     private String imageUrl;
 
-    @Column(nullable = false, precision = 12, scale = 2)
+    @Column(name = "default_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal defaultPrice;
 
     @Builder.Default
-    @Column(nullable = false)
+    @Column(name = "available", nullable = false)
     private Boolean available = true;
 
-    @Column(nullable = false, updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     @Setter(AccessLevel.NONE)
     private LocalDateTime createdAt;
 
-    @Column(nullable = false)
+    @Column(name = "updated_at", nullable = false)
     @Setter(AccessLevel.NONE)
     private LocalDateTime updatedAt;
 

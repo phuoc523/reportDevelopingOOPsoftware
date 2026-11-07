@@ -95,11 +95,13 @@ class ProductControllerTest {
 
         when(productService.updatePrice(
                 any(Long.class),
+                any(Long.class),
                 any(UpdateProductPriceRequest.class)
         )).thenReturn(response);
 
         mockMvc.perform(
                         patch("/api/products/1/price")
+                                .param("tenantId", "1")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
                 )
@@ -117,6 +119,7 @@ class ProductControllerTest {
 
         mockMvc.perform(
                         patch("/api/products/1/price")
+                                .param("tenantId", "1")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
                 )
@@ -132,6 +135,7 @@ class ProductControllerTest {
 
         mockMvc.perform(
                         patch("/api/products/1/price")
+                                .param("tenantId", "1")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -156,11 +160,13 @@ class ProductControllerTest {
 
         when(productService.changeAvailability(
                 any(Long.class),
+                any(Long.class),
                 any(UpdateProductAvailabilityRequest.class)
         )).thenReturn(response);
 
         mockMvc.perform(
                         patch("/api/products/1/availability")
+                                .param("tenantId", "1")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
                 )
@@ -177,6 +183,7 @@ class ProductControllerTest {
 
         mockMvc.perform(
                         patch("/api/products/1/availability")
+                                .param("tenantId", "1")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestBody)
                 )
@@ -194,10 +201,10 @@ class ProductControllerTest {
                 .available(true)
                 .build();
 
-        when(productService.getProducts())
+        when(productService.getProducts(1L))
                 .thenReturn(List.of(response));
 
-        mockMvc.perform(get("/api/products"))
+        mockMvc.perform(get("/api/products").param("tenantId", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(1))
                 .andExpect(jsonPath("$[0].name").value("Scent Sample"));
@@ -213,10 +220,10 @@ class ProductControllerTest {
                 .available(true)
                 .build();
 
-        when(productService.getProductById(1L))
+        when(productService.getProductById(1L, 1L))
                 .thenReturn(response);
 
-        mockMvc.perform(get("/api/products/1"))
+        mockMvc.perform(get("/api/products/1").param("tenantId", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.name").value("Scent Sample"));
@@ -224,10 +231,10 @@ class ProductControllerTest {
 
     @Test
     void shouldReturn404WhenProductNotFound() throws Exception {
-        when(productService.getProductById(999L))
+        when(productService.getProductById(1L, 999L))
                 .thenThrow(new ProductNotFoundException(999L));
 
-        mockMvc.perform(get("/api/products/999"))
+        mockMvc.perform(get("/api/products/999").param("tenantId", "1"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.message")

@@ -32,30 +32,37 @@ public class ProductController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ProductResponse>> getProducts() {
-        return ResponseEntity.ok(productService.getProducts());
+    public ResponseEntity<List<ProductResponse>> getProducts(
+            @RequestParam Long tenantId
+    ) {
+        return ResponseEntity.ok(productService.getProducts(tenantId));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ProductResponse> getProductById(
-            @PathVariable Long id
+            @PathVariable Long id,
+            @RequestParam Long tenantId
     ) {
-        return ResponseEntity.ok(productService.getProductById(id));
+        return ResponseEntity.ok(productService.getProductById(tenantId, id));
     }
 
     @PatchMapping("/{id}/availability")
     public ResponseEntity<ProductResponse> changeAvailability(
             @PathVariable Long id,
+            @RequestParam Long tenantId,
             @Valid @RequestBody UpdateProductAvailabilityRequest request
     ) {
-        return ResponseEntity.ok(productService.changeAvailability(id, request));
+        return ResponseEntity.ok(
+                productService.changeAvailability(tenantId, id, request)
+        );
     }
 
     @PatchMapping("/{id}/price")
     public ResponseEntity<ProductResponse> updatePrice(
             @PathVariable Long id,
+            @RequestParam Long tenantId,
             @Valid @RequestBody UpdateProductPriceRequest request
     ) {
-        return ResponseEntity.ok(productService.updatePrice(id, request));
+        return ResponseEntity.ok(productService.updatePrice(tenantId, id, request));
     }
 }

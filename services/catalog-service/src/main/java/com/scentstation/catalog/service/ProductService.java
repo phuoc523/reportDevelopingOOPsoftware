@@ -31,23 +31,27 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProductResponse> getProducts() {
-        return productRepository.findAll()
+    public List<ProductResponse> getProducts(Long tenantId) {
+        return productRepository.findAllByTenantId(tenantId)
                 .stream()
                 .map(productMapper::toResponse)
                 .toList();
     }
 
     @Transactional(readOnly = true)
-    public ProductResponse getProductById(Long id) {
-        Product product = findProductById(id);
+    public ProductResponse getProductById(Long tenantId, Long id) {
+        Product product = findProductById(tenantId, id);
 
         return productMapper.toResponse(product);
     }
 
     @Transactional
-    public ProductResponse changeAvailability(Long id, UpdateProductAvailabilityRequest request) {
-        Product product = findProductById(id);
+    public ProductResponse changeAvailability(
+            Long tenantId,
+            Long id,
+            UpdateProductAvailabilityRequest request
+    ) {
+        Product product = findProductById(tenantId, id);
         product.setAvailable(request.getAvailable());
         Product updatedProduct = productRepository.save(product);
 
@@ -55,16 +59,20 @@ public class ProductService {
     }
 
     @Transactional 
-    public ProductResponse updatePrice(Long id, UpdateProductPriceRequest request) {
-        Product product = findProductById(id);
+    public ProductResponse updatePrice(
+            Long tenantId,
+            Long id,
+            UpdateProductPriceRequest request
+    ) {
+        Product product = findProductById(tenantId, id);
         product.setDefaultPrice(request.getDefaultPrice());
         Product updatedProduct = productRepository.save(product);
 
         return productMapper.toResponse(updatedProduct);
     }
 
-    private Product findProductById(Long id) {
-        return productRepository.findById(id)
+    private Product findProductById(Long tenantId, Long id) {
+        return productRepository.findByIdAndTenantId(id, tenantId)
                 .orElseThrow(() -> new ProductNotFoundException(id));
     }
 }

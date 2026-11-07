@@ -1,0 +1,91 @@
+services:
+  mysql:
+    image: mysql:8.0.41
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD}
+      OPERATION_DB_PASSWORD: ${OPERATION_DB_PASSWORD:?Set OPERATION_DB_PASSWORD}
+    volumes:
+      - member2-mysql-data:/var/lib/mysql
+    configs:
+      - source: mysql-init
+        target: /docker-entrypoint-initdb.d/01-init-databases.sh
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysqladmin ping -h localhost -uroot --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    networks:
+      - scentstation-member2
+
+  catalog-service:
+    image: scentstation/catalog-service:member2
+    build:
+      context: ./services/catalog-service
+    environment:
+      CATALOG_DB_URL: jdbc:mysql://mysql:3306/scentstation_catalog
+      CATALOG_DB_USERNAME: catalog_app
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD}
+      CATALOG_SERVICE_PORT: 8082
+    ports:
+      - "8082:8082"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - scentstation-member2
+
+  operation-service:
+    image: scentstation/operation-service:member2
+    build:
+      context: ./services/operation-service
+    environment:
+      OPERATION_DB_URL: jdbc:mysql://mysql:3306/scentstation_operation
+      OPERATION_DB_USERNAME: operation_app
+      OPERATION_DB_PASSWORD: ${OPERATION_DB_PASSWORD:?Set OPERATION_DB_PASSWORD}
+      OPERATION_SERVICE_PORT: 8085
+      SPRING_PROFILES_ACTIVE: docker-local
+    ports:
+      - "8085:8085"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - scentstation-member2
+
+networks:
+  scentstation-member2:
+    driver: bridge
+
+volumes:
+  member2-mysql-data:
+
+configs:
+  mysql-init:
+    content: |
+      #!/bin/bash
+      set -e
+
+      : "$${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD}"
+      : "$${OPERATION_DB_PASSWORD:?Set OPERATION_DB_PASSWORD}"
+
+      sql_escape() {
+        printf '%s' "$$1" | sed -e 's/\\/\\\\/g' -e "s/'/''/g"
+      }
+
+      catalog_password=$$(sql_escape "$$CATALOG_DB_PASSWORD")
+      operation_password=$$(sql_escape "$$OPERATION_DB_PASSWORD")
+
+      MYSQL_PWD="$$MYSQL_ROOT_PASSWORD" mysql --protocol=socket -uroot <<EOSQL
+      CREATE DATABASE IF NOT EXISTS scentstation_catalog CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+      CREATE DATABASE IF NOT EXISTS scentstation_operation CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+
+      CREATE USER IF NOT EXISTS 'catalog_app'@'%' IDENTIFIED BY '$${catalog_password}';
+      ALTER USER 'catalog_app'@'%' IDENTIFIED BY '$${catalog_password}';
+      GRANT ALL PRIVILEGES ON scentstation_catalog.* TO 'catalog_app'@'%';
+
+      CREATE USER IF NOT EXISTS 'operation_app'@'%' IDENTIFIED BY '$${operation_password}';
+      ALTER USER 'operation_app'@'%' IDENTIFIED BY '$${operation_password}';
+      GRANT ALL PRIVILEGES ON scentstation_operation.* TO 'operation_app'@'%';
+      EOSQL
