@@ -14,7 +14,7 @@ service intentionally does not configure a database.
 
 ## Run
 
-Requires JDK 25 or newer.
+Requires JDK 21 (team baseline).
 
 ```bash
 mvn spring-boot:run

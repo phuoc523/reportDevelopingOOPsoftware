@@ -21,7 +21,7 @@ jobs:
           - { service: api-gateway, java: '21' }
           - { service: identity-service, java: '21' }
           - { service: catalog-service, java: '21' }
-          - { service: order-service, java: '25' }
+          - { service: order-service, java: '21' }
           - { service: machine-service, java: '21' }
           - { service: operation-service, java: '21' }
           - { service: reporting-service, java: '21' }
