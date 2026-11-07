@@ -2,6 +2,8 @@ package com.scentstation.order.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scentstation.order.repository.OrderRepository;
+import com.scentstation.order.repository.PaymentRepository;
+import com.scentstation.order.repository.TransactionReviewRepository;
 import com.scentstation.order.repository.DispensingRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,10 +35,18 @@ class OrderControllerTest {
     @Autowired
     private DispensingRepository dispensingRepository;
 
+    @Autowired
+    private PaymentRepository paymentRepository;
+
+    @Autowired
+    private TransactionReviewRepository transactionReviewRepository;
+
     @BeforeEach
     void clearOrders() {
+        paymentRepository.deleteAll();
         orderRepository.deleteAll();
         dispensingRepository.deleteAll();
+        transactionReviewRepository.deleteAll();
     }
 
     @Test
