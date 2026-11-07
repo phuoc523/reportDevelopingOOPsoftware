@@ -6,12 +6,7 @@ import './App.css'
 import type { Device } from './types/device';
 import { deviceService } from './services/deviceService';
 
-type Role =
-  | 'Admin'
-  | 'Operator'
-  | 'Technician'
-  | 'Inventory Manager'
-  | 'Finance'
+import { roles, rolePermissions, hasPermission, type Permission, type Role } from './config/permissions'
 
 type Page =
   | 'dashboard'
@@ -23,76 +18,30 @@ type Page =
   | 'maintenance'
   | 'orders'
   | 'audit'
+  | 'tenants'
+  | 'users'
+  | 'reports'
 
-const roles: Role[] = [
-  'Admin',
-  'Operator',
-  'Technician',
-  'Inventory Manager',
-  'Finance',
-]
 
-const navigation: {
-  id: Page
-  label: string
-  icon: string
-  permission: Role[]
-}[] = [
-  {
-    id: 'dashboard',
-    label: 'Tổng quan',
-    icon: '▦',
-    permission: roles,
-  },
-  {
-    id: 'products',
-    label: 'Sản phẩm',
-    icon: '◈',
-    permission: ['Admin', 'Operator', 'Inventory Manager'],
-  },
-  {
-    id: 'campaigns',
-    label: 'Chiến dịch',
-    icon: '◷',
-    permission: ['Admin', 'Operator'],
-  },
-  {
-    id: 'inventory',
-    label: 'Quản lý tồn kho',
-    icon: '▤',
-    permission: ['Admin', 'Inventory Manager', 'Technician'],
-  },
-  {
-    id: 'devices',
-    label: 'Máy phun',
-    icon: '▣',
-    permission: ['Admin', 'Operator', 'Technician'],
-  },
-  {
-    id: 'alerts',
-    label: 'Cảnh báo',
-    icon: '⚑',
-    permission: ['Admin', 'Operator', 'Technician'],
-  },
-  {
-    id: 'maintenance',
-    label: 'Bảo trì',
-    icon: '⚙',
-    permission: ['Admin', 'Technician'],
-  },
-  {
-    id: 'orders',
-    label: 'Đơn hàng & thanh toán',
-    icon: '▧',
-    permission: ['Admin', 'Operator', 'Finance'],
-  },
-  {
-    id: 'audit',
-    label: 'Nhật ký hệ thống',
-    icon: '≡',
-    permission: ['Admin', 'Finance',],
-  },
+const navigation: { id: Page; label: string; icon: string; permission: Permission | null }[] = [
+  { id: 'dashboard', label: 'Tổng quan', icon: '▦', permission: null },
+  { id: 'tenants', label: 'Thương hiệu', icon: '◇', permission: 'tenant.manage' },
+  { id: 'users', label: 'Người dùng & phân quyền', icon: '♙', permission: null },
+  { id: 'products', label: 'Sản phẩm', icon: '◈', permission: 'product.view' },
+  { id: 'campaigns', label: 'Chiến dịch', icon: '◷', permission: 'campaign.view' },
+  { id: 'inventory', label: 'Quản lý tồn kho', icon: '▤', permission: 'inventory.view' },
+  { id: 'devices', label: 'Máy phun', icon: '▣', permission: 'device.view' },
+  { id: 'alerts', label: 'Cảnh báo', icon: '⚑', permission: 'alert.view' },
+  { id: 'maintenance', label: 'Bảo trì', icon: '⚙', permission: 'maintenance.view' },
+  { id: 'orders', label: 'Đơn hàng & thanh toán', icon: '▧', permission: 'order.view' },
+  { id: 'reports', label: 'Báo cáo', icon: '▥', permission: null },
+  { id: 'audit', label: 'Nhật ký hệ thống', icon: '≡', permission: 'audit.view' },
 ]
+const allowedPage = (role: Role, item: typeof navigation[number]): boolean => {
+  if (item.id === 'users') return hasPermission(role, 'user.platform.manage') || hasPermission(role, 'user.brand.manage')
+  if (item.id === 'reports') return ['report.platform.read','report.brand.read','report.operations.read','report.inventory.read','report.finance.read'].some(p => hasPermission(role, p as Permission))
+  return item.permission === null || hasPermission(role, item.permission)
+}
 
 
 type Product = {
@@ -413,10 +362,25 @@ const pageTitles: Record<Page, string> = {
   maintenance: 'Bảo trì thiết bị',
   orders: 'Đơn hàng & thanh toán',
   audit: 'Nhật ký hệ thống',
+  tenants: 'Quản lý thương hiệu',
+  users: 'Người dùng & phân quyền',
+  reports: 'Báo cáo theo phạm vi',
 }
 
 function App() {
-  const [role, setRole] = useState<Role>('Admin')
+  const [tenants, setTenants] = useState([{id:'BR-001',name:'ScentStation Demo',admin:'brand.admin@example.com',active:true},{id:'BR-002',name:'Aroma Studio',admin:'aroma.admin@example.com',active:true},{id:'BR-003',name:'Maison Parfum',admin:'Chưa phân công',active:false}])
+  const [tenantSearch, setTenantSearch] = useState('')
+  const [tenantName, setTenantName] = useState('')
+  const [showTenantForm, setShowTenantForm] = useState(false)
+  const [users, setUsers] = useState<{id:number;email:string;role:Role;tenantId:string;active:boolean}[]>([{id:1,email:'brand.admin@example.com',role:'Brand Administrator',tenantId:'BR-001',active:true},{id:2,email:'aroma.admin@example.com',role:'Brand Administrator',tenantId:'BR-002',active:true},{id:3,email:'operations@example.com',role:'Operations Manager',tenantId:'BR-001',active:true},{id:4,email:'tech@example.com',role:'Technician',tenantId:'BR-001',active:true},{id:5,email:'inventory@example.com',role:'Inventory Staff',tenantId:'BR-001',active:true},{id:6,email:'finance@example.com',role:'Finance',tenantId:'BR-001',active:false}])
+  const [managedTenantId] = useState('BR-001')
+  const [newUserTenantId, setNewUserTenantId] = useState('BR-001')
+  const [userRoleEdits, setUserRoleEdits] = useState<Record<number, Role>>({})
+  const [userSearch, setUserSearch] = useState('')
+  const [userEmail, setUserEmail] = useState('')
+  const [newUserRole, setNewUserRole] = useState<Role>('Brand Administrator')
+  const [showUserForm, setShowUserForm] = useState(false)
+  const [role, setRole] = useState<Role>('Brand Administrator')
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [orders, setOrders] = useState<Order[]>(initialOrders)
   const [orderSearch, setOrderSearch] = useState('')
@@ -552,33 +516,11 @@ function App() {
 
   const [resolutionNote, setResolutionNote] = useState('')
 
-  const can = (permission: string) => {
-    const permissions: Record<Role, string[]> = {
-      Admin: [
-        'product.manage',
-        'inventory.adjust',
-        'device.manage',
-        'device.diagnostic_spray',
-        'maintenance.manage',
-        'payment.refund',
-        'audit.view',
-      ],
-      Operator: ['product.manage', 'device.manage'],
-      Technician: [
-        'inventory.adjust',
-        'device.manage',
-        'device.diagnostic_spray',
-        'maintenance.manage',
-      ],
-      'Inventory Manager': ['product.manage', 'inventory.adjust'],
-      Finance: ['payment.refund', 'audit.view'],
-    }
-
-    return permissions[role].includes(permission)
-  }
+  // Demo UI only: backend must independently authorize every request.
+  const can = (permission: Permission) => hasPermission(role, permission)
 
   const visibleNavigation = navigation.filter((item) =>
-    item.permission.includes(role),
+    allowedPage(role, item),
   )
 
   const filteredProducts = products.filter((product) =>
@@ -610,7 +552,7 @@ function App() {
 
     setLoggedIn(true)
     setPage('dashboard')
-    setNotice('')
+    setNotice('Đây là đăng nhập mô phỏng. Chưa tích hợp Identity Service; không sử dụng cho môi trường thật.')
   }
 
   const logout = () => {
@@ -635,6 +577,7 @@ function App() {
   }
 
   const submitInventoryAdjustment = () => {
+    if (!can('inventory.adjust')) { setNotice('Không có quyền điều chỉnh tồn kho.'); return }
     if (!adjustingProduct) return
 
   const quantity = Number(adjustmentQuantity)
@@ -712,12 +655,14 @@ function App() {
   }
 
   const openOrderReview = (order: Order) => {
+    if (!can('order.review')) { setNotice('Không có quyền xem xét đơn.'); return }
     setReviewingOrderId(order.id)
     setReviewNote(order.reviewNote)
     setNotice('')
   }
 
   const saveOrderReview = () => {
+    if (!can('order.review')) { setNotice('Không có quyền xem xét đơn.'); return }
     if (!reviewingOrderId) return
 
     if (!reviewNote.trim()) {
@@ -739,6 +684,7 @@ function App() {
   }
 
   const handleAddProduct = (event: FormEvent<HTMLFormElement>) => {
+    if (!can('product.manage')) { setNotice('Không có quyền sửa sản phẩm.'); return }
     event.preventDefault()
 
   const name = productForm.name.trim()
@@ -893,6 +839,7 @@ function App() {
   }
 
   const handleEditProduct = (product: Product) => {
+    if (!can('product.manage')) { setNotice('Không có quyền sửa sản phẩm.'); return }
   setProductForm({
     name: product.name,
     category: product.category,
@@ -907,6 +854,7 @@ function App() {
 
   
 const handleDeleteProduct = (product: Product) => {
+    if (!can('product.manage')) { setNotice('Không có quyền xóa sản phẩm.'); return }
   const confirmed = window.confirm(
     `Bạn có chắc chắn muốn xóa sản phẩm "${product.name}" không?`,
   )
@@ -990,7 +938,7 @@ const handleDeleteProduct = (product: Product) => {
               <h3>Tình trạng sản phẩm</h3>
               <p>Theo dõi lượng hàng còn lại</p>
             </div>
-            <button className="text-button" onClick={() => setPage('inventory')}>
+            <button className="text-button" disabled={!visibleNavigation.some((item) => item.id === 'inventory')} onClick={() => { if (visibleNavigation.some((item) => item.id === 'inventory')) setPage('inventory') }}>
               Xem tồn kho →
             </button>
           </div>
@@ -1058,7 +1006,7 @@ const handleDeleteProduct = (product: Product) => {
               <h3>Trạng thái thiết bị</h3>
               <p>Tình trạng máy phun gần đây</p>
             </div>
-            <button className="icon-button" onClick={() => setPage('devices')}>↗</button>
+            <button className="icon-button" disabled={!visibleNavigation.some((item) => item.id === 'devices')} onClick={() => { if (visibleNavigation.some((item) => item.id === 'devices')) setPage('devices') }}>↗</button>
           </div>
           <div className="device-list">
             {!devicesLoading && !devicesError && devices.map((device) => (
@@ -1093,7 +1041,7 @@ const handleDeleteProduct = (product: Product) => {
             <h3>Giao dịch gần đây</h3>
             <p>Các giao dịch mới nhất trong hệ thống</p>
           </div>
-          <button className="text-button" onClick={() => setPage('orders')}>
+          <button className="text-button" disabled={!visibleNavigation.some((item) => item.id === 'orders')} onClick={() => { if (visibleNavigation.some((item) => item.id === 'orders')) setPage('orders') }}>
             Xem tất cả →
           </button>
         </div>
@@ -1811,7 +1759,7 @@ const handleDeleteProduct = (product: Product) => {
                 {(
                 order.paymentStatus !== 'Thành công' ||
                 order.fulfillmentStatus !== 'Hoàn tất'
-                ) && can('payment.refund') && (
+                ) && can('order.review') && (
                 <button
                   type="button"
                   className="small-button"
@@ -2286,7 +2234,7 @@ const handleDeleteProduct = (product: Product) => {
                   }
                 >
                   <option value="Technician">Technician</option>
-                  <option value="Admin">Admin</option>
+                  <option value="Brand Administrator">Brand Administrator</option>
                 </select>
               </label>
 
@@ -2565,6 +2513,7 @@ const handleDeleteProduct = (product: Product) => {
   const createMaintenanceTask = (
     event: FormEvent<HTMLFormElement>,
     ) => {
+if (!can('maintenance.manage')) { setNotice('Không có quyền tạo phiếu bảo trì.'); return }
     event.preventDefault()
 
   if (
@@ -2618,6 +2567,7 @@ const handleDeleteProduct = (product: Product) => {
     task: MaintenanceTask,
     status: MaintenanceStatus,
   ) => {
+if (!can('maintenance.manage')) { setNotice('Không có quyền xử lý bảo trì.'); return }
   if (
     status === 'Hoàn thành' &&
     !resolutionNote.trim()
@@ -2662,6 +2612,73 @@ const handleDeleteProduct = (product: Product) => {
   setNotice(`Đã cập nhật phiếu ${task.id}: ${status}.`)
   }
 
+  const renderTenants = () => (
+    <div className="admin-workspace">
+      <div className="workspace-head"><div><h3>Danh sách thương hiệu</h3><p>Quản lý đơn vị vận hành trên nền tảng ScentOS.</p></div><button className="workspace-primary" onClick={() => setShowTenantForm(!showTenantForm)}>+ Thêm thương hiệu</button></div>
+      <div className="workspace-metrics">
+        <div className="workspace-metric"><span>Tổng thương hiệu</span><strong>{tenants.length}</strong></div>
+        <div className="workspace-metric"><span>Đang hoạt động</span><strong>{tenants.filter(t => t.active).length}</strong></div>
+        <div className="workspace-metric"><span>Tạm khóa</span><strong>{tenants.filter(t => !t.active).length}</strong></div>
+      </div>
+      {showTenantForm && <form className="workspace-form" onSubmit={e => {e.preventDefault(); if (!tenantName.trim()) return; setTenants(v => [...v,{id:`BR-${String(Date.now()).slice(-5)}`,name:tenantName.trim(),active:true,admin:'Chưa phân công'}]);setTenantName('');setShowTenantForm(false);setNotice('Đã tạo thương hiệu demo.')}}><label>Tên thương hiệu<input required value={tenantName} onChange={e=>setTenantName(e.target.value)} placeholder="Nhập tên thương hiệu" /></label><button className="workspace-primary" type="submit">Lưu thương hiệu</button><button type="button" onClick={()=>setShowTenantForm(false)}>Hủy</button></form>}
+      <div className="workspace-table-wrap"><div className="workspace-toolbar"><input aria-label="Tìm thương hiệu" placeholder="Tìm tên hoặc mã thương hiệu..." value={tenantSearch} onChange={e=>setTenantSearch(e.target.value)}/><span>{tenants.filter(t=>`${t.name} ${t.id}`.toLowerCase().includes(tenantSearch.toLowerCase())).length} kết quả</span></div>
+      <table className="workspace-table"><thead><tr><th>Mã</th><th>Thương hiệu</th><th>Quản trị viên</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>{tenants.filter(t=>`${t.name} ${t.id}`.toLowerCase().includes(tenantSearch.toLowerCase())).map(t=><tr key={t.id}><td>{t.id}</td><td><strong>{t.name}</strong></td><td>{t.admin}</td><td><span className={t.active?'workspace-status active':'workspace-status'}>{t.active?'Hoạt động':'Tạm khóa'}</span></td><td><button className="workspace-action" onClick={()=>{setTenants(v=>v.map(x=>x.id===t.id?{...x,active:!x.active}:x));setNotice('Đã cập nhật trạng thái thương hiệu demo.')}}>{t.active?'Tạm khóa':'Kích hoạt'}</button></td></tr>)}</tbody></table></div>
+      <p className="workspace-disclaimer">Dữ liệu demo trong phiên hiện tại. Tạo và khóa thương hiệu thật cần Platform API và kiểm tra quyền phía máy chủ.</p>
+    </div>
+  )
+  const renderUsers = () => {
+    const platform = can('user.platform.manage')
+    const brand = can('user.brand.manage')
+    const assignableRoles: Role[] = platform ? ['Brand Administrator'] : ['Operations Manager','Technician','Inventory Staff','Finance']
+    const tenantName = (id: string) => tenants.find(t => t.id === id)?.name ?? id
+    const scopedUsers = users.filter(u => platform ? u.role === 'Brand Administrator' : brand && u.tenantId === managedTenantId && assignableRoles.includes(u.role))
+    const filteredUsers = scopedUsers.filter(u => `${u.email} ${u.role} ${tenantName(u.tenantId)}`.toLowerCase().includes(userSearch.toLowerCase()))
+    const allowedToEdit = (u: typeof users[number]) => platform ? u.role === 'Brand Administrator' : brand && u.tenantId === managedTenantId && assignableRoles.includes(u.role)
+    const addUser = (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault()
+      const email = userEmail.trim().toLowerCase()
+      const tenantId = platform ? newUserTenantId : managedTenantId
+      if (!email || !tenants.some(t => t.id === tenantId && t.active) || !assignableRoles.includes(newUserRole)) {
+        setNotice('Vui lòng chọn thương hiệu đang hoạt động và vai trò hợp lệ.'); return
+      }
+      if (users.some(u => u.email.toLowerCase() === email)) {setNotice('Email đã tồn tại trong dữ liệu demo.'); return}
+      setUsers(v => [...v,{id:Date.now(),email,role:newUserRole,tenantId,active:true}])
+      setUserEmail('');setShowUserForm(false);setNotice('Đã tạo tài khoản demo; chưa tạo tài khoản trong Identity Service.')
+    }
+    const toggleUser = (u: typeof users[number]) => {
+      if (!allowedToEdit(u)) {setNotice('Không đủ quyền quản lý tài khoản này.');return}
+      if (!window.confirm(`${u.active ? 'Khóa' : 'Mở khóa'} tài khoản ${u.email} trong dữ liệu demo?`)) return
+      setUsers(v => v.map(x => x.id === u.id ? {...x,active:!x.active} : x))
+      setNotice('Đã thay đổi trạng thái demo. Tài khoản thực tế chưa bị khóa/mở khóa trên máy chủ.')
+    }
+    const updateRole = (u: typeof users[number]) => {
+      const next = userRoleEdits[u.id] ?? u.role
+      if (!allowedToEdit(u) || !assignableRoles.includes(next)) {setNotice('Không được gán vai trò này.');return}
+      setUsers(v => v.map(x => x.id === u.id ? {...x,role:next} : x))
+      setNotice('Đã cập nhật vai trò demo; backend chưa nhận thay đổi.')
+    }
+    return <div className="admin-workspace">
+      <div className="workspace-head"><div><h3>{platform ? 'Quản lý Brand Administrator' : 'Quản lý nhân sự thương hiệu'}</h3><p>{platform ? 'Chỉ quản lý tài khoản Brand Administrator và thương hiệu được gán. Có thể mở rộng chế độ xem nhân sự chỉ đọc sau.' : 'Tạo, phân vai trò và quản lý trạng thái nhân sự trong thương hiệu của bạn.'}</p></div><button className="workspace-primary" onClick={() => {setNewUserRole(assignableRoles[0]);setShowUserForm(v => !v)}}>+ {platform ? 'Thêm Brand Admin' : 'Thêm nhân sự'}</button></div>
+      {platform ? <div className="workspace-scope"><strong>Phạm vi:</strong> Toàn nền tảng — chỉ tài khoản Brand Administrator</div> : <div className="workspace-scope"><strong>Thương hiệu đang quản lý (demo):</strong> <span>{tenantName(managedTenantId)}</span><small>Thương hiệu này đang được chọn để mô phỏng. Khi tích hợp Identity Service, tenant phải lấy từ phiên đăng nhập, không cho tự đổi.</small></div>}
+      <div className="workspace-metrics"><div className="workspace-metric"><span>{platform?'Tài khoản Brand Admin':'Tổng nhân sự'}</span><strong>{scopedUsers.length}</strong></div><div className="workspace-metric"><span>Đang hoạt động</span><strong>{scopedUsers.filter(u => u.active).length}</strong></div><div className="workspace-metric"><span>Đã khóa (demo)</span><strong>{scopedUsers.filter(u => !u.active).length}</strong></div></div>
+      {showUserForm && <form className="workspace-form" onSubmit={addUser}><label>Email<input type="email" required value={userEmail} onChange={e => setUserEmail(e.target.value)} placeholder="name@example.com" /></label>{platform && <label>Thương hiệu<select value={newUserTenantId} onChange={e => setNewUserTenantId(e.target.value)}>{tenants.filter(t=>t.active).map(t=><option value={t.id} key={t.id}>{t.name}</option>)}</select></label>}<label>Vai trò<select value={newUserRole} onChange={e=>setNewUserRole(e.target.value as Role)}>{assignableRoles.map(r=><option key={r} value={r}>{r}</option>)}</select></label><button type="submit" className="workspace-primary">Tạo tài khoản demo</button><button type="button" onClick={()=>setShowUserForm(false)}>Hủy</button></form>}
+      <div className="workspace-table-wrap"><div className="workspace-toolbar"><input aria-label="Tìm tài khoản" placeholder="Tìm email, thương hiệu, vai trò..." value={userSearch} onChange={e=>setUserSearch(e.target.value)}/><span>{filteredUsers.length} tài khoản</span></div><table className="workspace-table"><thead><tr><th>Email</th><th>Thương hiệu</th><th>Vai trò</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>{filteredUsers.map(u=><tr key={u.id}><td><strong>{u.email}</strong></td><td>{tenantName(u.tenantId)}</td><td>{platform ? u.role : <div className="workspace-role-edit"><select aria-label={`Vai trò của ${u.email}`} value={userRoleEdits[u.id] ?? u.role} onChange={e=>setUserRoleEdits(v=>({...v,[u.id]:e.target.value as Role}))}>{assignableRoles.map(r=><option key={r} value={r}>{r}</option>)}</select><button className="workspace-action" disabled={(userRoleEdits[u.id] ?? u.role) === u.role} onClick={()=>updateRole(u)}>Lưu</button></div>}</td><td><span className={u.active?'workspace-status active':'workspace-status'}>{u.active?'Hoạt động':'Đã khóa'}</span></td><td><button className="workspace-action" onClick={()=>toggleUser(u)}>{u.active?'Khóa':'Mở khóa'}</button></td></tr>)}{filteredUsers.length===0 && <tr><td colSpan={5}>Không có tài khoản phù hợp trong phạm vi này.</td></tr>}</tbody></table></div>
+      <h3>Quyền của các vai trò được quản lý</h3><div className="workspace-role-grid">{assignableRoles.map(r=><div className="workspace-role-card" key={r}><strong>{r}</strong><p>{rolePermissions[r].length} quyền</p><div className="workspace-chips">{rolePermissions[r].map(permission=><span key={permission}>{permission}</span>)}</div></div>)}</div>
+      <p className="workspace-disclaimer"><strong>Chỉ là dữ liệu demo trong bộ nhớ.</strong> Khóa tài khoản, thay đổi vai trò và giới hạn tenant có hiệu lực thực tế phải được Identity Service xác minh và lưu vào cơ sở dữ liệu; token/phiên còn hiệu lực cũng phải bị vô hiệu hóa.</p>
+    </div>
+  }
+  const renderReports = () => {
+    const paidOrders = orders.filter(o=>o.paymentStatus.toLowerCase().includes('thành công'))
+    const lowStock = products.filter(p=>p.stock<=10)
+    const reportScope = can('report.platform.read')?'Toàn nền tảng':can('report.finance.read')?'Tài chính':can('report.inventory.read')?'Tồn kho':can('report.operations.read')?'Vận hành':'Thương hiệu'
+    return <div className="admin-workspace"><div className="workspace-head"><div><h3>Báo cáo tổng hợp</h3><p>Phạm vi quyền: <strong>{reportScope}</strong>. Các chỉ số lấy từ dữ liệu demo đang hiển thị trong Admin Web.</p></div><span className="workspace-status active">Dữ liệu demo</span></div>
+      <div className="workspace-metrics"><div className="workspace-metric"><span>Đơn hàng</span><strong>{orders.length}</strong></div><div className="workspace-metric"><span>Thanh toán thành công</span><strong>{paidOrders.length}</strong></div><div className="workspace-metric"><span>Sản phẩm</span><strong>{products.length}</strong></div><div className="workspace-metric"><span>Tồn kho thấp (≤10)</span><strong>{lowStock.length}</strong></div></div>
+      <div className="workspace-two-cols"><section className="workspace-subpanel"><h3>Trạng thái thanh toán</h3>{Array.from(new Set(orders.map(o=>o.paymentStatus))).map(status=>{const count=orders.filter(o=>o.paymentStatus===status).length;return <div className="workspace-progress-row" key={status}><div><span>{status}</span><strong>{count}</strong></div><div className="workspace-progress"><span style={{width:`${orders.length?count/orders.length*100:0}%`}} /></div></div>})}</section><section className="workspace-subpanel"><h3>Cảnh báo hệ thống</h3><div className="workspace-metrics compact"><div className="workspace-metric"><span>Tổng cảnh báo</span><strong>{alerts.length}</strong></div><div className="workspace-metric"><span>Cảnh báo mức cao</span><strong>{alerts.filter(a=>a.severity==='Cao').length}</strong></div></div><h3>Sản phẩm cần chú ý</h3>{lowStock.length?lowStock.map(p=><p key={p.name}>{p.name}: <strong>{p.stock}</strong> còn lại</p>):<p>Không có sản phẩm tồn kho thấp.</p>}</section></div>
+      <div className="workspace-table-wrap"><h3>Đơn hàng gần đây</h3><table className="workspace-table"><thead><tr><th>Mã đơn</th><th>Sản phẩm</th><th>Thanh toán</th><th>Hoàn tất</th></tr></thead><tbody>{orders.slice(0,8).map(o=><tr key={o.id}><td>{o.id}</td><td>{o.product}</td><td>{o.paymentStatus}</td><td>{o.fulfillmentStatus}</td></tr>)}</tbody></table></div>
+      <p className="workspace-disclaimer">Không phải số liệu toàn hệ thống thực tế. Báo cáo theo tenant, doanh thu, bộ lọc thời gian và xuất Excel cần kết nối Reporting Service.</p>
+    </div>
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -2694,23 +2711,24 @@ const handleDeleteProduct = (product: Product) => {
         </nav>
 
         <div className="sidebar-footer">
-          <label htmlFor="demo-role">Vai trò demo</label>
+          <label htmlFor="demo-role">Vai trò demo (chỉ thử giao diện)</label>
           <select
             id="demo-role"
             value={role}
             onChange={(event) => {
               const nextRole = event.target.value as Role
               setRole(nextRole)
+              setNewUserRole(nextRole === 'Platform Super Administrator' ? 'Brand Administrator' : 'Operations Manager')
 
               const allowedPages = navigation.filter(
-                (item) => item.permission.includes(nextRole),
+                (item) => allowedPage(nextRole, item),
               )
 
               if (!allowedPages.some((item) => item.id === page)) {
                 setPage('dashboard')
               }
 
-              setNotice('')
+              setNotice('Chế độ demo: thay đổi vai trò chỉ mô phỏng giao diện, không phải xác thực hay cấp quyền thật.')
             }}
           >
             {roles.map((item) => (
@@ -2762,15 +2780,21 @@ const handleDeleteProduct = (product: Product) => {
         )}
 
         <main className="page-content">
-          {page === 'dashboard' && renderDashboard()}
-          {page === 'products' && renderProducts()}
-          {page === 'campaigns' && renderCampaigns()}
-          {page === 'inventory' && renderInventory()}
-          {page === 'devices' && renderDevices()}
-          {page === 'alerts' && renderAlerts()}
-          {page === 'orders' && renderOrders()}
-          {page === 'maintenance' && renderMaintenance()}
-          {page === 'audit' && renderAudit()}
+          {!visibleNavigation.some((item) => item.id === page) && (
+            <section className="panel"><h3>Không có quyền truy cập</h3><p>Vai trò hiện tại không được truy cập trang này.</p></section>
+          )}
+          {page === 'dashboard' && <><p className="panel-note">Dữ liệu tổng quan hiện là demo; khi kết nối backend phải lọc theo tenant và phạm vi quyền.</p>{renderDashboard()}</>}
+          {page === 'products' && visibleNavigation.some((item) => item.id === page) && renderProducts()}
+          {page === 'campaigns' && visibleNavigation.some((item) => item.id === page) && renderCampaigns()}
+          {page === 'inventory' && visibleNavigation.some((item) => item.id === page) && renderInventory()}
+          {page === 'devices' && visibleNavigation.some((item) => item.id === page) && renderDevices()}
+          {page === 'alerts' && visibleNavigation.some((item) => item.id === page) && renderAlerts()}
+          {page === 'orders' && visibleNavigation.some((item) => item.id === page) && renderOrders()}
+          {page === 'maintenance' && visibleNavigation.some((item) => item.id === page) && renderMaintenance()}
+          {page === 'audit' && visibleNavigation.some((item) => item.id === page) && renderAudit()}
+          {page === 'tenants' && visibleNavigation.some((item) => item.id === page) && renderTenants()}
+          {page === 'users' && visibleNavigation.some((item) => item.id === page) && renderUsers()}
+          {page === 'reports' && visibleNavigation.some((item) => item.id === page) && renderReports()}
         </main>
       </div>
 
