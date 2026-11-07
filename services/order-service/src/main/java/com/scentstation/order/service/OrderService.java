@@ -15,8 +15,11 @@ import com.scentstation.order.mapper.OrderMapper;
 import com.scentstation.order.repository.DispensingRepository;
 import com.scentstation.order.repository.OrderRepository;
 import com.scentstation.order.repository.PaymentRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -42,33 +45,50 @@ public class OrderService {
     private final PaymentRepository paymentRepository;
     private final DispensingRepository dispensingRepository;
     private final OrderMapper orderMapper;
+    private final Duration orderExpiration;
 
     public OrderService(
             OrderRepository orderRepository,
             PaymentRepository paymentRepository,
             DispensingRepository dispensingRepository,
-            OrderMapper orderMapper
+            OrderMapper orderMapper,
+            @Value("${order.expiration:PT15M}") Duration orderExpiration
     ) {
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
         this.dispensingRepository = dispensingRepository;
         this.orderMapper = orderMapper;
+        if (orderExpiration.isZero() || orderExpiration.isNegative()) {
+            throw new IllegalArgumentException("Order expiration must be positive");
+        }
+        this.orderExpiration = orderExpiration;
     }
 
     public OrderResponse createOrder(CreateOrderRequest request) {
-        Order order = orderMapper.toEntity(request);
+        Order order = orderMapper.toEntity(request, orderExpiration);
         return orderMapper.toResponse(orderRepository.save(order), null);
     }
 
     public List<OrderResponse> getOrders() {
         return orderRepository.findAll()
                 .stream()
+                .map(this::expireIfNecessary)
                 .map(order -> orderMapper.toResponse(order, getDispensingCommand(order.getId())))
                 .toList();
     }
 
     public OrderResponse getOrderById(Long id) {
         return orderMapper.toResponse(findOrderById(id), getDispensingCommand(id));
+    }
+
+    public void expireOrderAfterPayment(Long id) {
+        Order order = findOrderById(id);
+        synchronized (order) {
+            if (order.getStatus() == OrderStatus.PENDING) {
+                order.setStatus(OrderStatus.EXPIRED);
+                orderRepository.save(order);
+            }
+        }
     }
 
     public OrderStatusResponse getOrderStatus(Long id) {
@@ -115,16 +135,6 @@ public class OrderService {
         }
     }
 
-    public void expireOrderAfterPayment(Long id) {
-        Order order = findOrderById(id);
-        synchronized (order) {
-            if (order.getStatus() == OrderStatus.PENDING) {
-                order.setStatus(OrderStatus.EXPIRED);
-                orderRepository.save(order);
-            }
-        }
-    }
-
     public void failOrderAfterPayment(Long id, Runnable markPaymentFailed) {
         Order order = findOrderById(id);
         synchronized (order) {
@@ -138,8 +148,18 @@ public class OrderService {
     }
 
     private Order findOrderById(Long id) {
-        return orderRepository.findById(id)
-                .orElseThrow(() -> new OrderNotFoundException(id));
+        return expireIfNecessary(orderRepository.findById(id)
+                .orElseThrow(() -> new OrderNotFoundException(id)));
+    }
+
+    private Order expireIfNecessary(Order order) {
+        if (order.getStatus() == OrderStatus.PENDING
+                && order.getExpiresAt() != null
+                && !LocalDateTime.now().isBefore(order.getExpiresAt())) {
+            order.setStatus(OrderStatus.EXPIRED);
+            return orderRepository.save(order);
+        }
+        return order;
     }
 
     private DispensingCommand getDispensingCommand(Long orderId) {

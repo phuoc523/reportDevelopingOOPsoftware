@@ -8,6 +8,8 @@ public interface DispensingRepository {
 
     DispensingCommand saveIfAbsent(DispensingCommand command);
 
+    DispensingCommand save(DispensingCommand command);
+
     Optional<DispensingCommand> findByOrderId(Long orderId);
 
     Optional<DispensingCommand> findByCommandId(String commandId);

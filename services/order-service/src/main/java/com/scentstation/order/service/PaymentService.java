@@ -15,6 +15,7 @@ import com.scentstation.order.repository.PaymentRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -53,6 +54,10 @@ public class PaymentService {
 
     public PaymentResponse createOrGetQr(Long orderId) {
         OrderResponse order = orderService.getOrderById(orderId);
+        if (order.expiresAt() != null && !LocalDateTime.now().isBefore(order.expiresAt())) {
+            orderService.expireOrderAfterPayment(orderId);
+            throw new PaymentNotAvailableException(orderId);
+        }
         Payment existingPayment = paymentRepository.findByOrderId(orderId).orElse(null);
         if (existingPayment != null) {
             expireIfNecessary(existingPayment);
@@ -72,6 +77,10 @@ public class PaymentService {
                 + "&amount=" + order.totalAmount().toPlainString()
                 + "&currency=" + Payment.CURRENCY;
         LocalDateTime createdAt = LocalDateTime.now();
+        LocalDateTime expiresAt = createdAt.plus(qrExpiration);
+        if (order.expiresAt() != null && expiresAt.isAfter(order.expiresAt())) {
+            expiresAt = order.expiresAt();
+        }
         Payment payment = new Payment(
                 reference,
                 orderId,
@@ -79,7 +88,7 @@ public class PaymentService {
                 Payment.CURRENCY,
                 qrPayload,
                 createdAt,
-                createdAt.plus(qrExpiration)
+                expiresAt
         );
         return toResponse(paymentRepository.saveIfAbsent(payment));
     }
@@ -102,6 +111,7 @@ public class PaymentService {
         ), callbackToken);
     }
 
+    @Transactional(noRollbackFor = PaymentVerificationException.class)
     public synchronized PaymentResponse processCallback(PaymentCallbackRequest request, String suppliedToken) {
         verifyCallbackToken(suppliedToken);
 
@@ -156,7 +166,10 @@ public class PaymentService {
             }
             if (request.status().equals("FAILED")) {
                 try {
-                    orderService.failOrderAfterPayment(payment.getOrderId(), payment::markFailed);
+                    orderService.failOrderAfterPayment(payment.getOrderId(), () -> {
+                        payment.markFailed();
+                        paymentRepository.save(payment);
+                    });
                 } catch (InvalidOrderStatusTransitionException exception) {
                     throw reject(request, HttpStatus.CONFLICT, "Order is not eligible for payment failure");
                 }
@@ -164,7 +177,10 @@ public class PaymentService {
             }
 
             try {
-                orderService.confirmOrderAfterPayment(payment.getOrderId(), payment::markPaid);
+                orderService.confirmOrderAfterPayment(payment.getOrderId(), () -> {
+                    payment.markPaid();
+                    paymentRepository.save(payment);
+                });
             } catch (InvalidOrderStatusTransitionException exception) {
                 throw reject(request, HttpStatus.CONFLICT, "Order is not eligible for payment confirmation");
             }
@@ -229,6 +245,7 @@ public class PaymentService {
         synchronized (payment) {
             if (payment.isExpiredAt(LocalDateTime.now())) {
                 payment.markExpired();
+                paymentRepository.save(payment);
                 orderService.expireOrderAfterPayment(payment.getOrderId());
             }
         }

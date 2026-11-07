@@ -1,0 +1,42 @@
+services:
+  order-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-order_db}
+      MYSQL_USER: ${DB_USERNAME:-order_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-order_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-local_root_password}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - order-db-data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  order-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      ORDER_SERVICE_PORT: 8083
+      DB_HOST: order-db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-order_db}
+      DB_USERNAME: ${DB_USERNAME:-order_user}
+      DB_PASSWORD: ${DB_PASSWORD:-order_password}
+      ORDER_EXPIRATION: ${ORDER_EXPIRATION:-PT15M}
+      PAYMENT_QR_EXPIRATION: ${PAYMENT_QR_EXPIRATION:-PT15M}
+      PAYMENT_CALLBACK_TOKEN: ${PAYMENT_CALLBACK_TOKEN:-local-mock-callback-token}
+      MACHINE_SERVICE_BASE_URL: ${MACHINE_SERVICE_BASE_URL:-http://host.docker.internal:8084}
+    ports:
+      - "${ORDER_SERVICE_PORT:-8083}:8083"
+    depends_on:
+      order-db:
+        condition: service_healthy
+
+volumes:
+  order-db-data:

@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/orders")
+@RequestMapping("/api/v1/orders")
 @Tag(name = "Orders", description = "Create and manage customer orders.")
 public class OrderController {
 
@@ -45,7 +45,7 @@ public class OrderController {
     @Operation(
             summary = "Create an order",
             description = "Creates an order in PENDING state. Submit the example as-is to create a valid order. "
-                    + "Product name and price are snapshots supplied by the client; no catalog or database is used.",
+                    + "Product name and price are snapshots supplied by the client and persisted with the order.",
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     required = true,
                     content = @Content(
@@ -54,6 +54,7 @@ public class OrderController {
                             examples = @ExampleObject(name = "Valid order", value = """
                                     {
                                       "customerId": 7,
+                                      "tenantId": "TENANT-001",
                                       "machineId": "MACHINE-001",
                                       "slotId": "SLOT-01",
                                       "items": [
@@ -73,7 +74,7 @@ public class OrderController {
             @ApiResponse(responseCode = "201", description = "Order created; status is PENDING",
                     content = @Content(schema = @Schema(implementation = OrderResponse.class))),
             @ApiResponse(responseCode = "400", description = "Invalid JSON or validation failed "
-                    + "(customerId/productId/quantity must be positive, names must not be blank, "
+                    + "(customerId/productId/quantity must be positive, tenantId and names must not be blank, "
                     + "unitPrice must be greater than zero, and items must not be empty)",
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ApiErrorResponse.class),
@@ -82,7 +83,7 @@ public class OrderController {
                                       "status": 400,
                                       "error": "BAD_REQUEST",
                                       "message": "customerId: must be greater than 0",
-                                      "path": "/api/orders",
+                                      "path": "/api/v1/orders",
                                       "timestamp": "2026-10-25T10:00:00"
                                     }
                                     """)))
@@ -93,7 +94,7 @@ public class OrderController {
     }
 
     @GetMapping
-    @Operation(summary = "List orders", description = "Returns all orders held by this in-memory service instance.")
+    @Operation(summary = "List orders", description = "Returns all orders persisted by Order Service.")
     @ApiResponse(responseCode = "200", description = "List of orders")
     public ResponseEntity<List<OrderResponse>> getOrders() {
         return ResponseEntity.ok(orderService.getOrders());
