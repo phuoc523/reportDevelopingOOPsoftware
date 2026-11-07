@@ -5,8 +5,10 @@ returns order details, manages order status, and provides a simulated QR
 payment flow.
 
 Orders, item snapshots, payments, callback events, dispensing commands, and
-transaction reviews are persisted in MySQL. Product name and price are captured
-from the create-order request; no catalog-service lookup is performed.
+transaction reviews are persisted in MySQL through Spring Data JPA. The schema
+is initialized from `database/schema.sql` and validated by Hibernate at startup.
+Product name and price are captured from the create-order request; no
+catalog-service lookup is performed.
 
 ## Run
 

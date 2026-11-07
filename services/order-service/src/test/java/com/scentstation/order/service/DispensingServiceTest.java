@@ -4,37 +4,47 @@ import com.scentstation.order.client.MachineCommandRequest;
 import com.scentstation.order.client.MachineCommandResponse;
 import com.scentstation.order.client.MachineServiceGateway;
 import com.scentstation.order.dto.response.DispensingResponse;
+import com.scentstation.order.entity.DispensingCommand;
 import com.scentstation.order.entity.DispensingStatus;
 import com.scentstation.order.entity.Order;
 import com.scentstation.order.entity.OrderItem;
 import com.scentstation.order.entity.OrderStatus;
 import com.scentstation.order.entity.Payment;
+import com.scentstation.order.entity.TransactionReview;
 import com.scentstation.order.exception.PaymentNotAvailableException;
 import com.scentstation.order.repository.DispensingRepository;
-import com.scentstation.order.repository.InMemoryDispensingRepository;
-import com.scentstation.order.repository.InMemoryOrderRepository;
-import com.scentstation.order.repository.InMemoryPaymentRepository;
-import com.scentstation.order.repository.InMemoryTransactionReviewRepository;
+import com.scentstation.order.repository.OrderRepository;
+import com.scentstation.order.repository.PaymentRepository;
+import com.scentstation.order.repository.TransactionReviewRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.when;
 
 class DispensingServiceTest {
 
-    private final InMemoryOrderRepository orders = new InMemoryOrderRepository();
-    private final InMemoryPaymentRepository payments = new InMemoryPaymentRepository();
-    private final DispensingRepository commands = new InMemoryDispensingRepository();
+    private final OrderRepository orders = mock(OrderRepository.class);
+    private final PaymentRepository payments = mock(PaymentRepository.class);
+    private final DispensingRepository commands = mock(DispensingRepository.class);
     private final FakeMachineServiceGateway machineServiceClient = new FakeMachineServiceGateway();
-    private final InMemoryTransactionReviewRepository reviews = new InMemoryTransactionReviewRepository();
+    private final TransactionReviewRepository reviews = mock(TransactionReviewRepository.class);
+    private final AtomicReference<DispensingCommand> storedCommand = new AtomicReference<>();
     private final DispensingService dispensingService = new DispensingService(
             orders, payments, commands, machineServiceClient, reviews
     );
@@ -43,19 +53,19 @@ class DispensingServiceTest {
 
     @BeforeEach
     void setUp() {
-        commands.deleteAll();
-        payments.deleteAll();
-        reviews.deleteAll();
-        orders.deleteAll();
+        reset(orders, payments, commands, reviews);
+        storedCommand.set(null);
         machineServiceClient.reset();
-        order = orders.save(new Order(
+        order = new Order(
                 7L,
                 "MACHINE-001",
                 "SLOT-01",
                 List.of(new OrderItem(3L, "Scent Sample", new BigDecimal("25.50"), 1, new BigDecimal("25.50"))),
                 new BigDecimal("25.50")
-        ));
+        );
+        order.setId(1L);
         order.setStatus(OrderStatus.CONFIRMED);
+        when(orders.findById(1L)).thenReturn(Optional.of(order));
         Payment payment = new Payment(
                 "PAY-001",
                 order.getId(),
@@ -63,7 +73,17 @@ class DispensingServiceTest {
                 "scentstation://pay/PAY-001"
         );
         payment.markPaid();
-        payments.saveIfAbsent(payment);
+        when(payments.findByOrderId(1L)).thenReturn(Optional.of(payment));
+        when(commands.findByOrderId(1L)).thenAnswer(invocation -> Optional.ofNullable(storedCommand.get()));
+        when(commands.saveIfAbsent(any())).thenAnswer(invocation -> {
+            DispensingCommand command = invocation.getArgument(0);
+            storedCommand.compareAndSet(null, command);
+            return storedCommand.get();
+        });
+        when(commands.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        TransactionReview review = new TransactionReview("PAY-001", order.getId(), "Machine response");
+        when(reviews.openOrUpdate(anyString(), anyLong(), anyString())).thenReturn(review);
+        when(reviews.findByReference("PAY-001")).thenReturn(Optional.of(review));
     }
 
     @Test
@@ -121,13 +141,12 @@ class DispensingServiceTest {
 
     @Test
     void doesNotSendCommandBeforePaymentIsPaid() {
-        payments.deleteAll();
-        payments.saveIfAbsent(new Payment(
+        when(payments.findByOrderId(1L)).thenReturn(Optional.of(new Payment(
                 "PAY-PENDING",
                 order.getId(),
                 new BigDecimal("25.50"),
                 "scentstation://pay/PAY-PENDING"
-        ));
+        )));
 
         assertThrows(
                 PaymentNotAvailableException.class,
