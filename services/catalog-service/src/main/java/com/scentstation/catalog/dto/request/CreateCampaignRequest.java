@@ -15,8 +15,6 @@ import java.time.LocalDateTime;
 @Setter
 public class CreateCampaignRequest {
 
-    @NotNull
-    @Positive
     private Long tenantId;
 
     @NotNull

@@ -1,7 +1,5 @@
 package com.scentstation.catalog.dto.request;
 
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,8 +9,6 @@ import java.math.BigDecimal;
 @Setter
 public class ProductSearchCriteria {
 
-    @NotNull
-    @Positive
     private Long tenantId;
 
     private String keyword;

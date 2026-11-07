@@ -148,14 +148,14 @@ class ProductControllerTest {
         }
 
         @Test
-        void searchProducts_shouldRejectMissingTenantId()
+        void searchProducts_shouldAllowMissingCompatibilityTenantId()
                 throws Exception {
 
         mockMvc.perform(
                         get("/api/products/search")
                                 .param("keyword", "rose")
                 )
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk());
         }
 
         @Test

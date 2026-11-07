@@ -7,6 +7,7 @@ import com.scentstation.catalog.exception.ProductNotFoundException;
 import com.scentstation.catalog.integration.machine.client.MachineAvailabilityClient;
 import com.scentstation.catalog.integration.machine.dto.MachineAvailabilityInfo;
 import com.scentstation.catalog.repository.ProductRepository;
+import com.scentstation.catalog.security.CurrentActorContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,36 +18,33 @@ public class ProductMachineAvailabilityService {
 
     private final ProductRepository productRepository;
     private final MachineAvailabilityClient machineAvailabilityClient;
+    private final CurrentActorContext currentActorContext;
 
-    // Kết hợp trạng thái Catalog và Machine để xác định product có thể phục vụ hay không.
+    // Kết hợp availability chỉ khi product thuộc trusted tenant.
     @Transactional(readOnly = true)
     public ProductMachineAvailabilityResponse getAvailability(
             Long tenantId,
             Long machineId,
             Long productId
     ) {
+        Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
         Product product = productRepository
-                .findById(productId)
+                .findByIdAndTenantId(productId, verifiedTenantId)
                 .orElseThrow(() ->
                         new ProductNotFoundException(productId)
                 );
 
-        // Không cho tenant khác truy cập product không thuộc tenant yêu cầu.
-        if (!product.getTenantId().equals(tenantId)) {
-            throw new ProductNotFoundException(productId);
-        }
-
         MachineAvailabilityInfo machineAvailability =
                 machineAvailabilityClient
                         .getProductAvailability(
-                                tenantId,
+                                verifiedTenantId,
                                 machineId,
                                 productId
                         );
 
         validateMachineReference(
                 machineAvailability,
-                tenantId,
+                verifiedTenantId,
                 machineId,
                 productId
         );
@@ -64,7 +62,7 @@ public class ProductMachineAvailabilityService {
                         && machineAvailable;
 
         return ProductMachineAvailabilityResponse.builder()
-                .tenantId(tenantId)
+                .tenantId(verifiedTenantId)
                 .productId(productId)
                 .machineId(machineId)
                 .catalogAvailable(catalogAvailable)

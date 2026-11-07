@@ -4,7 +4,6 @@ import com.scentstation.catalog.dto.request.CreateCampaignRequest;
 import com.scentstation.catalog.dto.request.UpdateCampaignRequest;
 import com.scentstation.catalog.dto.response.CampaignResponse;
 import com.scentstation.catalog.entity.Campaign;
-import com.scentstation.catalog.entity.Product;
 import com.scentstation.catalog.enums.DiscountType;
 import com.scentstation.catalog.exception.CampaignNotFoundException;
 import com.scentstation.catalog.exception.InvalidCampaignPeriodException;
@@ -13,6 +12,7 @@ import com.scentstation.catalog.exception.ProductNotFoundException;
 import com.scentstation.catalog.mapper.CampaignMapper;
 import com.scentstation.catalog.repository.CampaignRepository;
 import com.scentstation.catalog.repository.ProductRepository;
+import com.scentstation.catalog.security.CurrentActorContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,24 +27,21 @@ public class CampaignService {
     private final CampaignRepository campaignRepository;
     private final ProductRepository productRepository;
     private final CampaignMapper campaignMapper;
+    private final CurrentActorContext currentActorContext;
 
-    // Tạo campaign mới sau khi kiểm tra product, tenant, thời gian và mức giảm hợp lệ.
+    // Tạo campaign bằng trusted tenant và chỉ cho phép product cùng tenant.
     @Transactional
     public CampaignResponse createCampaign(
             CreateCampaignRequest request
     ) {
-        Product product = productRepository
-                .findById(request.getProductId())
+        Long tenantId = currentActorContext.requireTenant(request.getTenantId());
+        productRepository
+                .findByIdAndTenantId(request.getProductId(), tenantId)
                 .orElseThrow(() ->
                         new ProductNotFoundException(
                                 request.getProductId()
                         )
                 );
-
-        validateProductTenant(
-                product,
-                request.getTenantId()
-        );
 
         validatePeriod(
                 request.getStartAt(),
@@ -57,7 +54,7 @@ public class CampaignService {
         );
 
         Campaign campaign =
-                campaignMapper.toEntity(request);
+                campaignMapper.toEntity(request, tenantId);
 
         Campaign savedCampaign =
                 campaignRepository.save(campaign);
@@ -65,42 +62,49 @@ public class CampaignService {
         return campaignMapper.toResponse(savedCampaign);
     }
 
-    // Lấy toàn bộ campaign thuộc một tenant.
+    // Chỉ lấy campaign của trusted tenant và từ chối query tenant khác.
     @Transactional(readOnly = true)
     public List<CampaignResponse> getCampaigns(
             Long tenantId
     ) {
+        Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
         return campaignRepository
-                .findAllByTenantId(tenantId)
+                .findAllByTenantId(verifiedTenantId)
                 .stream()
                 .map(campaignMapper::toResponse)
                 .toList();
     }
 
-    // Lấy campaign theo id và tenant để giữ tenant isolation.
+    // Chỉ lấy campaign theo id trong trusted tenant.
     @Transactional(readOnly = true)
     public CampaignResponse getCampaignById(
             Long tenantId,
             Long campaignId
     ) {
+        Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
         Campaign campaign =
                 findCampaign(
-                        tenantId,
+                        verifiedTenantId,
                         campaignId
                 );
 
         return campaignMapper.toResponse(campaign);
     }
 
-    // Lấy toàn bộ campaign của một product trong một tenant.
+    // Chỉ lấy campaign khi product thuộc trusted tenant.
     @Transactional(readOnly = true)
     public List<CampaignResponse> getCampaignsByProduct(
             Long tenantId,
             Long productId
     ) {
+        Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
+        productRepository
+                .findByIdAndTenantId(productId, verifiedTenantId)
+                .orElseThrow(() -> new ProductNotFoundException(productId));
+
         return campaignRepository
                 .findAllByTenantIdAndProductId(
-                        tenantId,
+                        verifiedTenantId,
                         productId
                 )
                 .stream()
@@ -108,16 +112,17 @@ public class CampaignService {
                 .toList();
     }
 
-    // Cập nhật các thuộc tính được phép thay đổi của campaign.
+    // Chỉ cập nhật campaign thuộc trusted tenant.
     @Transactional
     public CampaignResponse updateCampaign(
             Long tenantId,
             Long campaignId,
             UpdateCampaignRequest request
     ) {
+        Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
         Campaign campaign =
                 findCampaign(
-                        tenantId,
+                        verifiedTenantId,
                         campaignId
                 );
 
@@ -160,18 +165,6 @@ public class CampaignService {
                                 tenantId
                         )
                 );
-    }
-
-    // Kiểm tra product phải thuộc cùng tenant với campaign.
-    private void validateProductTenant(
-            Product product,
-            Long tenantId
-    ) {
-        if (!product.getTenantId().equals(tenantId)) {
-            throw new ProductNotFoundException(
-                    product.getId()
-            );
-        }
     }
 
     // Kiểm tra thời điểm bắt đầu phải nằm trước thời điểm kết thúc.

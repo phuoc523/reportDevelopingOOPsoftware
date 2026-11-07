@@ -18,7 +18,6 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class CreateProductRequest {
 
-    @NotNull
     private Long tenantId;
 
     @NotBlank
