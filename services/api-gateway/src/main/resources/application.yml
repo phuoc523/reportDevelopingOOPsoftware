@@ -26,7 +26,32 @@ spring:
         - id: identity-service
           uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
           predicates:
-            - Path=/api/auth/**,/api/admin/**,/api/staff/**,/api/customer/**
+            - Path=/api/auth/**,/api/admin/**,/api/staff/**,/api/customer/**,/api/platform/**,/api/brand/**,/api/audit/**
+
+        - id: catalog-service
+          uri: ${CATALOG_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/products/**,/api/campaigns/**,/api/catalog/**,/api/pricing/**
+
+        - id: order-service
+          uri: ${ORDER_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/orders/**,/api/v1/payments/**
+
+        - id: machine-service
+          uri: ${MACHINE_SERVICE_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/machines/**,/api/alerts/**,/api/locations/**,/api/dispense-commands/**
+
+        - id: operation-service
+          uri: ${OPERATION_SERVICE_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/inventory/**,/api/maintenance/**
+
+        - id: reporting-service
+          uri: ${REPORTING_SERVICE_URL:http://localhost:8086}
+          predicates:
+            - Path=/api/reporting/**
 
 management:
   endpoints:
@@ -37,4 +62,4 @@ management:
 logging:
   level:
     org.springframework.web.cors: TRACE
-    org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.gateway: INFO
