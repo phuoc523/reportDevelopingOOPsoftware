@@ -1,6 +1,22 @@
-﻿spring:
+﻿
+spring:
   application:
     name: reporting-service
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/scentstation_reporting?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh
+    username: reporting_app
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
 
 server:
   port: 8085

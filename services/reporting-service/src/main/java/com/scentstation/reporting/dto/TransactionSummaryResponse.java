@@ -1,6 +1,8 @@
+
 package com.scentstation.reporting.dto;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 public record TransactionSummaryResponse(
         long totalTransactions,
@@ -10,6 +12,8 @@ public record TransactionSummaryResponse(
         long expiredTransactions,
         long refundedTransactions,
         BigDecimal totalRevenue,
-        String period
+        String period,
+        LocalDate startDate,
+        LocalDate endDate
 ) {
 }
