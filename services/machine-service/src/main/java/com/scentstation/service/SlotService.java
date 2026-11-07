@@ -30,13 +30,15 @@ public class SlotService {
     private final MachineSlotRepository slots;
     private final MachineAlertRepository alerts;
     private final ZoneId operatingHoursZone;
+    private final OperationServiceCatalogValidator catalogValidator;
 
     public SlotService(MachineService machineService, MachineSlotRepository slots,
-                       MachineAlertRepository alerts,
+                       MachineAlertRepository alerts, OperationServiceCatalogValidator catalogValidator,
                        @Value("${machine.operating-hours.zone:Asia/Ho_Chi_Minh}") String operatingHoursZone) {
         this.machineService = machineService;
         this.slots = slots;
         this.alerts = alerts;
+        this.catalogValidator = catalogValidator;
         this.operatingHoursZone = ZoneId.of(operatingHoursZone);
     }
 
@@ -53,6 +55,9 @@ public class SlotService {
             throw new InvalidOperationException("productId and cartridgeId must both be supplied or both be empty");
         }
 
+        if (request.getProductId() != null && !request.getProductId().isBlank()) {
+            catalogValidator.validateReferences(request.getProductId().trim(), request.getCartridgeId().trim(), machine.getTenantId());
+        }
         if (request.getProductId() != null && !request.getProductId().isBlank()
                 && slots.existsByCartridgeIdIgnoreCase(request.getCartridgeId().trim())) {
             throw new ConflictException("This cartridge is already assigned to another slot");
@@ -112,6 +117,9 @@ public class SlotService {
             throw new InvalidOperationException("productId and cartridgeId must both be supplied or both be empty");
         }
         String nextCartridge = blankToNull(request.getCartridgeId());
+        if (request.getProductId() != null && !request.getProductId().isBlank()) {
+            catalogValidator.validateReferences(request.getProductId().trim(), nextCartridge, machine.getTenantId());
+        }
         if (nextCartridge != null && slots.existsByCartridgeIdIgnoreCaseAndIdNot(nextCartridge, slotId)) {
             throw new ConflictException("This cartridge is already assigned to another slot");
         }

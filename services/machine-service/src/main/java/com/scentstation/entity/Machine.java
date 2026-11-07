@@ -50,14 +50,11 @@ public class Machine {
     @Column(name = "last_seen_at")
     private Instant lastSeenAt;
 
-    @Column(name = "last_heartbeat_event_id", length = 100)
-    private String lastHeartbeatEventId;
+    @Column(name = "maintenance_checklist_complete", nullable = false)
+    private boolean maintenanceChecklistComplete = false;
 
-    @Column(name = "firmware_version", length = 100)
-    private String firmwareVersion;
-
-    @Column(name = "configuration_version", length = 100)
-    private String configurationVersion;
+    @Column(name = "post_maintenance_test_passed", nullable = false)
+    private boolean postMaintenanceTestPassed = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -100,12 +97,10 @@ public class Machine {
     public void setOperatingHoursEnd(LocalTime value) { this.operatingHoursEnd = value; }
     public Instant getLastSeenAt() { return lastSeenAt; }
     public void setLastSeenAt(Instant value) { this.lastSeenAt = value; }
-    public String getLastHeartbeatEventId() { return lastHeartbeatEventId; }
-    public void setLastHeartbeatEventId(String value) { this.lastHeartbeatEventId = value; }
-    public String getFirmwareVersion() { return firmwareVersion; }
-    public void setFirmwareVersion(String value) { this.firmwareVersion = value; }
-    public String getConfigurationVersion() { return configurationVersion; }
-    public void setConfigurationVersion(String value) { this.configurationVersion = value; }
+    public boolean isMaintenanceChecklistComplete() { return maintenanceChecklistComplete; }
+    public void setMaintenanceChecklistComplete(boolean value) { this.maintenanceChecklistComplete = value; }
+    public boolean isPostMaintenanceTestPassed() { return postMaintenanceTestPassed; }
+    public void setPostMaintenanceTestPassed(boolean value) { this.postMaintenanceTestPassed = value; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

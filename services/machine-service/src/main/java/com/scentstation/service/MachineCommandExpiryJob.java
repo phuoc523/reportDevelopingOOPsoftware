@@ -18,7 +18,7 @@ public class MachineCommandExpiryJob {
         this.commands = commands;
     }
 
-    @Scheduled(fixedDelayString = "${machine.iot.command-expiry-interval-ms:60000}")
+    @Scheduled(fixedDelayString = "${machine.commands.expiry-interval-ms:60000}")
     public void expireOverdueCommands() {
         int expiredCount = commands.expireOverdueCommands(Instant.now());
         if (expiredCount > 0) {

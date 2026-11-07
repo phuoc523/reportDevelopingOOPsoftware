@@ -18,7 +18,14 @@ public class MachineAlertChangedEvent {
     public MachineAlertChangedEvent(Long alertId, String tenantId, Long machineId,
                                     String locationId, String alertType, String severity,
                                     String status, Instant occurredAt) {
-        this.eventId = UUID.randomUUID().toString();
+        this(UUID.randomUUID().toString(), alertId, tenantId, machineId, locationId, alertType,
+            severity, status, occurredAt);
+    }
+
+    public MachineAlertChangedEvent(String eventId, Long alertId, String tenantId, Long machineId,
+                                    String locationId, String alertType, String severity,
+                                    String status, Instant occurredAt) {
+        this.eventId = eventId;
         this.alertId = alertId;
         this.tenantId = tenantId;
         this.machineId = machineId;

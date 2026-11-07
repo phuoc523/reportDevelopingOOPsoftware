@@ -31,7 +31,19 @@ public class MachineCommand {
     @Column(name = "tenant_id", nullable = false, length = 100)
     private String tenantId;
 
-    @Column(name = "device_identity", nullable = false, length = 150)
+    @Column(name = "order_id", nullable = false, length = 100)
+    private String orderId;
+
+    @Column(name = "slot_id", nullable = false, length = 100)
+    private String slotId;
+
+    @Column(name = "payment_reference", nullable = false, length = 100)
+    private String paymentReference;
+
+    @Column(name = "request_fingerprint", nullable = false, length = 64)
+    private String requestFingerprint;
+
+    @Column(name = "device_identity", length = 150)
     private String deviceIdentity;
 
     @Column(name = "command_type", nullable = false, length = 50)
@@ -69,7 +81,27 @@ public class MachineCommand {
         this.tenantId = machine.getTenantId();
         this.deviceIdentity = machine.getDeviceIdentity();
         this.commandType = commandType;
-        this.status = MachineCommandStatus.PENDING;
+        this.orderId = null;
+        this.slotId = null;
+        this.paymentReference = null;
+        this.requestFingerprint = null;
+        this.status = MachineCommandStatus.ACCEPTED;
+        this.issuedAt = issuedAt;
+        this.expiresAt = expiresAt;
+    }
+
+    public MachineCommand(String commandId, String tenantId, String orderId, String paymentReference,
+                          Long machineId, String slotId, String requestFingerprint,
+                          Instant issuedAt, Instant expiresAt) {
+        this.commandId = commandId;
+        this.tenantId = tenantId;
+        this.machineId = machineId;
+        this.orderId = orderId;
+        this.paymentReference = paymentReference;
+        this.slotId = slotId;
+        this.requestFingerprint = requestFingerprint;
+        this.commandType = "SPRAY";
+        this.status = MachineCommandStatus.ACCEPTED;
         this.issuedAt = issuedAt;
         this.expiresAt = expiresAt;
     }
@@ -97,11 +129,11 @@ public class MachineCommand {
         resultDetails = details;
         completedAt = at;
         status = at.isAfter(expiresAt) ? MachineCommandStatus.EXPIRED
-            : success ? MachineCommandStatus.SUCCEEDED : MachineCommandStatus.FAILED;
+            : success ? MachineCommandStatus.DISPENSED : MachineCommandStatus.FAILED;
     }
 
     private boolean isTerminal() {
-        return status == MachineCommandStatus.SUCCEEDED
+        return status == MachineCommandStatus.DISPENSED
             || status == MachineCommandStatus.FAILED
             || status == MachineCommandStatus.EXPIRED;
     }
@@ -110,6 +142,10 @@ public class MachineCommand {
     public String getCommandId() { return commandId; }
     public Long getMachineId() { return machineId; }
     public String getTenantId() { return tenantId; }
+    public String getOrderId() { return orderId; }
+    public String getSlotId() { return slotId; }
+    public String getPaymentReference() { return paymentReference; }
+    public String getRequestFingerprint() { return requestFingerprint; }
     public String getDeviceIdentity() { return deviceIdentity; }
     public String getCommandType() { return commandType; }
     public MachineCommandStatus getStatus() { return status; }

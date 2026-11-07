@@ -1,6 +1,7 @@
 package com.scentstation.service;
 
 import com.scentstation.dto.request.MachineRequests.*;
+import com.scentstation.dto.request.MaintenanceCompletionRequest;
 import com.scentstation.dto.response.MachineResponses.*;
 import com.scentstation.entity.DeviceRegistrationStatus;
 import com.scentstation.entity.Location;
@@ -26,10 +27,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Set;
 import java.util.Objects;
 
 @Service
 public class MachineService {
+    private static final Set<String> REQUIRED_MAINTENANCE_CHECKLIST = Set.of(
+        "HARDWARE_INSPECTION", "CLEANING", "CALIBRATION_CHECK");
+
     private final MachineRepository machines;
     private final MachineSlotRepository slots;
     private final MachineHistoryRepository history;
@@ -158,7 +163,7 @@ public class MachineService {
             machine.setOperationalStatus(MachineOperationalStatus.DISABLED);
         } else if (old == DeviceRegistrationStatus.REVOKED
                 && machine.getOperationalStatus() == MachineOperationalStatus.DISABLED) {
-            // Re-activation only restores registration; heartbeat must establish ONLINE state.
+            // Re-activation restores registration without changing the operational status.
             machine.setOperationalStatus(MachineOperationalStatus.OFFLINE);
         }
         Machine saved = machines.save(machine);
@@ -213,11 +218,15 @@ public class MachineService {
             case ENABLE -> {
                 if (machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.REVOKED)
                     throw new InvalidOperationException("Cannot enable a revoked device");
-                if (old == MachineOperationalStatus.MAINTENANCE || old == MachineOperationalStatus.ERROR)
-                    throw new InvalidOperationException("Resolve maintenance/error before enabling the machine");
+                if (old == MachineOperationalStatus.MAINTENANCE &&
+                    (!machine.isMaintenanceChecklistComplete() || !machine.isPostMaintenanceTestPassed()))
+                    throw new InvalidOperationException("Maintenance checklist and post-maintenance test must pass before enabling the machine");
+                if (old == MachineOperationalStatus.ERROR)
+                    throw new InvalidOperationException("Resolve error before enabling the machine");
                 // Re-enable a disabled machine as OFFLINE; otherwise preserve its current state.
-                // Enable does not imply that a device is online; heartbeat must confirm it.
+                // Enable does not imply that a device is operationally online.
                 next = old == MachineOperationalStatus.DISABLED
+                    || old == MachineOperationalStatus.MAINTENANCE
                     ? MachineOperationalStatus.OFFLINE : old;
             }
             case DISABLE -> next = MachineOperationalStatus.DISABLED;
@@ -225,6 +234,8 @@ public class MachineService {
                 if (machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.REVOKED)
                     throw new InvalidOperationException("Cannot control a revoked device");
                 next = MachineOperationalStatus.MAINTENANCE;
+                machine.setMaintenanceChecklistComplete(false);
+                machine.setPostMaintenanceTestPassed(false);
             }
             default -> throw new InvalidOperationException("Unsupported machine control action");
         }
@@ -240,6 +251,27 @@ public class MachineService {
                 saved.getLocationId(), saved.getLocationId(),
                 "Machine control action " + request.getAction() + ": " + old + " -> " + next, actorId);
         }
+        return MachineResponse.from(saved);
+    }
+
+    @Transactional
+    public MachineResponse completeMaintenance(@NonNull Long id, MaintenanceCompletionRequest request) {
+        Machine machine = requireMachine(id);
+        if (machine.getOperationalStatus() != MachineOperationalStatus.MAINTENANCE) {
+            throw new InvalidOperationException("Maintenance completion can only be recorded while the machine is in MAINTENANCE");
+        }
+        Set<String> completedItems = request.checklistItems().stream()
+            .map(String::trim)
+            .map(String::toUpperCase)
+            .collect(java.util.stream.Collectors.toSet());
+        if (!completedItems.containsAll(REQUIRED_MAINTENANCE_CHECKLIST)) {
+            throw new InvalidOperationException("Missing required maintenance checklist items: " + REQUIRED_MAINTENANCE_CHECKLIST);
+        }
+        machine.setMaintenanceChecklistComplete(true);
+        machine.setPostMaintenanceTestPassed(Boolean.TRUE.equals(request.postMaintenanceTestPassed()));
+        Machine saved = machines.save(machine);
+        saveHistory(saved, MachineHistoryAction.OPERATIONAL_STATUS_CHANGED, saved.getTenantId(), saved.getTenantId(),
+            saved.getLocationId(), saved.getLocationId(), "Maintenance checklist completed and test result recorded", request.actorId());
         return MachineResponse.from(saved);
     }
 
@@ -264,23 +296,6 @@ public class MachineService {
         return MachineResponse.from(saved);
     }
 
-
-    @Transactional
-    public MachineResponse heartbeat(@NonNull Long id) {
-        Machine machine = requireMachine(id);
-        if (machine.getDeviceRegistrationStatus() == DeviceRegistrationStatus.REVOKED) {
-            throw new InvalidOperationException("Revoked device cannot send heartbeat");
-        }
-        java.time.Instant now = java.time.Instant.now();
-        machine.setLastSeenAt(now);
-        if (machine.getOperationalStatus() == MachineOperationalStatus.OFFLINE
-                || machine.getOperationalStatus() == MachineOperationalStatus.UNSTABLE) {
-            machine.setOperationalStatus(MachineOperationalStatus.ONLINE);
-        }
-        Machine saved = machines.save(machine);
-        machineAlerts.resolveMachineOfflineAlerts(saved, now);
-        return MachineResponse.from(saved);
-    }
 
     @Transactional(readOnly = true)
     public List<MachineHistoryResponse> history(@NonNull Long id) {

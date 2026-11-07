@@ -1,9 +1,11 @@
 package com.scentstation.entity;
 
 public enum MachineCommandStatus {
-    PENDING,
+    ACCEPTED,
+    PROCESSING,
     ACKNOWLEDGED,
-    SUCCEEDED,
+    DISPENSED,
     FAILED,
-    EXPIRED
+    EXPIRED,
+    UNKNOWN
 }

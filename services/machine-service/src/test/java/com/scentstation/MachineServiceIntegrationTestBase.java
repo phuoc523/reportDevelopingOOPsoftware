@@ -1,14 +1,12 @@
 package com.scentstation;
 
+import com.scentstation.repository.AlertHandoffOutboxRepository;
 import com.scentstation.repository.LocationRepository;
 import com.scentstation.repository.MachineAlertRepository;
 import com.scentstation.repository.MachineCommandRepository;
-import com.scentstation.repository.MachineDeviceEventRepository;
 import com.scentstation.repository.MachineHistoryRepository;
-import com.scentstation.repository.MachineMessageReceiptRepository;
 import com.scentstation.repository.MachineRepository;
 import com.scentstation.repository.MachineSlotRepository;
-import com.scentstation.repository.MachineTelemetryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,6 +22,7 @@ import org.springframework.lang.NonNull;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.http.HttpHeaders;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -45,15 +44,6 @@ abstract class MachineServiceIntegrationTestBase {
     private MachineCommandRepository commandRepository;
 
     @Autowired
-    private MachineDeviceEventRepository deviceEventRepository;
-
-    @Autowired
-    private MachineTelemetryRepository telemetryRepository;
-
-    @Autowired
-    private MachineMessageReceiptRepository messageReceiptRepository;
-
-    @Autowired
     private MachineSlotRepository slotRepository;
 
     @Autowired
@@ -62,13 +52,14 @@ abstract class MachineServiceIntegrationTestBase {
     @Autowired
     private LocationRepository locationRepository;
 
+    @Autowired
+    private AlertHandoffOutboxRepository handoffOutboxRepository;
+
     @BeforeEach
     void clearDatabase() {
-        messageReceiptRepository.deleteAllInBatch();
+        handoffOutboxRepository.deleteAllInBatch();
         commandRepository.deleteAllInBatch();
         alertRepository.deleteAllInBatch();
-        telemetryRepository.deleteAllInBatch();
-        deviceEventRepository.deleteAllInBatch();
         historyRepository.deleteAllInBatch();
         slotRepository.deleteAllInBatch();
         machineRepository.deleteAllInBatch();
@@ -89,20 +80,28 @@ abstract class MachineServiceIntegrationTestBase {
     }
 
     protected ResponseEntity<Map<String, Object>> postJson(String path, Object request) {
+        HttpHeaders headers = new HttpHeaders();
+        if (path.contains("dispense-commands")) {
+            headers.set("X-Internal-Service-Key", "test-integration-secret");
+        }
         return rest.exchange(
             path,
             HttpMethod.POST,
-            new HttpEntity<>(Objects.requireNonNull(request, "request")),
+            new HttpEntity<>(Objects.requireNonNull(request, "request"), headers),
             new ParameterizedTypeReference<>() {
             }
         );
     }
 
     protected ResponseEntity<Map<String, Object>> getJson(String path) {
+        HttpHeaders headers = new HttpHeaders();
+        if (path.contains("dispense-commands")) {
+            headers.set("X-Internal-Service-Key", "test-integration-secret");
+        }
         return rest.exchange(
             path,
             HttpMethod.GET,
-            HttpEntity.EMPTY,
+            new HttpEntity<>(headers),
             new ParameterizedTypeReference<>() {
             }
         );
