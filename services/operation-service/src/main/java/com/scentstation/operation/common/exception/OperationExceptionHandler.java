@@ -27,6 +27,11 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.scentstation.operation.inventory.reconciliation.exception.SensorInstallationMismatchException;
+import com.scentstation.operation.maintenance.exception.MaintenanceNotFoundException;
+import com.scentstation.operation.maintenance.exception.InvalidMaintenanceTicketException;
+import com.scentstation.operation.maintenance.exception.PostMaintenanceTestNotFoundException;
+import com.scentstation.operation.maintenance.exception.MaintenanceChecklistNotFoundException;
+import com.scentstation.operation.maintenance.exception.CriticalAlertAlreadyProcessedException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
@@ -47,6 +52,19 @@ public class OperationExceptionHandler {
         );
     }
 
+        // Trả 404 khi không tìm thấy checklist item trong đúng tenant hoặc ticket.
+        @ExceptionHandler(MaintenanceChecklistNotFoundException.class)
+        public ResponseEntity<ApiErrorResponse> handleMaintenanceChecklistNotFound(
+                MaintenanceChecklistNotFoundException exception,
+                HttpServletRequest request
+        ) {
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage(),
+                request
+        );
+        }
+
     // Trả 404 khi không tìm thấy bottle trong tenant.
     @ExceptionHandler(BottleNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleBottleNotFound(
@@ -59,6 +77,19 @@ public class OperationExceptionHandler {
                 request
         );
     }
+
+        // Trả 409 khi critical alert đã được xử lý trước đó.
+        @ExceptionHandler(CriticalAlertAlreadyProcessedException.class)
+        public ResponseEntity<ApiErrorResponse> handleCriticalAlertAlreadyProcessed(
+                CriticalAlertAlreadyProcessedException exception,
+                HttpServletRequest request
+        ) {
+        return buildResponse(
+                HttpStatus.CONFLICT,
+                exception.getMessage(),
+                request
+        );
+        }
 
     // Trả 409 khi mã batch đã tồn tại.
     @ExceptionHandler(InventoryBatchAlreadyExistsException.class)
@@ -342,6 +373,45 @@ public class OperationExceptionHandler {
                 request
         );
     }
+
+        // Trả 404 khi không tìm thấy maintenance ticket trong tenant.
+        @ExceptionHandler(MaintenanceNotFoundException.class)
+        public ResponseEntity<ApiErrorResponse> handleMaintenanceNotFound(
+                MaintenanceNotFoundException exception,
+                HttpServletRequest request
+        ) {
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage(),
+                request
+        );
+        }
+
+        // Trả 404 khi không tìm thấy post-maintenance test trong tenant.
+        @ExceptionHandler(PostMaintenanceTestNotFoundException.class)
+        public ResponseEntity<ApiErrorResponse> handlePostMaintenanceTestNotFound(
+                PostMaintenanceTestNotFoundException exception,
+                HttpServletRequest request
+        ) {
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage(),
+                request
+        );
+        }
+
+        // Trả 400 khi dữ liệu hoặc thao tác trên maintenance ticket không hợp lệ.
+        @ExceptionHandler(InvalidMaintenanceTicketException.class)
+        public ResponseEntity<ApiErrorResponse> handleInvalidMaintenanceTicket(
+                InvalidMaintenanceTicketException exception,
+                HttpServletRequest request
+        ) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                exception.getMessage(),
+                request
+        );
+        }
 
         // Trả 409 khi sensor reading không khớp installation.
         @ExceptionHandler(SensorInstallationMismatchException.class)
