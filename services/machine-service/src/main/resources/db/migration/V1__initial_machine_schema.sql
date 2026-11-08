@@ -1,10 +1,3 @@
--- DROP DATABASE IF EXISTS scentstation_machine;
-CREATE DATABASE IF NOT EXISTS scentstation_machine
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE scentstation_machine;
-
 CREATE TABLE IF NOT EXISTS machine_locations (
     location_id VARCHAR(100) PRIMARY KEY,
     tenant_id VARCHAR(100) NOT NULL,
@@ -202,5 +195,4 @@ CREATE TABLE IF NOT EXISTS alert_handoff_outbox (
     INDEX idx_alert_handoff_next_attempt (next_attempt_at)
 ) ENGINE=InnoDB;
 
-SHOW DATABASES LIKE 'scentstation_machine';
 SHOW TABLES;
