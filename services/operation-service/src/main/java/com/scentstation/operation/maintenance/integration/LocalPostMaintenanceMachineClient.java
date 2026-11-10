@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 import java.util.UUID;
 
 @Component
-@Profile({"local", "test"})
+@Profile({"local", "test", "docker-local"})
 public class LocalPostMaintenanceMachineClient
         implements PostMaintenanceMachineClient {
 

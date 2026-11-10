@@ -5,7 +5,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile({"local", "test"})
+@Profile({"local", "test", "docker-local"})
 public class LocalMachineSlotClient implements MachineSlotClient {
 
     // Mô phỏng slot khả dụng cho tới khi machine-service có API thật.
