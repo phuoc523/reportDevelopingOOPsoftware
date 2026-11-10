@@ -8,5 +8,19 @@ spring:
     password: ${OPERATION_DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
 server:
   port: ${OPERATION_SERVICE_PORT:8085}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
