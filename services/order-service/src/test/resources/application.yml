@@ -8,3 +8,8 @@ spring:
     init:
       mode: always
       schema-locations: classpath:database/schema.sql
+
+reporting-service:
+  enabled: false
+  base-url: http://localhost:8086
+  api-key: test-reporting-sync-key

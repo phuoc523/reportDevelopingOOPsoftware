@@ -2,7 +2,18 @@
 
 ScentStation is a university monorepo for an IoT smart perfume kiosk system.
 
-Current scope: repository structure only. Business logic is not implemented yet.
+The local backend stack runs the API Gateway and six Spring Boot services.
+Each business service has a separate MySQL database and communicates with other services via HTTP.
+
+```powershell
+docker compose up -d --build
+pwsh -File scripts/Test-ReportingIntegration.ps1
+```
+
+The Gateway is available at `http://localhost:8080`. See the
+[Reporting Service guide](services/reporting-service/README.md#local-integration)
+for dashboard, payment synchronization, and replay.
+Vietnamese integration notes: [Tích hợp Reporting](docs/reporting-integration.md).
 
 ## Architecture
 
@@ -19,12 +30,12 @@ Current scope: repository structure only. Business logic is not implemented yet.
 | Service | Expected responsibility | Owner |
 |---|---|---|
 | `api-gateway` | Single backend entry point and routing boundary | TBD |
-| `identity-service` | Identity-related scope, not implemented yet | TBD |
-| `catalog-service` | Catalog-related scope, not implemented yet | TBD |
-| `order-service` | Order-related scope, not implemented yet | TBD |
-| `machine-service` | Machine and device-facing scope, not implemented yet | TBD |
-| `operation-service` | Operation-related scope, not implemented yet | TBD |
-| `reporting-service` | Reporting-related scope, not implemented yet | TBD |
+| `identity-service` | Authentication, user administration, roles and audit | TBD |
+| `catalog-service` | Products, availability, pricing and campaigns | TBD |
+| `order-service` | Orders, simulated QR payments and dispensing requests | TBD |
+| `machine-service` | Machines, locations, slots, alerts and dispensing commands | TBD |
+| `operation-service` | Inventory and maintenance | TBD |
+| `reporting-service` | Transactions, dashboards and Excel exports | TBD |
 
 ## Frontend
 
@@ -51,15 +62,10 @@ Machine Service is the only backend service allowed to communicate directly with
 
 - Redis is an infrastructure component, not a business service.
 - Apache NiFi is an infrastructure component, not a business service.
-- MySQL, Mosquitto, Redis, NiFi, and Docker configuration are only skeletons until the team finalizes ports, environment variables, and runtime details.
+- The local Compose stack includes MySQL and the backend services.
 
 ## Not Implemented Yet
 
-- Business logic
-- Business entities
-- Database tables or migrations
-- API design
-- Business controllers or services
-- JWT, authentication, authorization, or payment
+- Real payment-provider integration
 - MQTT logic
 - NiFi flows

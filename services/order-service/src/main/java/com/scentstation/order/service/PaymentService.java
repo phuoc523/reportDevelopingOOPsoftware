@@ -1,5 +1,6 @@
 package com.scentstation.order.service;
 
+import com.scentstation.order.client.ReportingTransactionClient;
 import com.scentstation.order.dto.request.PaymentCallbackRequest;
 import com.scentstation.order.dto.response.OrderResponse;
 import com.scentstation.order.dto.response.PaymentResponse;
@@ -29,6 +30,7 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final OrderService orderService;
     private final DispensingService dispensingService;
+    private final ReportingTransactionClient reportingTransactionClient;
     private final Duration qrExpiration;
     private final String callbackToken;
 
@@ -36,6 +38,7 @@ public class PaymentService {
             PaymentRepository paymentRepository,
             OrderService orderService,
             DispensingService dispensingService,
+            ReportingTransactionClient reportingTransactionClient,
             @Value("${payment.qr-expiration:PT15M}") Duration qrExpiration,
             @Value("${payment.callback-token:local-mock-callback-token}") String callbackToken
     ) {
@@ -48,6 +51,7 @@ public class PaymentService {
         this.paymentRepository = paymentRepository;
         this.orderService = orderService;
         this.dispensingService = dispensingService;
+        this.reportingTransactionClient = reportingTransactionClient;
         this.qrExpiration = qrExpiration;
         this.callbackToken = callbackToken;
     }
@@ -62,7 +66,7 @@ public class PaymentService {
         if (existingPayment != null) {
             expireIfNecessary(existingPayment);
             if (existingPayment.getStatus() == PaymentStatus.PAID || order.status() == OrderStatus.PENDING) {
-                return toResponse(existingPayment);
+                return publish(toResponse(existingPayment));
             }
             throw new PaymentNotAvailableException(orderId);
         }
@@ -90,7 +94,7 @@ public class PaymentService {
                 createdAt,
                 expiresAt
         );
-        return toResponse(paymentRepository.saveIfAbsent(payment));
+        return publish(toResponse(paymentRepository.saveIfAbsent(payment)));
     }
 
     public PaymentResponse getPayment(String reference) {
@@ -99,6 +103,7 @@ public class PaymentService {
         return toResponse(payment);
     }
 
+    @Transactional(noRollbackFor = PaymentVerificationException.class)
     public PaymentResponse simulatePayment(String reference) {
         Payment payment = findPayment(reference);
         return processCallback(new PaymentCallbackRequest(
@@ -130,7 +135,7 @@ public class PaymentService {
                         previousEvent.message()
                 );
             }
-            return toResponse(findPayment(request.reference()));
+            return publish(toResponse(findPayment(request.reference())));
         }
 
         Payment payment = paymentRepository.findByReference(request.reference()).orElse(null);
@@ -225,7 +230,7 @@ public class PaymentService {
                 request.currency(), request.status(), PaymentCallbackEvent.Outcome.ACCEPTED,
                 HttpStatus.OK.value(), "Callback processed", LocalDateTime.now()
         ));
-        return toResponse(payment);
+        return publish(toResponse(payment));
     }
 
     private PaymentVerificationException reject(
@@ -247,7 +252,13 @@ public class PaymentService {
                 payment.markExpired();
                 paymentRepository.save(payment);
                 orderService.expireOrderAfterPayment(payment.getOrderId());
+                publish(toResponse(payment));
             }
         }
+    }
+
+    private PaymentResponse publish(PaymentResponse payment) {
+        reportingTransactionClient.publish(payment);
+        return payment;
     }
 }

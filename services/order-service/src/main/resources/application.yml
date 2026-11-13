@@ -27,3 +27,8 @@ order:
 
 machine-service:
   base-url: ${MACHINE_SERVICE_BASE_URL:http://localhost:8084}
+
+reporting-service:
+  enabled: ${REPORTING_SYNC_ENABLED:true}
+  base-url: ${REPORTING_SERVICE_URL:http://localhost:8086}
+  api-key: ${REPORTING_SYNC_API_KEY:local-reporting-sync-key}

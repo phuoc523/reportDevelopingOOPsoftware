@@ -1,15 +1,213 @@
-# ScentStation Docker Compose skeleton.
-# TODO: Add services only after the team finalizes images, ports, networks,
-# environment variables, volumes, and health checks.
-#
-# Planned infrastructure:
-# - MySQL
-# - Redis
-# - Mosquitto
-# - Apache NiFi
-# - API Gateway
-# - Backend microservices
-# - Frontend applications
-#
-# No runnable service configuration is defined in this initialization step.
-services: {}
+# Local backend stack. Each business service owns its database.
+name: scentstation-local
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: api-gateway
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      IDENTITY_SERVICE_URL: http://identity-service:8081
+      CATALOG_SERVICE_URL: http://catalog-service:8082
+      ORDER_SERVICE_URL: http://order-service:8083
+      MACHINE_SERVICE_URL: http://machine-service:8084
+      OPERATION_SERVICE_URL: http://operation-service:8085
+      REPORTING_SERVICE_URL: http://reporting-service:8086
+
+  identity-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: identity-service
+    environment:
+      DB_URL: "jdbc:mysql://identity-db:3306/scentstation_identity?allowPublicKeyRetrieval=true&sslMode=DISABLED"
+      DB_USERNAME: "identity_app"
+      DB_PASSWORD: "identity_local_password"
+    depends_on:
+      identity-db:
+        condition: service_healthy
+
+  catalog-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: catalog-service
+    environment:
+      CATALOG_DB_URL: "jdbc:mysql://catalog-db:3306/scentstation_catalog?allowPublicKeyRetrieval=true&sslMode=DISABLED"
+      CATALOG_DB_USERNAME: "catalog_app"
+      CATALOG_DB_PASSWORD: "catalog_local_password"
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+
+  order-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: order-service
+    environment:
+      DB_URL: "jdbc:mysql://order-db:3306/order_db?allowPublicKeyRetrieval=true&sslMode=DISABLED"
+      DB_USERNAME: "order_user"
+      DB_PASSWORD: "order_local_password"
+      MACHINE_SERVICE_BASE_URL: "http://machine-service:8084"
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Ho_Chi_Minh"
+      REPORTING_SERVICE_URL: "http://reporting-service:8086"
+      REPORTING_SYNC_ENABLED: "true"
+      REPORTING_SYNC_API_KEY: "${REPORTING_SYNC_API_KEY:-local-reporting-sync-key}"
+    depends_on:
+      order-db:
+        condition: service_healthy
+
+  machine-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: machine-service
+    environment:
+      MACHINE_DB_URL: "jdbc:mysql://machine-db:3306/scentstation_machine?allowPublicKeyRetrieval=true&sslMode=DISABLED"
+      MACHINE_DB_USERNAME: "machine_app"
+      MACHINE_DB_PASSWORD: "machine_local_password"
+    depends_on:
+      machine-db:
+        condition: service_healthy
+
+  operation-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: operation-service
+    environment:
+      OPERATION_DB_URL: "jdbc:mysql://operation-db:3306/scentstation_operation?allowPublicKeyRetrieval=true&sslMode=DISABLED"
+      OPERATION_DB_USERNAME: "operation_app"
+      OPERATION_DB_PASSWORD: "operation_local_password"
+      SPRING_PROFILES_ACTIVE: "docker-local"
+    depends_on:
+      operation-db:
+        condition: service_healthy
+
+  reporting-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: reporting-service
+    environment:
+      DB_URL: "jdbc:mysql://reporting-db:3306/scentstation_reporting?allowPublicKeyRetrieval=true&sslMode=DISABLED"
+      DB_USERNAME: "reporting_app"
+      DB_PASSWORD: "reporting_local_password"
+      ORDER_SERVICE_URL: "http://order-service:8083"
+      MACHINE_SERVICE_URL: "http://machine-service:8084"
+      OPERATION_SERVICE_URL: "http://operation-service:8085"
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Ho_Chi_Minh"
+      REPORTING_SYNC_API_KEY: "${REPORTING_SYNC_API_KEY:-local-reporting-sync-key}"
+    ports:
+      - "127.0.0.1:8086:8086"
+    depends_on:
+      reporting-db:
+        condition: service_healthy
+
+  identity-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: scentstation_identity
+      MYSQL_USER: identity_app
+      MYSQL_PASSWORD: identity_local_password
+      MYSQL_ROOT_PASSWORD: identity_local_root_password
+    volumes:
+      - identity-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  catalog-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: scentstation_catalog
+      MYSQL_USER: catalog_app
+      MYSQL_PASSWORD: catalog_local_password
+      MYSQL_ROOT_PASSWORD: catalog_local_root_password
+    volumes:
+      - catalog-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  order-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: order_db
+      MYSQL_USER: order_user
+      MYSQL_PASSWORD: order_local_password
+      MYSQL_ROOT_PASSWORD: order_local_root_password
+    volumes:
+      - order-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  machine-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: scentstation_machine
+      MYSQL_USER: machine_app
+      MYSQL_PASSWORD: machine_local_password
+      MYSQL_ROOT_PASSWORD: machine_local_root_password
+    volumes:
+      - machine-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  operation-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: scentstation_operation
+      MYSQL_USER: operation_app
+      MYSQL_PASSWORD: operation_local_password
+      MYSQL_ROOT_PASSWORD: operation_local_root_password
+    volumes:
+      - operation-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  reporting-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: scentstation_reporting
+      MYSQL_USER: reporting_app
+      MYSQL_PASSWORD: reporting_local_password
+      MYSQL_ROOT_PASSWORD: reporting_local_root_password
+    volumes:
+      - reporting-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  identity-data:
+  catalog-data:
+  order-data:
+  machine-data:
+  operation-data:
+  reporting-data:

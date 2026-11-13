@@ -51,7 +51,7 @@ spring:
         - id: reporting-service
           uri: ${REPORTING_SERVICE_URL:http://localhost:8086}
           predicates:
-            - Path=/api/reporting/**
+            - Path=/api/reporting/health,/api/reporting/dashboard,/api/reporting/transactions/**,/api/reporting/revenue/**,/api/reporting/refunds/**,/api/reporting/export/**
 
 management:
   endpoints:
