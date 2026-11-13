@@ -1,22 +1,41 @@
-﻿
-spring:
+﻿spring:
   application:
     name: reporting-service
 
   datasource:
-    url: jdbc:mysql://localhost:3306/scentstation_reporting?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh
-    username: reporting_app
-    password: ${DB_PASSWORD}
+    url: ${DB_URL:jdbc:mysql://localhost:3306/scentstation_reporting?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh}
+    username: ${DB_USERNAME:reporting_app}
+    password: ${DB_PASSWORD:reporting_app}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     open-in-view: false
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
 
+  sql:
+    init:
+      mode: always
+
 server:
-  port: 8085
+  port: ${REPORTING_SERVICE_PORT:8086}
+
+reporting:
+  zone-id: ${REPORTING_TIME_ZONE:Asia/Ho_Chi_Minh}
+  sync:
+    api-key: ${REPORTING_SYNC_API_KEY:local-reporting-sync-key}
+
+integration:
+  identity:
+    base-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+  order:
+    base-url: ${ORDER_SERVICE_URL:http://localhost:8083}
+  machine:
+    base-url: ${MACHINE_SERVICE_URL:http://localhost:8084}
+  operation:
+    base-url: ${OPERATION_SERVICE_URL:http://localhost:8085}
+    zone-id: ${OPERATION_SERVICE_ZONE_ID:UTC}

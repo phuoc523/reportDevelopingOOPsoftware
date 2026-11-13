@@ -1,0 +1,81 @@
+{
+  "info": {
+    "name": "ScentStation Reporting Backend",
+    "description": "Backend requests without Admin Web. Fill URLs and credentials locally. Financial reads/exports require PLATFORM_REPORT_READ. Tenant dashboard requires REPORT_READ. Internal sync writes data and uses its separate API key. No real credentials are included.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }] },
+  "variable": [
+    { "key": "reportingUrl", "value": "http://localhost:8086" },
+    { "key": "identityUrl", "value": "http://localhost:8081" },
+    { "key": "username", "value": "" },
+    { "key": "password", "value": "" },
+    { "key": "accessToken", "value": "" },
+    { "key": "tenantId", "value": "1" },
+    { "key": "reference", "value": "ENTER_EXISTING_PAYMENT_REFERENCE" },
+    { "key": "internalApiKey", "value": "" },
+    { "key": "startDate", "value": "2026-11-01" },
+    { "key": "endDate", "value": "2026-11-30" }
+  ],
+  "item": [
+    {
+      "name": "01 - Authentication and health",
+      "item": [
+        { "name": "Reporting health (public)", "request": { "method": "GET", "auth": { "type": "noauth" }, "url": "{{reportingUrl}}/api/reporting/health" } },
+        {
+          "name": "Identity login - save bearer token locally",
+          "request": {
+            "method": "POST", "auth": { "type": "noauth" }, "url": "{{identityUrl}}/api/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}", "options": { "raw": { "language": "json" } } }
+          },
+          "event": [{ "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+            "pm.request.body.update(JSON.stringify({ username: pm.variables.get('username'), password: pm.variables.get('password') }));"
+          ] } }, { "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Login succeeded', () => pm.response.to.have.status(200));",
+            "if (pm.response.code === 200) { const body = pm.response.json(); if (body.token && body.tokenType === 'Bearer') pm.collectionVariables.set('accessToken', body.token); }"
+          ] } }]
+        },
+        { "name": "Identity verified profile", "request": { "method": "GET", "url": "{{identityUrl}}/api/auth/me" } }
+      ]
+    },
+    {
+      "name": "02 - Dashboard (REPORT_READ)",
+      "item": [
+        { "name": "Own tenant dashboard - server derives tenant", "request": { "method": "GET", "url": "{{reportingUrl}}/api/reporting/dashboard?period=day", "description": "Tenant users: server derives tenant from Identity. Platform users: specify tenant in the next request for Machine/Operation data. Inspect access and upstream before treating zero values as confirmed." } },
+        { "name": "Dashboard with explicit tenant", "request": { "method": "GET", "url": "{{reportingUrl}}/api/reporting/dashboard?tenantId={{tenantId}}&period=month" } }
+      ]
+    },
+    {
+      "name": "03 - Financial reports (platform only)",
+      "item": [
+        { "name": "Transaction summary", "request": { "method": "GET", "url": "{{reportingUrl}}/api/reporting/transactions/summary?period=custom&startDate={{startDate}}&endDate={{endDate}}" } },
+        { "name": "Search transactions", "request": { "method": "GET", "url": "{{reportingUrl}}/api/reporting/transactions?status=PAID&page=0&size=20&sortBy=createdAt&direction=desc" } },
+        { "name": "Transaction by reference", "request": { "method": "GET", "url": "{{reportingUrl}}/api/reporting/transactions/reference/{{reference}}" } },
+        { "name": "Revenue by date", "request": { "method": "GET", "url": "{{reportingUrl}}/api/reporting/revenue/details?startDate={{startDate}}&endDate={{endDate}}" } },
+        { "name": "Status summary", "request": { "method": "GET", "url": "{{reportingUrl}}/api/reporting/transactions/status-summary?startDate={{startDate}}&endDate={{endDate}}" } },
+        { "name": "Refund summary", "request": { "method": "GET", "url": "{{reportingUrl}}/api/reporting/refunds/summary?startDate={{startDate}}&endDate={{endDate}}" } },
+        { "name": "Refund list", "request": { "method": "GET", "url": "{{reportingUrl}}/api/reporting/refunds?startDate={{startDate}}&endDate={{endDate}}&page=0&size=20" } }
+      ]
+    },
+    {
+      "name": "04 - Excel export (platform + REPORT_EXPORT)",
+      "item": [
+        { "name": "Transactions XLSX - Send and Download", "request": { "method": "GET", "url": "{{reportingUrl}}/api/reporting/export/transactions?startDate={{startDate}}&endDate={{endDate}}" } },
+        { "name": "Revenue XLSX - Send and Download", "request": { "method": "GET", "url": "{{reportingUrl}}/api/reporting/export/revenue?startDate={{startDate}}&endDate={{endDate}}" } }
+      ]
+    },
+    {
+      "name": "05 - Internal replay (writes Reporting data)",
+      "item": [
+        { "name": "Replay an existing Order payment", "request": { "method": "POST", "auth": { "type": "noauth" }, "header": [{ "key": "X-Internal-Api-Key", "value": "{{internalApiKey}}" }], "url": "{{reportingUrl}}/api/reporting/internal/transactions/sync-from-order/{{reference}}", "description": "Use Reporting directly. Gateway does not route this internal endpoint. Replaying identical data preserves the same transaction row." } }
+      ]
+    },
+    {
+      "name": "06 - Logout (revokes this account's existing tokens)",
+      "item": [
+        { "name": "Identity logout", "request": { "method": "POST", "url": "{{identityUrl}}/api/auth/logout" }, "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [ "if (pm.response.code === 204) pm.collectionVariables.set('accessToken', '');" ] } }] }
+      ]
+    }
+  ]
+}

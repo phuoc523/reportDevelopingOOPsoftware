@@ -12,6 +12,8 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import com.scentstation.reporting.client.IdentityClient;
+import com.scentstation.reporting.dto.integration.IdentityActor;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -23,8 +25,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+
 @WebMvcTest(TransactionReportController.class)
-@Import(ReportDateRangeValidator.class)
+@Import({ReportDateRangeValidator.class, com.scentstation.reporting.config.ReportingSecurityConfig.class})
 class TransactionReportControllerTest {
 
     @Autowired
@@ -32,6 +35,22 @@ class TransactionReportControllerTest {
 
     @MockBean
     private TransactionReportService transactionReportService;
+
+    @MockBean
+    private IdentityClient identityClient;
+
+    @Autowired
+    private org.springframework.web.context.WebApplicationContext context;
+
+    @org.junit.jupiter.api.BeforeEach
+    void authenticateIsolatedControllerTest() {
+        when(identityClient.verify(org.mockito.ArgumentMatchers.anyString())).thenReturn(new IdentityActor(
+                1L, "controller-unit-user", null, java.util.Set.of("PLATFORM_SUPER_ADMIN"),
+                java.util.Set.of(), java.util.Set.of(), java.util.Set.of()));
+        mockMvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.webAppContextSetup(context)
+                .apply(org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity())
+                .defaultRequest(get("/").header("Authorization", "Bearer controller-unit-token")).build();
+    }
 
     private TransactionSummaryResponse sampleResponse(
             String period,

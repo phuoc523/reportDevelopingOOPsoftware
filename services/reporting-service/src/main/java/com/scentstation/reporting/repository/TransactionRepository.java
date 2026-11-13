@@ -4,6 +4,8 @@ import com.scentstation.reporting.entity.Transaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Lock;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
@@ -16,6 +18,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
         JpaSpecificationExecutor<Transaction> {
 
     Optional<Transaction> findByReference(String reference);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select t from Transaction t where t.reference = :reference")
+    Optional<Transaction> findByReferenceForUpdate(@Param("reference") String reference);
 
     long countByCreatedAtGreaterThanEqualAndCreatedAtLessThan(
             LocalDateTime startDate, LocalDateTime endDate);
