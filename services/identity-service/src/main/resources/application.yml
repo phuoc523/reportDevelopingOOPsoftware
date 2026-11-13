@@ -20,3 +20,7 @@ security:
     # Replace this development key with a strong secret from an environment variable in real deployments.
     secret: ${JWT_SECRET:U2NlbnRTdGF0aW9uRGV2ZWxvcG1lbnRLZXlGb3JKV1QyMDI2IQ==}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+  internal:
+    # Mandatory for private service-to-service introspection. No default credential.
+    service-key: ${INTERNAL_SERVICE_KEY:}

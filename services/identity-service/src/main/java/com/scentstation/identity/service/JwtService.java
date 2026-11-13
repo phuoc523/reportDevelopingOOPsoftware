@@ -42,6 +42,6 @@ public class JwtService {
     public String extractRole(String token) { return claims(token).get("role", String.class); }
     public long extractTokenVersion(String token) {
         Object version = claims(token).get("tokenVersion");
-        return version instanceof Number n ? n.longValue() : 0L;
+        return version instanceof Number n ? n.longValue() : -1L;
     }
 }

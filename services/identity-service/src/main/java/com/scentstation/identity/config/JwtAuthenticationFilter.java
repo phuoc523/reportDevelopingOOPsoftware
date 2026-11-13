@@ -3,6 +3,8 @@ package com.scentstation.identity.config;
 import com.scentstation.identity.rbac.AccountPrincipal;
 import com.scentstation.identity.repository.UserRepository;
 import com.scentstation.identity.service.JwtService;
+import com.scentstation.identity.tenant.Tenant;
+import com.scentstation.identity.tenant.TenantRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,9 +20,18 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final UserRepository users;
+    private final TenantRepository tenants;
 
-    public JwtAuthenticationFilter(JwtService jwtService, UserRepository users) {
-        this.jwtService = jwtService; this.users = users;
+    public JwtAuthenticationFilter(JwtService jwtService, UserRepository users, TenantRepository tenants) {
+        this.jwtService = jwtService; this.users = users; this.tenants = tenants;
+    }
+
+    private boolean permittedTenant(com.scentstation.identity.entity.User user) {
+        // Public kiosk customers may have no tenant. Assigned staff must not
+        // keep using JWTs issued before their tenant was suspended.
+        if (user.getTenantId() == null) return true;
+        return tenants.findById(user.getTenantId())
+            .map(t -> t.getStatus() == Tenant.Status.ACTIVE).orElse(false);
     }
 
     @Override
@@ -35,7 +46,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 long tokenVersion = jwtService.extractTokenVersion(token);
                 if (username != null && !username.isBlank()) {
                     users.findByUsername(username)
-                        .filter(u -> u.isActive() && !u.isLocked() && u.getTokenVersion() == tokenVersion)
+                        .filter(u -> u.isActive() && !u.isLocked() && u.getTokenVersion() == tokenVersion
+                            && permittedTenant(u))
                         .ifPresent(u -> {
                             AccountPrincipal actor = AccountPrincipal.from(u);
                             var authorities = actor.roles().stream()

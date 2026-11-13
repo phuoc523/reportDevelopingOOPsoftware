@@ -31,6 +31,28 @@ class AccessPolicyTest {
         assertFalse(policy.scope(6L, 11L, 22L));
     }
 
+    @Test void technicianWithoutAssignedMachinesCannotAccessTenantWideMachineLists() {
+        actor(Role.TECHNICIAN, 5L, Set.of(), Set.of());
+        assertFalse(policy.scope(5L, null, null));
+        assertFalse(policy.scope(5L, null, 22L));
+        assertFalse(policy.scope(5L, 11L, null));
+    }
+
+    @Test void technicianRequiresConcreteMachineAndValidLocation() {
+        actor(Role.TECHNICIAN, 5L, Set.of(11L), Set.of(22L));
+        assertFalse(policy.scope(5L, null, null));
+        assertFalse(policy.scope(5L, 12L, 22L));
+        assertFalse(policy.scope(5L, 11L, 23L));
+        assertTrue(policy.scope(5L, 11L, 22L));
+    }
+
+    @Test void unassignedTenantAndCrossTenantAreDenied() {
+        actor(Role.INVENTORY_STAFF, 5L, Set.of(11L), Set.of(22L));
+        assertFalse(policy.tenant(null));
+        assertFalse(policy.scope(6L, 11L, 22L));
+        assertFalse(policy.scope(5L, 12L, 22L));
+    }
+
     @Test void platformCanAccessTenants() {
         actor(Role.PLATFORM_SUPER_ADMIN, null, Set.of(), Set.of());
         assertTrue(policy.tenant(5L));
