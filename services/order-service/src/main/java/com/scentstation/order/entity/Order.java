@@ -56,7 +56,7 @@ public class Order {
     }
 
     public Order(Long customerId, String machineId, String slotId, List<OrderItem> items, BigDecimal totalAmount) {
-        this("TENANT-001", customerId, machineId, slotId, items, totalAmount, "VND",
+        this("1", customerId, machineId, slotId, items, totalAmount, "VND",
                 LocalDateTime.now().plusMinutes(15));
     }
 

@@ -8,6 +8,7 @@ import com.scentstation.catalog.exception.ProductNotFoundException;
 import com.scentstation.catalog.repository.CampaignRepository;
 import com.scentstation.catalog.repository.ProductRepository;
 import com.scentstation.catalog.security.CurrentActorContext;
+import com.scentstation.catalog.security.CatalogPermissions;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,7 @@ public class PromotionalPricingService {
             Long tenantId,
             Long productId
     ) {
+        currentActorContext.requirePermission(CatalogPermissions.READ);
         Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
         Product product = productRepository
                 .findByIdAndTenantId(productId, verifiedTenantId)
@@ -39,6 +41,13 @@ public class PromotionalPricingService {
                         new ProductNotFoundException(productId)
                 );
 
+        return getInternalEffectivePrice(product);
+    }
+
+    @Transactional(readOnly = true)
+    public EffectivePriceResponse getInternalEffectivePrice(Product product) {
+        Long verifiedTenantId = product.getTenantId();
+        Long productId = product.getId();
         LocalDateTime now = LocalDateTime.now();
 
         List<Campaign> campaigns =

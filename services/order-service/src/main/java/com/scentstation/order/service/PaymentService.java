@@ -8,6 +8,7 @@ import com.scentstation.order.entity.OrderStatus;
 import com.scentstation.order.entity.Payment;
 import com.scentstation.order.entity.PaymentCallbackEvent;
 import com.scentstation.order.entity.PaymentStatus;
+import com.scentstation.order.integration.identity.dto.IdentityPrincipal;
 import com.scentstation.order.exception.InvalidOrderStatusTransitionException;
 import com.scentstation.order.exception.PaymentNotAvailableException;
 import com.scentstation.order.exception.PaymentNotFoundException;
@@ -97,8 +98,20 @@ public class PaymentService {
         return publish(toResponse(paymentRepository.saveIfAbsent(payment)));
     }
 
+    public PaymentResponse createOrGetQr(Long orderId, IdentityPrincipal actor) {
+        orderService.requireReadableOrder(orderId, actor);
+        return createOrGetQr(orderId);
+    }
+
     public PaymentResponse getPayment(String reference) {
         Payment payment = findPayment(reference);
+        expireIfNecessary(payment);
+        return toResponse(payment);
+    }
+
+    public PaymentResponse getPayment(String reference, IdentityPrincipal actor) {
+        Payment payment = findPayment(reference);
+        orderService.requireReadableOrder(payment.getOrderId(), actor);
         expireIfNecessary(payment);
         return toResponse(payment);
     }
@@ -106,6 +119,20 @@ public class PaymentService {
     @Transactional(noRollbackFor = PaymentVerificationException.class)
     public PaymentResponse simulatePayment(String reference) {
         Payment payment = findPayment(reference);
+        return processCallback(new PaymentCallbackRequest(
+                "mock-" + UUID.randomUUID(),
+                payment.getReference(),
+                payment.getOrderId(),
+                payment.getAmount(),
+                payment.getCurrency(),
+                "PAID"
+        ), callbackToken);
+    }
+
+    @Transactional(noRollbackFor = PaymentVerificationException.class)
+    public PaymentResponse simulatePayment(String reference, IdentityPrincipal actor) {
+        Payment payment = findPayment(reference);
+        orderService.requireReviewableOrder(payment.getOrderId(), actor);
         return processCallback(new PaymentCallbackRequest(
                 "mock-" + UUID.randomUUID(),
                 payment.getReference(),

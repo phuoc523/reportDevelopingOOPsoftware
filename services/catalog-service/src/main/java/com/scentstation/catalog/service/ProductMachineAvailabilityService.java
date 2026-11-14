@@ -8,6 +8,7 @@ import com.scentstation.catalog.integration.machine.client.MachineAvailabilityCl
 import com.scentstation.catalog.integration.machine.dto.MachineAvailabilityInfo;
 import com.scentstation.catalog.repository.ProductRepository;
 import com.scentstation.catalog.security.CurrentActorContext;
+import com.scentstation.catalog.security.CatalogPermissions;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,7 @@ public class ProductMachineAvailabilityService {
             Long machineId,
             Long productId
     ) {
+        currentActorContext.requirePermission(CatalogPermissions.READ);
         Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
         Product product = productRepository
                 .findByIdAndTenantId(productId, verifiedTenantId)

@@ -25,6 +25,11 @@ public class ApiExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
+    @ExceptionHandler(IdentifierDataIntegrityException.class)
+    ProblemDetail identifierDataIntegrity(IdentifierDataIntegrityException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
+    }
+
     @ExceptionHandler(UnauthorizedException.class)
     ProblemDetail unauthorized(UnauthorizedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());

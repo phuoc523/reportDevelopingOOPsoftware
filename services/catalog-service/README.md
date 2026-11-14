@@ -14,13 +14,11 @@ Catalog Service owns:
 
 Catalog business services use `CurrentActorContext` as the trusted tenant source. Request body/query `tenantId` fields are compatibility claims only and cannot override the trusted tenant.
 
-`HeaderCurrentActorContext` is a temporary integration adapter. Its `X-Verified-User-Id`, `X-Verified-Tenant-Id`, and `X-Verified-Roles` headers are trustworthy only when Gateway strips client values, recreates them from authenticated Identity data, and the deployment prevents direct external access to Catalog. Catalog does not authenticate opaque tokens itself.
-
-Canonical tenant identifier must be resolved during integration phase with Identity/Gateway owners: Identity currently uses UUID strings while Catalog persists positive `Long` tenant IDs.
+`IdentityCurrentActorContext` forwards the request Bearer token to private Identity introspection and uses the returned current principal. Caller-supplied identity headers have no authority. Catalog fails closed when Identity rejects the token, is unavailable, or returns malformed data.
 
 ## Machine Availability Boundary
 
-`MachineAvailabilityClient` is the integration abstraction. `LocalMachineAvailabilityClient` is a local/test simulator only and is enabled only by the `local` or `test` Spring profile. It always returns one available slot and must not be treated as real Machine integration.
+`MachineAvailabilityClient` is the integration abstraction. `LocalMachineAvailabilityClient` is enabled only by the `local` or `test` Spring profile and deliberately fails closed with unavailable/zero slots. It must not be treated as real Machine integration.
 
 Run locally with the simulator:
 
@@ -38,10 +36,9 @@ Real slot availability, slot selling price, connectivity, stock, maintenance sta
 
 ## Known Integration Gaps
 
-- Gateway/Identity trusted-header integration and UUID-versus-`Long` tenant reconciliation;
 - real Machine availability adapter;
 - Product price and Campaign audit-event contract;
-- endpoint-level RBAC policy.
+- platform Product detail/mutation APIs do not yet accept an explicit tenant target and therefore fail closed for null-tenant platform actors.
 
 Catalog must eventually emit price/campaign audit events, while Reporting owns the searchable central audit projection. No shared team audit contract currently exists, so Catalog does not invent one here.
 

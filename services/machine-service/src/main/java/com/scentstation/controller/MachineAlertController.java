@@ -7,6 +7,9 @@ import com.scentstation.entity.MachineAlertSeverity;
 import com.scentstation.entity.MachineAlertStatus;
 import com.scentstation.service.InternalServiceKeyVerifier;
 import com.scentstation.service.MachineAlertService;
+import com.scentstation.security.MachineAuthorization;
+import com.scentstation.security.MachineCurrentActorContext;
+import com.scentstation.entity.MachineAlert;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,11 +29,17 @@ import java.util.List;
 public class MachineAlertController {
     private final MachineAlertService alerts;
     private final InternalServiceKeyVerifier serviceKeyVerifier;
+    private final MachineCurrentActorContext actors;
+    private final MachineAuthorization authorization;
 
     public MachineAlertController(MachineAlertService alerts,
-                                  InternalServiceKeyVerifier serviceKeyVerifier) {
+                                  InternalServiceKeyVerifier serviceKeyVerifier,
+                                  MachineCurrentActorContext actors,
+                                  MachineAuthorization authorization) {
         this.alerts = alerts;
         this.serviceKeyVerifier = serviceKeyVerifier;
+        this.actors = actors;
+        this.authorization = authorization;
     }
 
     @GetMapping
@@ -38,37 +47,67 @@ public class MachineAlertController {
             @RequestParam String tenantId,
             @RequestParam(required = false) MachineAlertStatus status,
             @RequestParam(required = false) MachineAlertSeverity severity) {
+        var actor = authorization.require(actors.principal(), MachineAuthorization.ALERT_READ);
+        authorization.requireTenant(actor, tenantId);
         return alerts.list(tenantId, status, severity).stream()
+            .filter(alert -> {
+                try {
+                    authorization.requireAlert(actor, alert, MachineAuthorization.ALERT_READ);
+                    return true;
+                } catch (org.springframework.web.server.ResponseStatusException exception) {
+                    return false;
+                }
+            })
             .map(MachineAlertResponse::new).toList();
     }
 
     @GetMapping("/{alertId}")
     public MachineAlertResponse get(@PathVariable Long alertId, @RequestParam String tenantId) {
-        return new MachineAlertResponse(alerts.get(alertId, tenantId));
+        var actor = authorization.require(actors.principal(), MachineAuthorization.ALERT_READ);
+        authorization.requireTenant(actor, tenantId);
+        MachineAlert alert = alerts.get(alertId, tenantId);
+        authorization.requireAlert(actor, alert, MachineAuthorization.ALERT_READ);
+        return new MachineAlertResponse(alert);
     }
 
     @PostMapping("/{alertId}/acknowledge")
     public MachineAlertResponse acknowledge(@PathVariable Long alertId,
             @RequestParam String tenantId, @Valid @RequestBody AlertActionRequest request) {
-        return new MachineAlertResponse(alerts.acknowledge(alertId, tenantId, request.getActorId()));
+        var actor = actors.principal();
+        authorization.require(actor, MachineAuthorization.ALERT_MANAGE);
+        authorization.requireTenant(actor, tenantId);
+        authorization.requireAlert(actor, alerts.get(alertId, tenantId), MachineAuthorization.ALERT_MANAGE);
+        return new MachineAlertResponse(alerts.acknowledge(alertId, tenantId, actor.id().toString()));
     }
 
     @PostMapping("/{alertId}/assign")
     public MachineAlertResponse assign(@PathVariable Long alertId,
             @RequestParam String tenantId, @Valid @RequestBody AlertActionRequest request) {
+        var actor = actors.principal();
+        authorization.require(actor, MachineAuthorization.ALERT_MANAGE);
+        authorization.requireTenant(actor, tenantId);
+        authorization.requireAlert(actor, alerts.get(alertId, tenantId), MachineAuthorization.ALERT_MANAGE);
         return new MachineAlertResponse(alerts.assign(alertId, tenantId, request.getAssigneeId()));
     }
 
     @PostMapping("/{alertId}/resolve")
     public MachineAlertResponse resolve(@PathVariable Long alertId,
             @RequestParam String tenantId, @Valid @RequestBody AlertActionRequest request) {
+        var actor = actors.principal();
+        authorization.require(actor, MachineAuthorization.ALERT_MANAGE);
+        authorization.requireTenant(actor, tenantId);
+        authorization.requireAlert(actor, alerts.get(alertId, tenantId), MachineAuthorization.ALERT_MANAGE);
         return new MachineAlertResponse(alerts.resolve(alertId, tenantId,
-            request.getActorId(), request.getNotes()));
+            actor.id().toString(), request.getNotes()));
     }
 
     @PostMapping("/{alertId}/reopen")
     public MachineAlertResponse reopen(@PathVariable Long alertId,
             @RequestParam String tenantId, @Valid @RequestBody AlertActionRequest request) {
+        var actor = actors.principal();
+        authorization.require(actor, MachineAuthorization.ALERT_MANAGE);
+        authorization.requireTenant(actor, tenantId);
+        authorization.requireAlert(actor, alerts.get(alertId, tenantId), MachineAuthorization.ALERT_MANAGE);
         return new MachineAlertResponse(alerts.reopen(alertId, tenantId, request.getNotes()));
     }
 

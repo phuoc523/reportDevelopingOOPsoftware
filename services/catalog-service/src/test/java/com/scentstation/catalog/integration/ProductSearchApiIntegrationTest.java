@@ -1,7 +1,7 @@
 package com.scentstation.catalog.integration;
 
 import com.scentstation.catalog.entity.Product;
-import com.scentstation.catalog.security.HeaderCurrentActorContext;
+import org.springframework.http.HttpHeaders;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -61,7 +61,7 @@ class ProductSearchApiIntegrationTest
 
         mockMvc.perform(
                         get("/api/products/search")
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .param("tenantId", "1")
                                 .param("keyword", "rose")
                                 .param("available", "true")
@@ -83,7 +83,7 @@ class ProductSearchApiIntegrationTest
 
         mockMvc.perform(
                         get("/api/products/search")
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .param("tenantId", "1")
                                 .param(
                                         "minPrice",
@@ -111,7 +111,7 @@ class ProductSearchApiIntegrationTest
 
         mockMvc.perform(
                         get("/api/products/search")
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .param("keyword", "rose")
                 )
                 .andExpect(status().isOk())

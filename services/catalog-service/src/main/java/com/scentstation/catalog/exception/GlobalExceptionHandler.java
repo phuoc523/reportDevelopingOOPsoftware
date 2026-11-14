@@ -8,12 +8,26 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleResponseStatus(
+            ResponseStatusException exception,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = HttpStatus.valueOf(exception.getStatusCode().value());
+        return ResponseEntity.status(status).body(buildError(
+                status,
+                exception.getReason() == null ? status.getReasonPhrase() : exception.getReason(),
+                request
+        ));
+    }
 
     // Chuyển lỗi không tìm thấy sản phẩm thành phản hồi HTTP 404 thống nhất.
     @ExceptionHandler(ProductNotFoundException.class)

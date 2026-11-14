@@ -1,6 +1,7 @@
 package com.scentstation.identity.rbac;
 
 import com.scentstation.identity.entity.User;
+import com.scentstation.identity.entity.Role;
 import java.util.Set;
 
 public record AccountPrincipal(
@@ -13,9 +14,9 @@ public record AccountPrincipal(
     Set<Long> machineIds
 ) {
     public static AccountPrincipal from(User user) {
-        return new AccountPrincipal(user.getId(), user.getUsername(), user.getTenantId(),
-            RolePermissions.effectiveRoles(user.getRoles(), user.getRole()),
-            Set.copyOf(user.getPermissionGrants()), Set.copyOf(user.getLocationIds()),
+        Set<Role> roles = RolePermissions.effectiveRoles(user.getRoles(), user.getRole());
+        return new AccountPrincipal(user.getId(), user.getUsername(), user.getTenantId(), roles,
+            RolePermissions.effectivePermissions(roles, user.getPermissionGrants()), Set.copyOf(user.getLocationIds()),
             Set.copyOf(user.getMachineIds()));
     }
 }

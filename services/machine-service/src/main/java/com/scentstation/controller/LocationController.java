@@ -4,6 +4,8 @@ import com.scentstation.dto.request.LocationRequest;
 import com.scentstation.dto.response.LocationResponse;
 import com.scentstation.exception.InvalidOperationException;
 import com.scentstation.service.LocationService;
+import com.scentstation.security.MachineAuthorization;
+import com.scentstation.security.MachineCurrentActorContext;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.NonNull;
@@ -25,14 +27,22 @@ import java.util.List;
 @RequestMapping("/api/locations")
 public class LocationController {
     private final LocationService locationService;
+    private final MachineCurrentActorContext actors;
+    private final MachineAuthorization authorization;
 
-    public LocationController(LocationService locationService) {
+    public LocationController(LocationService locationService, MachineCurrentActorContext actors,
+                              MachineAuthorization authorization) {
         this.locationService = locationService;
+        this.actors = actors;
+        this.authorization = authorization;
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public LocationResponse create(@Valid @RequestBody LocationRequest request) {
+        var actor = authorization.require(actors.principal(), MachineAuthorization.MACHINE_CONFIGURE);
+        authorization.requireTenant(actor, request.getTenantId());
+        authorization.requireLocation(actor, request.getLocationId());
         return locationService.create(
             required(request.getLocationId(), "locationId"),
             required(request.getTenantId(), "tenantId"),
@@ -43,23 +53,45 @@ public class LocationController {
 
     @GetMapping
     public List<LocationResponse> list(@RequestParam String tenantId) {
-        return locationService.list(tenantId);
+        var actor = authorization.require(actors.principal(), MachineAuthorization.MACHINE_READ);
+        authorization.requireTenant(actor, tenantId);
+        return locationService.list(tenantId).stream().filter(location -> {
+            try {
+                authorization.requireLocation(actor, location.getLocationId());
+                return true;
+            } catch (org.springframework.web.server.ResponseStatusException exception) {
+                return false;
+            }
+        }).toList();
     }
 
     @GetMapping("/{locationId}")
     public LocationResponse get(@PathVariable @NonNull String locationId) {
-        return locationService.get(locationId);
+        var actor = authorization.require(actors.principal(), MachineAuthorization.MACHINE_READ);
+        LocationResponse location = locationService.get(locationId);
+        authorization.requireTenant(actor, location.getTenantId());
+        authorization.requireLocation(actor, locationId);
+        return location;
     }
 
     @PatchMapping("/{locationId}/active")
     public LocationResponse setActive(@PathVariable @NonNull String locationId,
                                       @RequestParam boolean active) {
+        var actor = authorization.require(actors.principal(), MachineAuthorization.MACHINE_CONFIGURE);
+        LocationResponse location = locationService.get(locationId);
+        authorization.requireTenant(actor, location.getTenantId());
+        authorization.requireLocation(actor, locationId);
         return locationService.setActive(locationId, active);
     }
 
     @PutMapping("/{locationId}")
     public LocationResponse update(@PathVariable @NonNull String locationId,
                                    @Valid @RequestBody LocationRequest request) {
+        var actor = authorization.require(actors.principal(), MachineAuthorization.MACHINE_CONFIGURE);
+        LocationResponse location = locationService.get(locationId);
+        authorization.requireTenant(actor, location.getTenantId());
+        authorization.requireTenant(actor, request.getTenantId());
+        authorization.requireLocation(actor, locationId);
         return locationService.update(
             locationId, required(request.getLocationId(), "locationId"),
             required(request.getTenantId(), "tenantId"),

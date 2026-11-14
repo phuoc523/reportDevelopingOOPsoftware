@@ -4,6 +4,8 @@ import com.scentstation.identity.entity.Role;
 import com.scentstation.identity.entity.User;
 import com.scentstation.identity.repository.UserRepository;
 import com.scentstation.identity.service.JwtService;
+import com.scentstation.identity.tenant.Tenant;
+import com.scentstation.identity.tenant.TenantRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,7 @@ class SecurityAuthorizationTest {
     @Autowired private MockMvc mockMvc;
     @MockBean private JwtService jwtService;
     @MockBean private UserRepository users;
+    @MockBean private TenantRepository tenants;
 
     @BeforeEach
     void setup() {
@@ -33,6 +36,14 @@ class SecurityAuthorizationTest {
         token("customer-token", "customer", Role.CUSTOMER);
         token("platform-token", "platform", Role.PLATFORM_SUPER_ADMIN);
         token("brand-token", "brand", Role.BRAND_ADMIN);
+        token("operator-token", "operator", Role.OPERATIONS_MANAGER);
+        token("suspended-brand-token", "suspended", Role.BRAND_ADMIN);
+        var suspended = new User("suspended", "suspended@example.com", "hash", "suspended", Role.BRAND_ADMIN);
+        suspended.setTenantId(19L);
+        when(users.findByUsername("suspended")).thenReturn(Optional.of(suspended));
+        var tenant = new Tenant("blocked", "Blocked Brand");
+        tenant.setStatus(Tenant.Status.SUSPENDED);
+        when(tenants.findById(19L)).thenReturn(Optional.of(tenant));
         when(jwtService.extractUsername("invalid-role-token")).thenThrow(new IllegalArgumentException("invalid"));
     }
 
@@ -43,17 +54,25 @@ class SecurityAuthorizationTest {
             new User(username, username + "@example.com", "hash", username, role)));
     }
 
-    @Test void adminCanAccessAdminEndpoint() throws Exception {
+    @Test void legacyAdminCannotAccessAdminEndpoint() throws Exception {
         mockMvc.perform(get("/api/admin/probe").header("Authorization", "Bearer admin-token"))
-            .andExpect(status().isOk());
+            .andExpect(status().isForbidden());
     }
     @Test void customerCannotAccessAdminEndpoint() throws Exception {
         mockMvc.perform(get("/api/admin/probe").header("Authorization", "Bearer customer-token"))
             .andExpect(status().isForbidden());
     }
-    @Test void staffCanAccessStaffEndpoint() throws Exception {
+    @Test void legacyStaffCannotAccessStaffEndpoint() throws Exception {
         mockMvc.perform(get("/api/staff/probe").header("Authorization", "Bearer staff-token"))
+            .andExpect(status().isForbidden());
+    }
+    @Test void operationsManagerMayAccessStaffEndpoint() throws Exception {
+        mockMvc.perform(get("/api/staff/probe").header("Authorization", "Bearer operator-token"))
             .andExpect(status().isOk());
+    }
+    @Test void suspendedTenantCannotAccessProtectedEndpoint() throws Exception {
+        mockMvc.perform(get("/api/staff/probe").header("Authorization", "Bearer suspended-brand-token"))
+            .andExpect(status().isUnauthorized());
     }
     @Test void customerCannotAccessStaffEndpoint() throws Exception {
         mockMvc.perform(get("/api/staff/probe").header("Authorization", "Bearer customer-token"))
@@ -78,8 +97,8 @@ class SecurityAuthorizationTest {
         mockMvc.perform(get("/api/admin/probe").header("Authorization", "Bearer platform-token"))
             .andExpect(status().isOk());
     }
-    @Test void brandCannotAccessLegacyAdminEndpoint() throws Exception {
+    @Test void brandCanAccessBrandAdminEndpoint() throws Exception {
         mockMvc.perform(get("/api/admin/probe").header("Authorization", "Bearer brand-token"))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isOk());
     }
 }

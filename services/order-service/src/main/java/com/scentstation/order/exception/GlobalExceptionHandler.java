@@ -9,12 +9,22 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleResponseStatus(
+            ResponseStatusException exception,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = HttpStatus.valueOf(exception.getStatusCode().value());
+        return errorResponse(status, exception.getReason(), request);
+    }
 
     @ExceptionHandler(OrderNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleOrderNotFound(
@@ -70,6 +80,14 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return errorResponse(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(IdentifierDataIntegrityException.class)
+    public ResponseEntity<ApiErrorResponse> handleIdentifierDataIntegrity(
+            IdentifierDataIntegrityException exception,
+            HttpServletRequest request
+    ) {
+        return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR, exception.getMessage(), request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

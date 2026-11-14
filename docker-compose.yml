@@ -27,6 +27,8 @@ services:
       DB_URL: "jdbc:mysql://identity-db:3306/scentstation_identity?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       DB_USERNAME: "identity_app"
       DB_PASSWORD: "identity_local_password"
+      JWT_SECRET: "${JWT_SECRET:-U2NlbnRTdGF0aW9uRGV2ZWxvcG1lbnRLZXlGb3JKV1QyMDI2IQ==}"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
     depends_on:
       identity-db:
         condition: service_healthy
@@ -41,6 +43,9 @@ services:
       CATALOG_DB_URL: "jdbc:mysql://catalog-db:3306/scentstation_catalog?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       CATALOG_DB_USERNAME: "catalog_app"
       CATALOG_DB_PASSWORD: "catalog_local_password"
+      SPRING_PROFILES_ACTIVE: "local"
+      IDENTITY_SERVICE_URL: "http://identity-service:8081"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
     depends_on:
       catalog-db:
         condition: service_healthy
@@ -56,10 +61,13 @@ services:
       DB_USERNAME: "order_user"
       DB_PASSWORD: "order_local_password"
       MACHINE_SERVICE_BASE_URL: "http://machine-service:8084"
+      CATALOG_SERVICE_BASE_URL: "http://catalog-service:8082"
       JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Ho_Chi_Minh"
       REPORTING_SERVICE_URL: "http://reporting-service:8086"
       REPORTING_SYNC_ENABLED: "true"
       REPORTING_SYNC_API_KEY: "${REPORTING_SYNC_API_KEY:-local-reporting-sync-key}"
+      IDENTITY_SERVICE_URL: "http://identity-service:8081"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
     depends_on:
       order-db:
         condition: service_healthy
@@ -74,6 +82,8 @@ services:
       MACHINE_DB_URL: "jdbc:mysql://machine-db:3306/scentstation_machine?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       MACHINE_DB_USERNAME: "machine_app"
       MACHINE_DB_PASSWORD: "machine_local_password"
+      IDENTITY_SERVICE_URL: "http://identity-service:8081"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
     depends_on:
       machine-db:
         condition: service_healthy
@@ -88,6 +98,8 @@ services:
       OPERATION_DB_URL: "jdbc:mysql://operation-db:3306/scentstation_operation?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       OPERATION_DB_USERNAME: "operation_app"
       OPERATION_DB_PASSWORD: "operation_local_password"
+      IDENTITY_SERVICE_URL: "http://identity-service:8081"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
       SPRING_PROFILES_ACTIVE: "docker-local"
     depends_on:
       operation-db:

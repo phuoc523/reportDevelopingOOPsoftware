@@ -15,6 +15,7 @@ import com.scentstation.catalog.dto.request.ProductSearchCriteria;
 import com.scentstation.catalog.specification.ProductSpecification;
 import com.scentstation.catalog.exception.InvalidProductSearchCriteriaException;
 import com.scentstation.catalog.security.CurrentActorContext;
+import com.scentstation.catalog.security.CatalogPermissions;
 
 import java.util.List;
 
@@ -29,6 +30,7 @@ public class ProductService {
     // Tạo sản phẩm bằng tenant đã xác minh và từ chối body giả tenant khác.
     @Transactional
     public ProductResponse createProduct(CreateProductRequest request) {
+        currentActorContext.requirePermission(CatalogPermissions.MANAGE);
         Long tenantId = currentActorContext.requireTenant(request.getTenantId());
         Product product = productMapper.toEntity(request, tenantId);
 
@@ -40,8 +42,9 @@ public class ProductService {
     // Chỉ liệt kê sản phẩm thuộc tenant hiện tại.
     @Transactional(readOnly = true)
     public List<ProductResponse> getProducts() {
+        currentActorContext.requirePermission(CatalogPermissions.READ);
         return productRepository.findAllByTenantId(
-                        currentActorContext.getTenantId()
+                        currentActorContext.requireTenant(null)
                 )
                 .stream()
                 .map(productMapper::toResponse)
@@ -51,6 +54,7 @@ public class ProductService {
     // Chỉ trả sản phẩm thuộc tenant hiện tại để tránh đọc chéo tenant.
     @Transactional(readOnly = true)
     public ProductResponse getProductById(Long id) {
+        currentActorContext.requirePermission(CatalogPermissions.READ);
         Product product = findProductForCurrentTenant(id);
 
         return productMapper.toResponse(product);
@@ -59,6 +63,7 @@ public class ProductService {
     // Chỉ thay đổi availability của sản phẩm thuộc tenant hiện tại.
     @Transactional
     public ProductResponse changeAvailability(Long id, UpdateProductAvailabilityRequest request) {
+        currentActorContext.requirePermission(CatalogPermissions.MANAGE);
         Product product = findProductForCurrentTenant(id);
         product.setAvailable(request.getAvailable());
         Product updatedProduct = productRepository.save(product);
@@ -69,6 +74,7 @@ public class ProductService {
     // Chỉ thay đổi giá của sản phẩm thuộc tenant hiện tại.
     @Transactional 
     public ProductResponse updatePrice(Long id, UpdateProductPriceRequest request) {
+        currentActorContext.requirePermission(CatalogPermissions.MANAGE);
         Product product = findProductForCurrentTenant(id);
         product.setDefaultPrice(request.getDefaultPrice());
         Product updatedProduct = productRepository.save(product);
@@ -80,7 +86,7 @@ public class ProductService {
     private Product findProductForCurrentTenant(Long id) {
         return productRepository.findByIdAndTenantId(
                         id,
-                        currentActorContext.getTenantId()
+                        currentActorContext.requireTenant(null)
                 )
                 .orElseThrow(() -> new ProductNotFoundException(id));
     }
@@ -90,6 +96,7 @@ public class ProductService {
     public List<ProductResponse> searchProducts(
             ProductSearchCriteria criteria
     ) {
+        currentActorContext.requirePermission(CatalogPermissions.READ);
         Long tenantId = currentActorContext.requireTenant(criteria.getTenantId());
         criteria.setTenantId(tenantId);
         validatePriceRange(criteria);

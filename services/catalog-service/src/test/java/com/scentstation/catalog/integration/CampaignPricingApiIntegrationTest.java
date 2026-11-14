@@ -3,7 +3,7 @@ package com.scentstation.catalog.integration;
 import com.scentstation.catalog.entity.Campaign;
 import com.scentstation.catalog.entity.Product;
 import com.scentstation.catalog.enums.DiscountType;
-import com.scentstation.catalog.security.HeaderCurrentActorContext;
+import org.springframework.http.HttpHeaders;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -59,7 +59,7 @@ class CampaignPricingApiIntegrationTest
                                 "/api/pricing/products/{productId}",
                                 product.getId()
                         )
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .param("tenantId", "1")
                 )
                 .andExpect(status().isOk())
@@ -98,7 +98,7 @@ class CampaignPricingApiIntegrationTest
                                 "/api/pricing/products/{productId}",
                                 product.getId()
                         )
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .param("tenantId", "1")
                 )
                 .andExpect(status().isOk())

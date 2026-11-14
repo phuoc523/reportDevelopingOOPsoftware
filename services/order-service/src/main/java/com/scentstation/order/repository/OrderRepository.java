@@ -11,7 +11,13 @@ public interface OrderRepository {
 
     Optional<Order> findById(Long id);
 
+    Optional<Order> findByIdAndTenantId(Long id, String tenantId);
+
     List<Order> findAll();
+
+    List<Order> findAllByTenantId(String tenantId);
+
+    List<Order> findAllByTenantIdAndCustomerId(String tenantId, Long customerId);
 
     void deleteAll();
 }

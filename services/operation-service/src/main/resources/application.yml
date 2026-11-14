@@ -16,6 +16,14 @@ spring:
 server:
   port: ${OPERATION_SERVICE_PORT:8085}
 
+integration:
+  identity:
+    base-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+
+security:
+  internal:
+    service-key: ${INTERNAL_SERVICE_KEY:}
+
 management:
   endpoints:
     web:

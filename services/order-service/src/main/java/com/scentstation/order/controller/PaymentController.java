@@ -4,6 +4,7 @@ import com.scentstation.order.dto.request.PaymentCallbackRequest;
 import com.scentstation.order.dto.response.PaymentResponse;
 import com.scentstation.order.exception.ApiErrorResponse;
 import com.scentstation.order.service.PaymentService;
+import com.scentstation.order.security.OrderCurrentActorContext;
 import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -26,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final OrderCurrentActorContext actors;
 
-    public PaymentController(PaymentService paymentService) {
+    public PaymentController(PaymentService paymentService, OrderCurrentActorContext actors) {
         this.paymentService = paymentService;
+        this.actors = actors;
     }
 
     @PostMapping("/api/v1/orders/{orderId}/payments/qr")
@@ -47,7 +50,7 @@ public class PaymentController {
                             schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<PaymentResponse> createOrGetQr(@PathVariable Long orderId) {
-        return ResponseEntity.ok(paymentService.createOrGetQr(orderId));
+        return ResponseEntity.ok(paymentService.createOrGetQr(orderId, actors.principal()));
     }
 
     @GetMapping("/api/v1/payments/{reference}")
@@ -59,7 +62,7 @@ public class PaymentController {
                             schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<PaymentResponse> getPayment(@PathVariable String reference) {
-        return ResponseEntity.ok(paymentService.getPayment(reference));
+        return ResponseEntity.ok(paymentService.getPayment(reference, actors.principal()));
     }
 
     @PostMapping("/api/v1/payments/{reference}/simulate")
@@ -75,7 +78,7 @@ public class PaymentController {
                             schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<PaymentResponse> simulatePayment(@PathVariable String reference) {
-        return ResponseEntity.ok(paymentService.simulatePayment(reference));
+        return ResponseEntity.ok(paymentService.simulatePayment(reference, actors.principal()));
     }
 
     @PostMapping("/api/v1/payments/callback")

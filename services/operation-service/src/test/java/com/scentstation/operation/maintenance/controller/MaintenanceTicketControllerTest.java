@@ -10,6 +10,9 @@ import com.scentstation.operation.maintenance.enums.MaintenanceSeverity;
 import com.scentstation.operation.maintenance.enums.MaintenanceStatus;
 import com.scentstation.operation.maintenance.exception.MaintenanceNotFoundException;
 import com.scentstation.operation.maintenance.service.MaintenanceTicketService;
+import com.scentstation.operation.integration.identity.dto.IdentityPrincipal;
+import com.scentstation.operation.security.OperationAuthorization;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -21,7 +24,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -38,6 +43,15 @@ class MaintenanceTicketControllerTest {
 
     @MockBean
     private MaintenanceTicketService maintenanceTicketService;
+
+    @MockBean
+    private OperationAuthorization authorization;
+
+    @BeforeEach
+    void preserveLegacyControllerScopeInSliceTests() {
+        when(authorization.filterTickets(nullable(IdentityPrincipal.class), anyList()))
+                .thenAnswer(invocation -> invocation.getArgument(1));
+    }
 
     @Test
     void shouldCreateMaintenanceTicket() throws Exception {

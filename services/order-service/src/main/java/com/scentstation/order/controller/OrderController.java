@@ -8,6 +8,7 @@ import com.scentstation.order.dto.response.OrderStatusResponse;
 import com.scentstation.order.exception.ApiErrorResponse;
 import com.scentstation.order.service.DispensingService;
 import com.scentstation.order.service.OrderService;
+import com.scentstation.order.security.OrderCurrentActorContext;
 import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -35,17 +36,24 @@ public class OrderController {
 
     private final OrderService orderService;
     private final DispensingService dispensingService;
+    private final OrderCurrentActorContext actors;
 
-    public OrderController(OrderService orderService, DispensingService dispensingService) {
+    public OrderController(
+            OrderService orderService,
+            DispensingService dispensingService,
+            OrderCurrentActorContext actors
+    ) {
         this.orderService = orderService;
         this.dispensingService = dispensingService;
+        this.actors = actors;
     }
 
     @PostMapping
     @Operation(
             summary = "Create an order",
-            description = "Creates an order in PENDING state. Submit the example as-is to create a valid order. "
-                    + "Product name and price are snapshots supplied by the client and persisted with the order.",
+            description = "Creates an order in PENDING state for the authenticated customer and tenant. "
+                    + "customerId and tenantId must exactly match the introspected principal. "
+                    + "Catalog and Machine are authoritative; retained client snapshot fields must match and are never persisted as authority.",
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     required = true,
                     content = @Content(
@@ -54,9 +62,9 @@ public class OrderController {
                             examples = @ExampleObject(name = "Valid order", value = """
                                     {
                                       "customerId": 7,
-                                      "tenantId": "TENANT-001",
-                                      "machineId": "MACHINE-001",
-                                      "slotId": "SLOT-01",
+                                      "tenantId": "1",
+                                      "machineId": "10",
+                                      "slotId": "20",
                                       "items": [
                                         {
                                           "productId": 3,
@@ -90,14 +98,14 @@ public class OrderController {
     })
     public ResponseEntity<OrderResponse> createOrder(@Valid @org.springframework.web.bind.annotation.RequestBody
                                                      CreateOrderRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(orderService.createOrder(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(orderService.createOrder(request, actors.principal()));
     }
 
     @GetMapping
     @Operation(summary = "List orders", description = "Returns all orders persisted by Order Service.")
     @ApiResponse(responseCode = "200", description = "List of orders")
     public ResponseEntity<List<OrderResponse>> getOrders() {
-        return ResponseEntity.ok(orderService.getOrders());
+        return ResponseEntity.ok(orderService.getOrders(actors.principal()));
     }
 
     @GetMapping("/{id}")
@@ -112,7 +120,7 @@ public class OrderController {
                             schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<OrderResponse> getOrderById(@PathVariable Long id) {
-        return ResponseEntity.ok(orderService.getOrderById(id));
+        return ResponseEntity.ok(orderService.getOrderById(id, actors.principal()));
     }
 
     @GetMapping("/{id}/status")
@@ -127,7 +135,7 @@ public class OrderController {
                             schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<OrderStatusResponse> getOrderStatus(@PathVariable Long id) {
-        return ResponseEntity.ok(orderService.getOrderStatus(id));
+        return ResponseEntity.ok(orderService.getOrderStatus(id, actors.principal()));
     }
 
     @GetMapping("/{id}/dispensing")
@@ -146,6 +154,7 @@ public class OrderController {
                             schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public ResponseEntity<DispensingResponse> getDispensingResult(@PathVariable Long id) {
+        orderService.requireReadableOrder(id, actors.principal());
         return ResponseEntity.ok(dispensingService.getDispensingResult(id));
     }
 
@@ -168,6 +177,6 @@ public class OrderController {
             @PathVariable Long id,
             @Valid @RequestBody UpdateOrderStatusRequest request
     ) {
-        return ResponseEntity.ok(orderService.updateOrderStatus(id, request));
+        return ResponseEntity.ok(orderService.updateOrderStatus(id, request, actors.principal()));
     }
 }

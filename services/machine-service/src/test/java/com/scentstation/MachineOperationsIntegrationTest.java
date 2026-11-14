@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class MachineOperationsIntegrationTest extends MachineServiceIntegrationTestBase {
     @Test
     void disabledMachineMustUseControlEndpointToReEnable() {
-        Long machineId = createMachine(uniqueId("tenant"));
+        Long machineId = createMachine("1");
         assertEquals(HttpStatus.OK, patchJson(
             "/api/machines/" + machineId + "/operational-status",
             Map.of("status", "DISABLED")
@@ -40,7 +40,7 @@ class MachineOperationsIntegrationTest extends MachineServiceIntegrationTestBase
 
     @Test
     void maintenanceCannotBeCompletedWithoutChecklistAndPostTest() {
-        Long machineId = createMachine(uniqueId("tenant"));
+        Long machineId = createMachine("1");
         ResponseEntity<Map<String, Object>> maintenance = patchJson(
             "/api/machines/" + machineId + "/control",
             Map.of("action", "ENTER_MAINTENANCE")
@@ -73,7 +73,7 @@ class MachineOperationsIntegrationTest extends MachineServiceIntegrationTestBase
 
     @Test
     void operatingHoursCanBeClearedToAllowAllDayAvailability() {
-        Long machineId = createMachine(uniqueId("tenant"));
+        Long machineId = createMachine("1");
         ResponseEntity<Map<String, Object>> configured = putJson(
             "/api/machines/" + machineId + "/operating-hours",
             Map.of("startTime", "08:00:00", "endTime", "17:00:00")

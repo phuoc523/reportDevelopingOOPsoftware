@@ -446,7 +446,7 @@ class PaymentControllerTest {
                 .andExpect(jsonPath("$.components.schemas.CreateOrderRequest.properties.customerId.example")
                         .value(7))
                 .andExpect(jsonPath("$.components.schemas.CreateOrderRequest.properties.tenantId.example")
-                        .value("TENANT-001"))
+                        .value("1"))
                 .andExpect(jsonPath("$.paths['/api/v1/orders'].post.responses['201'].description")
                         .value("Order created; status is PENDING"))
                 .andExpect(jsonPath("$.paths['/api/v1/orders'].post.responses['400'].description")
@@ -476,9 +476,9 @@ class PaymentControllerTest {
                         .content("""
                                 {
                                   "customerId": 7,
-                                  "tenantId": "TENANT-001",
-                                  "machineId": "MACHINE-001",
-                                  "slotId": "SLOT-01",
+                                  "tenantId": "1",
+                                  "machineId": "10",
+                                  "slotId": "20",
                                   "items": [
                                     {
                                       "productId": 3,

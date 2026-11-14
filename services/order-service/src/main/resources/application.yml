@@ -25,8 +25,19 @@ payment:
 order:
   expiration: ${ORDER_EXPIRATION:PT15M}
 
+integration:
+  identity:
+    base-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+
+security:
+  internal:
+    service-key: ${INTERNAL_SERVICE_KEY:}
+
 machine-service:
   base-url: ${MACHINE_SERVICE_BASE_URL:http://localhost:8084}
+
+catalog-service:
+  base-url: ${CATALOG_SERVICE_BASE_URL:http://localhost:8082}
 
 reporting-service:
   enabled: ${REPORTING_SYNC_ENABLED:true}

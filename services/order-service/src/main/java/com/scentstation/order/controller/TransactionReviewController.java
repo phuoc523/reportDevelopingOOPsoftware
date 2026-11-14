@@ -4,6 +4,7 @@ import com.scentstation.order.dto.request.PaymentReconciliationRequest;
 import com.scentstation.order.dto.response.PaymentReconciliationResponse;
 import com.scentstation.order.dto.response.TransactionReviewResponse;
 import com.scentstation.order.service.TransactionReviewService;
+import com.scentstation.order.security.OrderCurrentActorContext;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,30 +21,32 @@ import java.util.List;
 public class TransactionReviewController {
 
     private final TransactionReviewService reviewService;
+    private final OrderCurrentActorContext actors;
 
-    public TransactionReviewController(TransactionReviewService reviewService) {
+    public TransactionReviewController(TransactionReviewService reviewService, OrderCurrentActorContext actors) {
         this.reviewService = reviewService;
+        this.actors = actors;
     }
 
     @GetMapping("/reviews")
     public ResponseEntity<List<TransactionReviewResponse>> getReviews() {
-        return ResponseEntity.ok(reviewService.getReviews());
+        return ResponseEntity.ok(reviewService.getReviews(actors.principal()));
     }
 
     @GetMapping("/reviews/{reference}")
     public ResponseEntity<TransactionReviewResponse> getReview(@PathVariable String reference) {
-        return ResponseEntity.ok(reviewService.getReview(reference));
+        return ResponseEntity.ok(reviewService.getReview(reference, actors.principal()));
     }
 
     @PostMapping("/reviews/{reference}/resolve")
     public ResponseEntity<TransactionReviewResponse> resolveReview(@PathVariable String reference) {
-        return ResponseEntity.ok(reviewService.resolveReview(reference));
+        return ResponseEntity.ok(reviewService.resolveReview(reference, actors.principal()));
     }
 
     @PostMapping("/reconciliation")
     public ResponseEntity<PaymentReconciliationResponse> reconcile(
             @Valid @RequestBody PaymentReconciliationRequest request
     ) {
-        return ResponseEntity.ok(reviewService.reconcile(request));
+        return ResponseEntity.ok(reviewService.reconcile(request, actors.principal()));
     }
 }

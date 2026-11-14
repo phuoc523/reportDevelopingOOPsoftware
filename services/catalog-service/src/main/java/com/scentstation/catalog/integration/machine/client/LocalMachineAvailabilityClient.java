@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 public class LocalMachineAvailabilityClient
         implements MachineAvailabilityClient {
 
-    // Mô phỏng Machine availability chỉ trong môi trường local và test.
+    // Fail closed trong local/test cho tới khi có Machine adapter thật.
     @Override
     public MachineAvailabilityInfo getProductAvailability(
             Long tenantId,
@@ -20,8 +20,8 @@ public class LocalMachineAvailabilityClient
                 .tenantId(tenantId)
                 .machineId(machineId)
                 .productId(productId)
-                .available(true)
-                .availableSlotCount(1)
+                .available(false)
+                .availableSlotCount(0)
                 .build();
     }
 }

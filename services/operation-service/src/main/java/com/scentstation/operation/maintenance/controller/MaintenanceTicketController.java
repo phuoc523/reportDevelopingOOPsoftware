@@ -7,6 +7,9 @@ import com.scentstation.operation.maintenance.dto.request.UpdateMaintenanceTicke
 import com.scentstation.operation.maintenance.dto.response.MaintenanceTicketResponse;
 import com.scentstation.operation.maintenance.enums.MaintenanceStatus;
 import com.scentstation.operation.maintenance.service.MaintenanceTicketService;
+import com.scentstation.operation.integration.identity.dto.IdentityPrincipal;
+import com.scentstation.operation.security.OperationAuthorization;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +27,8 @@ import java.util.List;
 public class MaintenanceTicketController {
 
     private final MaintenanceTicketService maintenanceTicketService;
+    private final OperationAuthorization authorization;
+    private final HttpServletRequest httpRequest;
 
     // Tạo một maintenance ticket mới.
     @PostMapping
@@ -44,20 +49,17 @@ public class MaintenanceTicketController {
             @RequestParam @Positive Long tenantId,
             @RequestParam(required = false) MaintenanceStatus status
     ) {
+        List<MaintenanceTicketResponse> tickets;
         if (status != null) {
-            return ResponseEntity.ok(
-                    maintenanceTicketService
-                            .getTicketsByStatus(
-                                    tenantId,
-                                    status
-                            )
-            );
+            tickets = maintenanceTicketService.getTicketsByStatus(tenantId, status);
+        } else {
+            tickets = maintenanceTicketService.getTickets(tenantId);
         }
+        return ResponseEntity.ok(authorization.filterTickets(currentActor(), tickets));
+    }
 
-        return ResponseEntity.ok(
-                maintenanceTicketService
-                        .getTickets(tenantId)
-        );
+    private IdentityPrincipal currentActor() {
+        return (IdentityPrincipal) httpRequest.getAttribute(OperationAuthorization.PRINCIPAL_ATTRIBUTE);
     }
 
     // Lấy một maintenance ticket theo id trong tenant.

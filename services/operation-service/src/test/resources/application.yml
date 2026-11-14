@@ -16,3 +16,11 @@ spring:
 
 server:
   port: 0
+
+operation:
+  security:
+    enabled: false
+
+integration:
+  identity:
+    base-url: http://127.0.0.1:1

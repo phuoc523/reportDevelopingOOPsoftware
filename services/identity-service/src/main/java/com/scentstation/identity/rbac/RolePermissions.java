@@ -78,6 +78,14 @@ public final class RolePermissions {
         return roles.stream().anyMatch(role -> MATRIX.getOrDefault(role, Set.of()).contains(requested));
     }
 
+    public static Set<Permission> effectivePermissions(Set<Role> roles, Set<Permission> explicitGrants) {
+        EnumSet<Permission> effective = EnumSet.noneOf(Permission.class);
+        for (Permission permission : Permission.values()) {
+            if (allowed(roles, explicitGrants, permission)) effective.add(permission);
+        }
+        return Set.copyOf(effective);
+    }
+
     public static boolean isHighRisk(Permission permission) { return HIGH_RISK.contains(permission); }
     public static boolean isPlatformOnly(Permission permission) { return PLATFORM_ONLY.contains(permission); }
     public static boolean mayBrandDelegate(Permission permission) {

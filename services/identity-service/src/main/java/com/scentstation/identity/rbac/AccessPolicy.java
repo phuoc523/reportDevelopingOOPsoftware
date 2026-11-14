@@ -41,8 +41,10 @@ public class AccessPolicy {
         AccountPrincipal a = current();
         boolean technicianOnly = a.roles().contains(Role.TECHNICIAN)
             && !a.roles().contains(Role.BRAND_ADMIN)
-            && !a.roles().contains(Role.OPERATIONS_MANAGER);
-        if (technicianOnly && machineId != null && a.machineIds().isEmpty()) return false;
+            && !a.roles().contains(Role.OPERATIONS_MANAGER)
+            && !a.roles().contains(Role.PLATFORM_SUPER_ADMIN);
+        if (technicianOnly && (machineId == null || a.machineIds().isEmpty()
+            || !a.machineIds().contains(machineId))) return false;
         if (locationId != null && !a.locationIds().isEmpty() && !a.locationIds().contains(locationId)) return false;
         if (machineId != null && !a.machineIds().isEmpty() && !a.machineIds().contains(machineId)) return false;
         return true;

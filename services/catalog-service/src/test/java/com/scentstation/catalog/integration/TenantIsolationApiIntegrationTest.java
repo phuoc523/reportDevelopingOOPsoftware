@@ -4,7 +4,7 @@ import com.scentstation.catalog.dto.request.CreateProductRequest;
 import com.scentstation.catalog.entity.Campaign;
 import com.scentstation.catalog.entity.Product;
 import com.scentstation.catalog.enums.DiscountType;
-import com.scentstation.catalog.security.HeaderCurrentActorContext;
+import org.springframework.http.HttpHeaders;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -61,7 +61,7 @@ class TenantIsolationApiIntegrationTest
     void tenantOneList_shouldNotContainTenantTwoProduct() throws Exception {
         mockMvc.perform(
                         get("/api/products")
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
@@ -73,7 +73,7 @@ class TenantIsolationApiIntegrationTest
     void tenantOneGet_shouldHideTenantTwoProduct() throws Exception {
         mockMvc.perform(
                         get("/api/products/{id}", tenantTwoProduct.getId())
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                 )
                 .andExpect(status().isNotFound());
     }
@@ -83,7 +83,7 @@ class TenantIsolationApiIntegrationTest
     void tenantOnePricePatch_shouldNotChangeTenantTwoProduct() throws Exception {
         mockMvc.perform(
                         patch("/api/products/{id}/price", tenantTwoProduct.getId())
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"defaultPrice\": 250000.00}")
                 )
@@ -101,7 +101,7 @@ class TenantIsolationApiIntegrationTest
     void tenantOneAvailabilityPatch_shouldNotChangeTenantTwoProduct() throws Exception {
         mockMvc.perform(
                         patch("/api/products/{id}/availability", tenantTwoProduct.getId())
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"available\": false}")
                 )
@@ -123,7 +123,7 @@ class TenantIsolationApiIntegrationTest
 
         mockMvc.perform(
                         post("/api/products")
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
                 )
@@ -135,7 +135,7 @@ class TenantIsolationApiIntegrationTest
     void search_shouldRejectTenantOverride() throws Exception {
         mockMvc.perform(
                         get("/api/products/search")
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .param("tenantId", "2")
                 )
                 .andExpect(status().isBadRequest());
@@ -146,7 +146,7 @@ class TenantIsolationApiIntegrationTest
     void tenantOneGet_shouldHideTenantTwoCampaign() throws Exception {
         mockMvc.perform(
                         get("/api/campaigns/{campaignId}", tenantTwoCampaign.getId())
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .param("tenantId", "1")
                 )
                 .andExpect(status().isNotFound());
@@ -169,7 +169,7 @@ class TenantIsolationApiIntegrationTest
 
         mockMvc.perform(
                         put("/api/campaigns/{campaignId}", tenantTwoCampaign.getId())
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .param("tenantId", "1")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(request)
@@ -182,7 +182,7 @@ class TenantIsolationApiIntegrationTest
     void tenantOneCampaignQuery_shouldHideTenantTwoProduct() throws Exception {
         mockMvc.perform(
                         get("/api/campaigns/products/{productId}", tenantTwoProduct.getId())
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .param("tenantId", "1")
                 )
                 .andExpect(status().isNotFound());
@@ -193,7 +193,7 @@ class TenantIsolationApiIntegrationTest
     void tenantOnePricing_shouldHideTenantTwoProduct() throws Exception {
         mockMvc.perform(
                         get("/api/pricing/products/{productId}", tenantTwoProduct.getId())
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .param("tenantId", "1")
                 )
                 .andExpect(status().isNotFound());
@@ -208,7 +208,7 @@ class TenantIsolationApiIntegrationTest
                                 3L,
                                 tenantTwoProduct.getId()
                         )
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .param("tenantId", "1")
                 )
                 .andExpect(status().isNotFound());

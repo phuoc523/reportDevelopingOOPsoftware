@@ -13,6 +13,7 @@ import com.scentstation.catalog.mapper.CampaignMapper;
 import com.scentstation.catalog.repository.CampaignRepository;
 import com.scentstation.catalog.repository.ProductRepository;
 import com.scentstation.catalog.security.CurrentActorContext;
+import com.scentstation.catalog.security.CatalogPermissions;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,7 @@ public class CampaignService {
     public CampaignResponse createCampaign(
             CreateCampaignRequest request
     ) {
+        currentActorContext.requirePermission(CatalogPermissions.CAMPAIGN_MANAGE);
         Long tenantId = currentActorContext.requireTenant(request.getTenantId());
         productRepository
                 .findByIdAndTenantId(request.getProductId(), tenantId)
@@ -67,6 +69,7 @@ public class CampaignService {
     public List<CampaignResponse> getCampaigns(
             Long tenantId
     ) {
+        currentActorContext.requirePermission(CatalogPermissions.READ);
         Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
         return campaignRepository
                 .findAllByTenantId(verifiedTenantId)
@@ -81,6 +84,7 @@ public class CampaignService {
             Long tenantId,
             Long campaignId
     ) {
+        currentActorContext.requirePermission(CatalogPermissions.READ);
         Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
         Campaign campaign =
                 findCampaign(
@@ -97,6 +101,7 @@ public class CampaignService {
             Long tenantId,
             Long productId
     ) {
+        currentActorContext.requirePermission(CatalogPermissions.READ);
         Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
         productRepository
                 .findByIdAndTenantId(productId, verifiedTenantId)
@@ -119,6 +124,7 @@ public class CampaignService {
             Long campaignId,
             UpdateCampaignRequest request
     ) {
+        currentActorContext.requirePermission(CatalogPermissions.CAMPAIGN_MANAGE);
         Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
         Campaign campaign =
                 findCampaign(

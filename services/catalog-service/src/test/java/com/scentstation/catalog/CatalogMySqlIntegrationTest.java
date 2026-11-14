@@ -6,9 +6,11 @@ import com.scentstation.catalog.entity.Campaign;
 import com.scentstation.catalog.entity.Product;
 import com.scentstation.catalog.enums.DiscountType;
 import com.scentstation.catalog.integration.machine.client.MachineAvailabilityClient;
+import com.scentstation.catalog.integration.identity.client.IdentityIntrospectionClient;
+import com.scentstation.catalog.integration.identity.dto.IdentityPrincipal;
 import com.scentstation.catalog.repository.CampaignRepository;
 import com.scentstation.catalog.repository.ProductRepository;
-import com.scentstation.catalog.security.HeaderCurrentActorContext;
+import org.springframework.http.HttpHeaders;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,9 +29,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -75,8 +80,19 @@ class CatalogMySqlIntegrationTest {
     @MockBean
     private MachineAvailabilityClient machineAvailabilityClient;
 
+    @MockBean
+    private IdentityIntrospectionClient identityIntrospectionClient;
+
     @BeforeEach
     void cleanDatabase() {
+        when(identityIntrospectionClient.introspect(anyString())).thenAnswer(invocation -> {
+            String token = invocation.getArgument(0);
+            long tenantId = "tenant-2".equals(token) ? 2L : 1L;
+            return new IdentityPrincipal(tenantId, "user-" + tenantId, tenantId,
+                    Set.of("BRAND_ADMIN"),
+                    Set.of("CATALOG_READ", "CATALOG_MANAGE", "CAMPAIGN_MANAGE"),
+                    Set.of(), Set.of());
+        });
         campaignRepository.deleteAll();
         productRepository.deleteAll();
     }
@@ -124,7 +140,7 @@ class CatalogMySqlIntegrationTest {
                 .build();
 
         String response = mockMvc.perform(post("/api/products")
-                        .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -134,21 +150,21 @@ class CatalogMySqlIntegrationTest {
         long productId = objectMapper.readTree(response).get("id").asLong();
 
         mockMvc.perform(get("/api/products/{id}", productId)
-                        .header(HeaderCurrentActorContext.TENANT_HEADER, "1"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(productId));
 
         mockMvc.perform(get("/api/products/{id}", productId)
-                        .header(HeaderCurrentActorContext.TENANT_HEADER, "2"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-2"))
                 .andExpect(status().isNotFound());
 
         mockMvc.perform(get("/api/products")
-                        .header(HeaderCurrentActorContext.TENANT_HEADER, "2"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
 
         mockMvc.perform(patch("/api/products/{id}/price", productId)
-                        .header(HeaderCurrentActorContext.TENANT_HEADER, "2")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-2")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"defaultPrice\": 1.00}"))
                 .andExpect(status().isNotFound());

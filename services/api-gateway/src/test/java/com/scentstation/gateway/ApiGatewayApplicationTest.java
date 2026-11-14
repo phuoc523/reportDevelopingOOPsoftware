@@ -143,10 +143,17 @@ class ApiGatewayApplicationTest {
                 .uri("/api/auth/health")
                 .header("Origin", "http://localhost:3000")
                 .header("Access-Control-Request-Method", "GET")
+                .header("Access-Control-Request-Headers", "Authorization, Content-Type")
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader()
-                .valueEquals("Access-Control-Allow-Origin", "http://localhost:3000");
+                .valueEquals("Access-Control-Allow-Origin", "http://localhost:3000")
+                .expectHeader()
+                .value("Access-Control-Allow-Headers", value -> {
+                    assertThat(value).containsIgnoringCase("Authorization");
+                    assertThat(value).containsIgnoringCase("Content-Type");
+                    assertThat(value).doesNotContainIgnoringCase("X-Internal-Service-Key");
+                });
     }
 
     @Test

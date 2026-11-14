@@ -20,7 +20,12 @@ spring:
               - PATCH
               - DELETE
               - OPTIONS
-            allowedHeaders: "*"
+            allowedHeaders:
+              - Authorization
+              - Content-Type
+              - X-Request-Id
+            exposedHeaders:
+              - X-Request-Id
             allowCredentials: true
       routes:
         - id: identity-service
@@ -51,7 +56,7 @@ spring:
         - id: reporting-service
           uri: ${REPORTING_SERVICE_URL:http://localhost:8086}
           predicates:
-            - Path=/api/reporting/health,/api/reporting/dashboard,/api/reporting/transactions/**,/api/reporting/revenue/**,/api/reporting/refunds/**,/api/reporting/export/**
+            - Path=/api/reporting/**
 
 management:
   endpoints:
@@ -61,5 +66,5 @@ management:
 
 logging:
   level:
-    org.springframework.web.cors: TRACE
+    org.springframework.web.cors: INFO
     org.springframework.cloud.gateway: INFO

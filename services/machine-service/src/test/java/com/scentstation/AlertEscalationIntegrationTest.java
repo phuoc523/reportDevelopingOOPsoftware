@@ -18,7 +18,7 @@ class AlertEscalationIntegrationTest extends MachineServiceIntegrationTestBase {
 
     @Test
     void scheduledEscalationMovesOverdueLowStockAlertToEscalated() throws InterruptedException {
-        String tenantId = uniqueId("tenant");
+        String tenantId = "1";
         Long machineId = createMachine(tenantId);
         ResponseEntity<Map<String, Object>> slotResponse = postJson(
             "/api/machines/" + machineId + "/slots",

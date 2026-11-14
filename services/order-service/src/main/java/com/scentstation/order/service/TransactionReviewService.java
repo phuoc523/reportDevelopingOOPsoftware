@@ -7,9 +7,13 @@ import com.scentstation.order.dto.response.TransactionReviewResponse;
 import com.scentstation.order.entity.Payment;
 import com.scentstation.order.entity.TransactionReview;
 import com.scentstation.order.entity.TransactionReviewStatus;
+import com.scentstation.order.integration.identity.dto.IdentityPrincipal;
+import com.scentstation.order.exception.OrderNotFoundException;
 import com.scentstation.order.exception.TransactionReviewNotFoundException;
 import com.scentstation.order.repository.PaymentRepository;
 import com.scentstation.order.repository.TransactionReviewRepository;
+import com.scentstation.order.repository.OrderRepository;
+import com.scentstation.order.security.OrderAuthorization;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -24,23 +28,45 @@ public class TransactionReviewService {
 
     private final PaymentRepository paymentRepository;
     private final TransactionReviewRepository reviewRepository;
+    private final OrderRepository orderRepository;
+    private final OrderAuthorization authorization;
 
     public TransactionReviewService(
             PaymentRepository paymentRepository,
-            TransactionReviewRepository reviewRepository
+            TransactionReviewRepository reviewRepository,
+            OrderRepository orderRepository,
+            OrderAuthorization authorization
     ) {
         this.paymentRepository = paymentRepository;
         this.reviewRepository = reviewRepository;
+        this.orderRepository = orderRepository;
+        this.authorization = authorization;
     }
 
     public List<TransactionReviewResponse> getReviews() {
         return reviewRepository.findAll().stream().map(this::toResponse).toList();
     }
 
+    public List<TransactionReviewResponse> getReviews(IdentityPrincipal actor) {
+        authorization.require(actor, OrderAuthorization.ORDER_REVIEW);
+        String tenantId = authorization.tenant(actor);
+        return reviewRepository.findAll().stream()
+                .filter(review -> orderRepository.findByIdAndTenantId(review.getOrderId(), tenantId).isPresent())
+                .map(this::toResponse)
+                .toList();
+    }
+
     public TransactionReviewResponse getReview(String reference) {
         return reviewRepository.findByReference(reference)
                 .map(this::toResponse)
                 .orElseThrow(() -> new TransactionReviewNotFoundException(reference));
+    }
+
+    public TransactionReviewResponse getReview(String reference, IdentityPrincipal actor) {
+        authorization.require(actor, OrderAuthorization.ORDER_REVIEW);
+        TransactionReview review = findReview(reference);
+        requireTenantOrder(review.getOrderId(), actor);
+        return toResponse(review);
     }
 
     public TransactionReviewResponse resolveReview(String reference) {
@@ -51,7 +77,36 @@ public class TransactionReviewService {
         return toResponse(review);
     }
 
+    public TransactionReviewResponse resolveReview(String reference, IdentityPrincipal actor) {
+        authorization.require(actor, OrderAuthorization.ORDER_REVIEW);
+        TransactionReview review = findReview(reference);
+        requireTenantOrder(review.getOrderId(), actor);
+        review.resolve();
+        reviewRepository.save(review);
+        return toResponse(review);
+    }
+
     public PaymentReconciliationResponse reconcile(PaymentReconciliationRequest request) {
+        return reconcile(request, paymentRepository.findAll());
+    }
+
+    public PaymentReconciliationResponse reconcile(
+            PaymentReconciliationRequest request,
+            IdentityPrincipal actor
+    ) {
+        authorization.require(actor, OrderAuthorization.ORDER_REVIEW);
+        String tenantId = authorization.tenant(actor);
+        request.payments().forEach(record -> requireTenantOrder(record.orderId(), actor));
+        List<Payment> tenantPayments = paymentRepository.findAll().stream()
+                .filter(payment -> orderRepository.findByIdAndTenantId(payment.getOrderId(), tenantId).isPresent())
+                .toList();
+        return reconcile(request, tenantPayments);
+    }
+
+    private PaymentReconciliationResponse reconcile(
+            PaymentReconciliationRequest request,
+            List<Payment> expectedPayments
+    ) {
         Map<String, SimulatedPaymentRecord> suppliedPayments = new HashMap<>();
         Set<String> duplicateReferences = new HashSet<>();
         for (SimulatedPaymentRecord record : request.payments()) {
@@ -62,7 +117,6 @@ public class TransactionReviewService {
 
         List<TransactionReviewResponse> discrepancies = new ArrayList<>();
         int matched = 0;
-        List<Payment> expectedPayments = paymentRepository.findAll();
         for (Payment payment : expectedPayments) {
             SimulatedPaymentRecord record = suppliedPayments.remove(payment.getReference());
             String reason;
@@ -99,6 +153,17 @@ public class TransactionReviewService {
                 discrepancies.size(),
                 List.copyOf(discrepancies)
         );
+    }
+
+    private TransactionReview findReview(String reference) {
+        return reviewRepository.findByReference(reference)
+                .orElseThrow(() -> new TransactionReviewNotFoundException(reference));
+    }
+
+    private void requireTenantOrder(Long orderId, IdentityPrincipal actor) {
+        String tenantId = authorization.tenant(actor);
+        orderRepository.findByIdAndTenantId(orderId, tenantId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
     }
 
     private String mismatchReason(Payment payment, SimulatedPaymentRecord record) {

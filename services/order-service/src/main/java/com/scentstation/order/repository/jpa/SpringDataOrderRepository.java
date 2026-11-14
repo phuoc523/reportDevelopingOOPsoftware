@@ -14,6 +14,12 @@ public interface SpringDataOrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findAllByOrderByIdAsc();
 
+    List<Order> findAllByTenantIdOrderByIdAsc(String tenantId);
+
+    List<Order> findAllByTenantIdAndCustomerIdOrderByIdAsc(String tenantId, Long customerId);
+
+    Optional<Order> findByIdAndTenantId(Long id, String tenantId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select orderEntity from Order orderEntity where orderEntity.id = :id")
     Optional<Order> findByIdForUpdate(@Param("id") Long id);

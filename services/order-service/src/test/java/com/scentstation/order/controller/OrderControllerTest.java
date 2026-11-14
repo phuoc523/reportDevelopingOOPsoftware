@@ -50,7 +50,7 @@ class OrderControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.customerId").value(7))
-                .andExpect(jsonPath("$.tenantId").value("TENANT-001"))
+                .andExpect(jsonPath("$.tenantId").value("1"))
                 .andExpect(jsonPath("$.currency").value("VND"))
                 .andExpect(jsonPath("$.expiresAt").isNotEmpty())
                 .andExpect(jsonPath("$.items[0].productId").value(3))
@@ -59,6 +59,34 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.items[0].lineTotal").value(25.5))
                 .andExpect(jsonPath("$.totalAmount").value(25.5))
                 .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    void rejectsClientPriceTampering() throws Exception {
+        mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON)
+                        .content(validOrderRequest().replace("12.75", "1.00")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectsMissingInactiveForeignAndIncompatibleResources() throws Exception {
+        assertCreateStatus(request(404, "Missing", "10.00", "10", "20"), 404);
+        assertCreateStatus(request(4, "Inactive", "10.00", "10", "20"), 409);
+        assertCreateStatus(request(5, "Foreign", "10.00", "10", "20"), 409);
+        assertCreateStatus(request(3, "Scent Sample", "12.75", "404", "20"), 404);
+        assertCreateStatus(request(3, "Scent Sample", "12.75", "10", "404"), 404);
+        assertCreateStatus(request(3, "Scent Sample", "12.75", "10", "22"), 409);
+        assertCreateStatus(request(3, "Scent Sample", "12.75", "11", "20"), 409);
+        assertCreateStatus(request(3, "Scent Sample", "12.75", "10", "21"), 409);
+    }
+
+    @Test
+    void storesAuthoritativePromotionalPrice() throws Exception {
+        mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON)
+                        .content(request(6, "Promoted", "9.00", "16", "20")))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.items[0].unitPrice").value(9.0))
+                .andExpect(jsonPath("$.totalAmount").value(18.0));
     }
 
     @Test
@@ -139,9 +167,9 @@ class OrderControllerTest {
                         .content("""
                                 {
                                   "customerId": 7,
-                                  "tenantId": "TENANT-001",
-                                  "machineId": "MACHINE-001",
-                                  "slotId": "SLOT-01",
+                                  "tenantId": "1",
+                                  "machineId": "10",
+                                  "slotId": "20",
                                   "items": [
                                     {
                                       "productId": 3,
@@ -197,9 +225,9 @@ class OrderControllerTest {
         return """
                 {
                   "customerId": 7,
-                  "tenantId": "TENANT-001",
-                  "machineId": "MACHINE-001",
-                  "slotId": "SLOT-01",
+                  "tenantId": "1",
+                  "machineId": "10",
+                  "slotId": "20",
                   "items": [
                     {
                       "productId": 3,
@@ -210,5 +238,17 @@ class OrderControllerTest {
                   ]
                 }
                 """;
+    }
+
+    private void assertCreateStatus(String request, int expected) throws Exception {
+        mockMvc.perform(post("/api/v1/orders").contentType(MediaType.APPLICATION_JSON).content(request))
+                .andExpect(status().is(expected));
+    }
+
+    private String request(long productId, String name, String price, String machineId, String slotId) {
+        return """
+                {"customerId":7,"tenantId":"1","machineId":"%s","slotId":"%s",
+                 "items":[{"productId":%d,"productName":"%s","unitPrice":%s,"quantity":2}]}
+                """.formatted(machineId, slotId, productId, name, price);
     }
 }

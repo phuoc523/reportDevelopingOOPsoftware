@@ -27,8 +27,23 @@ public class OrderJpaAdapter implements OrderRepository {
     }
 
     @Override
+    public Optional<Order> findByIdAndTenantId(Long id, String tenantId) {
+        return repository.findByIdAndTenantId(id, tenantId);
+    }
+
+    @Override
     public List<Order> findAll() {
         return repository.findAllByOrderByIdAsc();
+    }
+
+    @Override
+    public List<Order> findAllByTenantId(String tenantId) {
+        return repository.findAllByTenantIdOrderByIdAsc(tenantId);
+    }
+
+    @Override
+    public List<Order> findAllByTenantIdAndCustomerId(String tenantId, Long customerId) {
+        return repository.findAllByTenantIdAndCustomerIdOrderByIdAsc(tenantId, customerId);
     }
 
     @Override

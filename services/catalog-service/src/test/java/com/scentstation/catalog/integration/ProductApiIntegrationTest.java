@@ -1,7 +1,7 @@
 package com.scentstation.catalog.integration;
 
 import com.scentstation.catalog.dto.request.CreateProductRequest;
-import com.scentstation.catalog.security.HeaderCurrentActorContext;
+import org.springframework.http.HttpHeaders;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 
@@ -31,7 +31,7 @@ class ProductApiIntegrationTest
         String response =
                 mockMvc.perform(
                                 post("/api/products")
-                                        .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                        .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                         .contentType(
                                                 MediaType.APPLICATION_JSON
                                         )
@@ -65,7 +65,7 @@ class ProductApiIntegrationTest
                                 "/api/products/{id}",
                                 productId
                         )
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                 )
                 .andExpect(status().isOk())
                 .andExpect(
@@ -103,7 +103,7 @@ class ProductApiIntegrationTest
                                 "/api/products/{id}/price",
                                 product.getId()
                         )
-                                .header(HeaderCurrentActorContext.TENANT_HEADER, "1")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer tenant-1")
                                 .contentType(
                                         MediaType.APPLICATION_JSON
                                 )

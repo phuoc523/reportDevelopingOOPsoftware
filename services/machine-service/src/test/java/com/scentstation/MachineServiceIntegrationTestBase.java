@@ -17,6 +17,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import com.scentstation.integration.identity.client.IdentityIntrospectionClient;
+import com.scentstation.integration.identity.dto.IdentityPrincipal;
 import org.springframework.lang.NonNull;
 
 import java.util.LinkedHashMap;
@@ -27,6 +30,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -34,11 +39,14 @@ abstract class MachineServiceIntegrationTestBase {
     @Autowired
     protected TestRestTemplate rest;
 
+    @MockBean
+    protected IdentityIntrospectionClient identity;
+
     @Autowired
     private MachineHistoryRepository historyRepository;
 
     @Autowired
-    private MachineAlertRepository alertRepository;
+    protected MachineAlertRepository alertRepository;
 
     @Autowired
     private MachineCommandRepository commandRepository;
@@ -57,6 +65,19 @@ abstract class MachineServiceIntegrationTestBase {
 
     @BeforeEach
     void clearDatabase() {
+        when(identity.introspect(anyString())).thenReturn(new IdentityPrincipal(
+            101L, "test-admin", 1L, java.util.Set.of("ADMIN"), java.util.Set.of(
+                "MACHINE_READ", "MACHINE_CONTROL", "MACHINE_CONFIGURE",
+                "MAINTENANCE_READ", "MAINTENANCE_MANAGE", "DIAGNOSTIC_SPRAY",
+                "ALERT_READ", "ALERT_MANAGE", "DEVICE_ACCESS_REVOKE"),
+            java.util.Set.of(), java.util.Set.of()));
+        rest.getRestTemplate().setInterceptors(java.util.List.of((request, body, execution) -> {
+            if (request.getHeaders().remove("X-Test-No-Authorization") == null
+                    && !request.getHeaders().containsKey("Authorization")) {
+                request.getHeaders().setBearerAuth("test-all");
+            }
+            return execution.execute(request, body);
+        }));
         handoffOutboxRepository.deleteAllInBatch();
         commandRepository.deleteAllInBatch();
         alertRepository.deleteAllInBatch();

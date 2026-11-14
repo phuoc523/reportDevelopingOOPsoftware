@@ -16,7 +16,7 @@ class DispenseCommandIntegrationTest extends MachineServiceIntegrationTestBase {
 
     @Test
     void rejectsMissingInternalKeyAndConflictingIdempotencyPayload() {
-        String tenantId = uniqueId("tenant");
+        String tenantId = "1";
         Long machineId = createMachine(tenantId);
         patchJson("/api/machines/" + machineId + "/operational-status", Map.of("status", "ONLINE"));
         ResponseEntity<Map<String, Object>> slotResponse = postJson("/api/machines/" + machineId + "/slots",
@@ -46,7 +46,7 @@ class DispenseCommandIntegrationTest extends MachineServiceIntegrationTestBase {
 
     @Test
     void acceptsIdempotentlyAndRetrievesDispensingCommand() {
-        String tenantId = uniqueId("tenant");
+        String tenantId = "1";
         Long machineId = createMachine(tenantId);
 
         patchJson("/api/machines/" + machineId + "/operational-status",

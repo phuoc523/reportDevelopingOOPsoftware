@@ -11,7 +11,7 @@ class LocalMachineAvailabilityClientTest {
             new LocalMachineAvailabilityClient();
 
     @Test
-    void getProductAvailability_shouldReturnRequestedReferences() {
+    void getProductAvailability_shouldPreserveReferencesAndFailClosed() {
         MachineAvailabilityInfo result =
                 client.getProductAvailability(
                         1L,
@@ -23,7 +23,7 @@ class LocalMachineAvailabilityClientTest {
         assertEquals(3L, result.getMachineId());
         assertEquals(10L, result.getProductId());
 
-        assertTrue(result.isAvailable());
-        assertEquals(1, result.getAvailableSlotCount());
+        assertFalse(result.isAvailable());
+        assertEquals(0, result.getAvailableSlotCount());
     }
 }
