@@ -26,3 +26,8 @@ management:
   endpoint:
     health:
       show-details: never
+
+notification:
+  identity:
+    url: ${NOTIFICATION_IDENTITY_URL:http://localhost:8081}
+    internal-service-key: ${NOTIFICATION_IDENTITY_INTERNAL_SERVICE_KEY:}

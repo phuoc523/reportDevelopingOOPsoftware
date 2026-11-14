@@ -2,10 +2,13 @@ package com.scentstation.notification.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import com.scentstation.notification.security.NotificationAuthorizationException;
+import com.scentstation.notification.security.NotificationAuthorizationUnavailableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -60,6 +63,29 @@ public class NotificationExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> handleUnreadableRequest(HttpServletRequest request) {
         return response(HttpStatus.BAD_REQUEST, "Request body is invalid", request, Map.of());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidParameter(HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "Request parameter is invalid", request, Map.of());
+    }
+
+    @ExceptionHandler(NotificationAuthorizationException.class)
+    public ResponseEntity<ApiErrorResponse> handleAuthorization(
+            NotificationAuthorizationException exception,
+            HttpServletRequest request
+    ) {
+        return response(exception.status(), exception.getMessage(), request, Map.of());
+    }
+
+    @ExceptionHandler(NotificationAuthorizationUnavailableException.class)
+    public ResponseEntity<ApiErrorResponse> handleAuthorizationUnavailable(HttpServletRequest request) {
+        return response(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Caller authorization is temporarily unavailable",
+            request,
+            Map.of()
+        );
     }
 
     private ResponseEntity<ApiErrorResponse> response(
