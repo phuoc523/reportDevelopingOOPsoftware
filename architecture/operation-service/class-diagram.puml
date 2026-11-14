@@ -10,25 +10,30 @@ package "com.scentstation.operation.inventory" {
     class InventoryBatch <<Entity>> {
         - Long id
         - Long tenantId
-        - String batchCode
         - Long productId
-        - Integer totalQuantity
-        - LocalDate manufacturingDate
+        - String batchCode
+        - Integer receivedQuantity
+        - LocalDate receivedAt
         - LocalDate expiryDate
-        + isExpired(): boolean
+        - LocalDateTime createdAt
+        - LocalDateTime updatedAt
+        + getId(): Long
+        + getBatchCode(): String
     }
 
     class Bottle <<Entity>> {
         - Long id
         - Long tenantId
-        - String barcode
-        - Long batchId
         - Long productId
+        - Long batchId
+        - String bottleCode
+        - BigDecimal initialQuantity
+        - BigDecimal currentQuantity
         - BottleStatus status
-        - BigDecimal initialVolumeMl
-        - BigDecimal currentVolumeMl
-        + isInstallable(): boolean
-        + deduct(ml: BigDecimal): void
+        - LocalDateTime createdAt
+        - LocalDateTime updatedAt
+        + isAvailable(): boolean
+        + setStatus(status: BottleStatus): void
     }
 
     class BottleInstallation <<Entity>> {
@@ -40,8 +45,9 @@ package "com.scentstation.operation.inventory" {
         - LocalDateTime installedAt
         - LocalDateTime removedAt
         - Long installedByActorId
-        + isActive(): boolean
-        + markRemoved(): void
+        - Long removedByActorId
+        + getBottleId(): Long
+        + getSlotId(): Long
     }
 
     class BottleMovement <<Entity>> {
@@ -52,14 +58,16 @@ package "com.scentstation.operation.inventory" {
         - String fromLocation
         - String toLocation
         - LocalDateTime timestamp
+        - Long actorId
     }
 
     enum BottleStatus <<Enumeration>> {
-        IN_STOCK
+        AVAILABLE
         INSTALLED
+        NEARLY_EMPTY
         EMPTY
-        EXPIRED
         DAMAGED
+        EXPIRED
     }
 
     enum BottleMovementType <<Enumeration>> {
@@ -76,43 +84,60 @@ package "com.scentstation.operation.maintenance" {
         - Long id
         - Long tenantId
         - Long machineId
+        - Long slotId
+        - Long bottleId
         - String title
         - String description
-        - MaintenanceStatus status
+        - String category
         - MaintenanceSeverity severity
         - MaintenancePriority priority
-        - Long assigneeActorId
-        - LocalDateTime createdAt
+        - MaintenanceStatus status
+        - Long reportedByActorId
+        - Long assignedToActorId
         - LocalDateTime dueAt
+        - LocalDateTime createdAt
+        - LocalDateTime updatedAt
         - LocalDateTime closedAt
-        + isReadyToClose(): boolean
+        - Long locationId
+        - boolean critical
+        + getStatus(): MaintenanceStatus
+        + setStatus(status: MaintenanceStatus): void
     }
 
     class MaintenanceChecklistItem <<Entity>> {
         - Long id
+        - Long tenantId
         - Long ticketId
-        - String itemDescription
-        - Boolean completed
+        - String itemName
+        - String description
+        - boolean required
+        - boolean completed
         - LocalDateTime checkedAt
         - Long checkedByActorId
+        + isCompleted(): boolean
     }
 
     class MaintenanceRepairLog <<Entity>> {
         - Long id
+        - Long tenantId
         - Long ticketId
-        - String workDescription
-        - String replacedParts
-        - MaintenanceRepairResult result
-        - LocalDateTime loggedAt
+        - Long actorId
+        - String actionTaken
+        - String notes
+        - String partsReplaced
+        - LocalDateTime createdAt
     }
 
     class PostMaintenanceTest <<Entity>> {
         - Long id
+        - Long tenantId
         - Long ticketId
-        - PostMaintenanceTestStatus testResult
+        - Long machineId
+        - Long requestedByActorId
+        - PostMaintenanceTestStatus status
         - String sprayTelemetry
         - LocalDateTime testedAt
-        + isPassed(): boolean
+        + getStatus(): PostMaintenanceTestStatus
     }
 
     enum MaintenanceStatus <<Enumeration>> {
@@ -129,52 +154,67 @@ package "com.scentstation.operation.maintenance" {
         PASSED
         FAILED
     }
+
+    enum MaintenanceSeverity <<Enumeration>> {
+        LOW
+        MODERATE
+        CRITICAL
+    }
+
+    enum MaintenancePriority <<Enumeration>> {
+        LOW
+        MEDIUM
+        HIGH
+        URGENT
+    }
 }
 
 package "com.scentstation.operation.services" {
     class BottleInstallationService <<Service>> {
-        - BottleRepository bottleRepo
-        - BottleInstallationRepository installRepo
-        - BottleMovementRepository movementRepo
+        - BottleRepository bottleRepository
+        - BottleInstallationRepository bottleInstallationRepository
+        - BottleMovementRepository bottleMovementRepository
         - MachineSlotClient machineSlotClient
         + installBottle(req: InstallBottleRequest): BottleInstallationResponse
         + removeBottle(req: RemoveBottleRequest): BottleInstallationResponse
     }
 
     class MaintenanceTicketService <<Service>> {
-        - MaintenanceTicketRepository ticketRepo
-        - MaintenanceChecklistRepository checklistRepo
-        - MaintenanceRepairLogRepository repairLogRepo
-        - PostMaintenanceTestRepository postTestRepo
+        - MaintenanceTicketRepository maintenanceTicketRepository
+        - MaintenanceChecklistRepository maintenanceChecklistRepository
+        - MaintenanceRepairLogRepository maintenanceRepairLogRepository
+        - PostMaintenanceTestRepository postMaintenanceTestRepository
         + createTicket(req: CreateMaintenanceTicketRequest): MaintenanceTicketResponse
         + closeTicket(ticketId: Long, req: CloseMaintenanceTicketRequest): MaintenanceTicketResponse
     }
 }
 
-package "com.scentstation.operation.integration.machine" {
+package "com.scentstation.operation.inventory.integration.machine" {
     interface MachineSlotClient <<Interface>> {
-        + getSlot(tenantId: Long, machineId: Long, slotId: Long): MachineSlotInfo
-        + updateSlotCurrentBottle(tenantId: Long, machineId: Long, slotId: Long, bottleId: Long): void
+        + getSlot(tenantId: String, machineId: Long, slotId: Long): MachineSlotInfo
+        + updateSlotStatus(tenantId: String, machineId: Long, slotId: Long, bottleId: String): void
     }
 }
 
 ' ================= QUAN HỆ UML VÀ BẢN SỐ =================
-InventoryBatch "1" *-- "1..*" Bottle : "sản xuất theo lô (Composition)"
-Bottle "1" o-- "0..*" BottleInstallation : "lịch sử gắn máy"
-Bottle "1" o-- "0..*" BottleMovement : "nhật ký di chuyển"
+InventoryBatch "1" ..> "1..*" Bottle : "tham chiếu batch_id (ID reference)"
+Bottle "1" ..> "0..*" BottleInstallation : "tham chiếu bottle_id (ID reference)"
+Bottle "1" ..> "0..*" BottleMovement : "nhật ký di chuyển chai"
 Bottle --> BottleStatus
 BottleMovement --> BottleMovementType
 
-MaintenanceTicket "1" *-- "0..*" MaintenanceChecklistItem : "danh mục kiểm tra (Composition)"
-MaintenanceTicket "1" *-- "0..*" MaintenanceRepairLog : "nhật ký sửa chữa (Composition)"
-MaintenanceTicket "1" *-- "0..1" PostMaintenanceTest : "kiểm thử hoàn tất (Composition)"
+MaintenanceTicket "1" ..> "0..*" MaintenanceChecklistItem : "tham chiếu ticket_id (ID reference)"
+MaintenanceTicket "1" ..> "0..*" MaintenanceRepairLog : "nhật ký sửa chữa"
+MaintenanceTicket "1" ..> "0..1" PostMaintenanceTest : "kiểm thử hoàn tất"
 MaintenanceTicket --> MaintenanceStatus
+MaintenanceTicket --> MaintenanceSeverity
+MaintenanceTicket --> MaintenancePriority
 PostMaintenanceTest --> PostMaintenanceTestStatus
 
-BottleInstallationService --> Bottle : "cập nhật trạng thái"
+BottleInstallationService --> Bottle : "cập nhật trạng thái INSTALLED"
 BottleInstallationService --> BottleInstallation : "lưu bản ghi"
-BottleInstallationService --> MachineSlotClient : "đồng bộ máy Kiosk"
+BottleInstallationService --> MachineSlotClient : "đồng bộ slot máy Kiosk"
 
-MaintenanceTicketService --> MaintenanceTicket : "quản lý vòng đời"
+MaintenanceTicketService --> MaintenanceTicket : "quản lý vòng đời ticket"
 
 @enduml

@@ -17,7 +17,7 @@ package "Khách hàng & Người dùng (Clients)" {
     actor "Quản trị Nền tảng\n(Super Admin)" as ActorSuperAdmin #D5F5E3
 }
 
-cloud "Hệ thống Thanh toán Đối tác\n(VietQR / PayOS / Mock Gateway)" as ExtPayment #EBF5FB
+cloud "Hệ thống Thanh toán Đối tác\n(VietQR / Webhook)" as ExtPayment #EBF5FB
 
 ' ================= EDGE LAYER =================
 package "Lớp Cửa ngõ (Edge Layer)" {
@@ -26,18 +26,17 @@ package "Lớp Cửa ngõ (Edge Layer)" {
         - GatewayTrustBoundaryFilter:
           Bóc tách, loại bỏ header giả mạo
           (X-Internal-Service-Key, X-Actor-*)
-        - CORS Global Filter
+        - GlobalCorsFilter
         - Reverse Proxy Routing theo URL prefix
     end note
 }
 
 ' ================= BUSINESS SERVICES LAYER =================
 package "Lớp Dịch vụ Nghiệp vụ (Business Microservices Layer)" {
-    
     component [Identity Service\n:8081] as IdentitySvc #E8EAED
     component [Catalog Service\n:8082] as CatalogSvc #E8EAED
-    component [Machine Service\n:8083] as MachineSvc #E8EAED
-    component [Order Service\n:8084] as OrderSvc #FCF3CF
+    component [Order Service\n:8083] as OrderSvc #FCF3CF
+    component [Machine Service\n:8084] as MachineSvc #E8EAED
     component [Operation Service\n:8085] as OperationSvc #E8EAED
     component [Reporting Service\n:8086] as ReportingSvc #E8EAED
 }
@@ -48,13 +47,13 @@ package "Thiết bị Ngoại vi (IoT Hardware Layer)" {
 }
 
 ' ================= DATABASE PER SERVICE LAYER =================
-package "Lớp Dữ liệu Độc lập (Database-per-Service - MySQL 8.0)" {
-    database "identity_db" as DBIdentity #AED6F1
-    database "catalog_db" as DBCatalog #AED6F1
-    database "machine_db" as DBMachine #AED6F1
+package "Lớp Dữ liệu Độc lập (Database-per-Service - MySQL 8.4)" {
+    database "scentstation_identity" as DBIdentity #AED6F1
+    database "scentstation_catalog" as DBCatalog #AED6F1
     database "order_db" as DBOrder #F9E79F
-    database "operation_db" as DBOperation #AED6F1
-    database "reporting_db" as DBReporting #AED6F1
+    database "scentstation_machine" as DBMachine #AED6F1
+    database "scentstation_operation" as DBOperation #AED6F1
+    database "scentstation_reporting" as DBReporting #AED6F1
 }
 
 ' ================= CLIENTS TO GATEWAY =================
@@ -75,28 +74,29 @@ APIGW --> ReportingSvc : "Path: /api/reporting/**"
 ' ================= DATABASE ISOLATION =================
 IdentitySvc -- DBIdentity : "Ownership (Isolated)"
 CatalogSvc -- DBCatalog : "Ownership (Isolated)"
-MachineSvc -- DBMachine : "Ownership (Isolated)"
 OrderSvc -- DBOrder : "Ownership (Isolated)"
+MachineSvc -- DBMachine : "Ownership (Isolated)"
 OperationSvc -- DBOperation : "Ownership (Isolated)"
 ReportingSvc -- DBReporting : "Ownership (Isolated)"
 
 ' ================= INTER-SERVICE SYNCHRONOUS HTTP CALLS =================
 CatalogSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
-MachineSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
 OrderSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
+MachineSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
 OperationSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
 ReportingSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
 
-OrderSvc ..> MachineSvc : "[Authoritative Check]\nValidate Slot Readiness\n(/internal/v1/machines/{mId}/slots/{sId})"
-OrderSvc ..> CatalogSvc : "[Authoritative Check]\nFetch Pricing & Product Snapshot\n(/internal/v1/catalog/products/{pId}/order-snapshot)"
-OrderSvc ..> MachineSvc : "[Dispense Dispatch]\nTrigger Physical Spray\n(/internal/v1/machines/{mId}/dispense)"
+OrderSvc ..> MachineSvc : "[Authoritative Check]\nValidate Slot Readiness\n(/internal/machines/{mId}/slots/{sId})"
+OrderSvc ..> CatalogSvc : "[Authoritative Check]\nFetch Pricing & Snapshot\n(/internal/catalog/order-products/{pId})"
+OrderSvc ..> MachineSvc : "[Dispense Dispatch]\nTrigger Physical Spray\n(/api/machines/dispense-commands)"
 
-OperationSvc ..> MachineSvc : "[Slot Sync]\nUpdate Slot Status & Current Bottle\n(/internal/v1/machines/{mId}/slots/{sId})"
-MachineSvc ..> OperationSvc : "[Alert Handoff]\nAuto-create Maintenance Ticket\n(/internal/v1/maintenance/tickets)"
+OperationSvc ..> MachineSvc : "[Slot Sync]\nUpdate Slot & Bottle Binding\n(/internal/machines/{mId}/slots/{sId})"
+MachineSvc ..> OperationSvc : "[Alert Handoff Outbox]\nAuto-create Maintenance Ticket\n(/internal/v1/maintenance/tickets)"
 
-ReportingSvc ..> OrderSvc : "[Data Sync] Pull Transactions"
-ReportingSvc ..> MachineSvc : "[Data Sync] Pull Machine Metrics"
-ReportingSvc ..> OperationSvc : "[Data Sync] Pull Inventory Snapshots"
+OrderSvc ..> ReportingSvc : "[Sync Transaction]\nPOST /api/reporting/internal/transactions/sync"
+ReportingSvc ..> OrderSvc : "[Snapshot Client] Pull Orders"
+ReportingSvc ..> MachineSvc : "[Snapshot Client] Pull Metrics"
+ReportingSvc ..> OperationSvc : "[Snapshot Client] Pull Inventory"
 
 ' ================= HARDWARE PROTOCOL =================
 MachineSvc ..|> HardwareKiosk : "Machine Command Serial/MQTT\n(Relay Pulse / Flow Sensor Telemetry)"

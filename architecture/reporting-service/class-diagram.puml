@@ -9,21 +9,18 @@ title CLASS DIAGRAM - REPORTING SERVICE DOMAIN & ARCHITECTURE
 package "com.scentstation.reporting.entity" {
     class Transaction <<Entity>> {
         - Long id
-        - String transactionId
-        - Long orderId
-        - String tenantId
-        - Long customerId
-        - Long machineId
-        - Long slotId
-        - Long productId
+        - String reference
+        - String orderId
         - BigDecimal amount
         - String currency
         - String status
-        - String paymentMethod
-        - String paymentReference
-        - LocalDateTime transactionTime
         - LocalDateTime createdAt
-        + isSuccessful(): boolean
+        - LocalDateTime paidAt
+        + getId(): Long
+        + getReference(): String
+        + getOrderId(): String
+        + getAmount(): BigDecimal
+        + getStatus(): String
     }
 
     enum ReportPeriod <<Enumeration>> {
@@ -36,30 +33,33 @@ package "com.scentstation.reporting.entity" {
 }
 
 package "com.scentstation.reporting.dto" {
-    class DashboardResponse <<DTO>> {
-        - BigDecimal totalRevenue
-        - Long totalTransactions
-        - Long successfulDispenses
-        - Long failedTransactions
-        - Double successRate
+    class DashboardResponse <<DTO Record>> {
+        + totalRevenue(): BigDecimal
+        + totalOrders(): Long
+        + totalVolumeMl(): BigDecimal
+        + totalBottlesInstalled(): Long
+        + activeMachines(): Long
+        + averageOrderValue(): BigDecimal
     }
 
-    class TransactionSummaryResponse <<DTO>> {
-        - Long totalCount
-        - BigDecimal totalAmount
-        - Map<String, Long> statusCounts
+    class TransactionResponse <<DTO Record>> {
+        + id(): Long
+        + reference(): String
+        + orderId(): String
+        + amount(): BigDecimal
+        + currency(): String
+        + status(): String
+        + createdAt(): LocalDateTime
+        + paidAt(): LocalDateTime
     }
 
-    class TransactionSyncRequest <<DTO>> {
-        - String transactionId
-        - Long orderId
-        - String tenantId
-        - Long machineId
-        - Long slotId
-        - Long productId
-        - BigDecimal amount
-        - String status
-        - LocalDateTime transactionTime
+    class TransactionSyncRequest <<DTO Record>> {
+        + reference(): String
+        + orderId(): String
+        + amount(): BigDecimal
+        + currency(): String
+        + status(): String
+        + paidAt(): LocalDateTime
     }
 }
 
@@ -67,69 +67,74 @@ package "com.scentstation.reporting.service" {
     class TransactionService <<Service>> {
         - TransactionRepository transactionRepository
         - TransactionSyncValidator validator
-        + syncTransaction(req: TransactionSyncRequest): Transaction
-        + filterTransactions(filter: TransactionFilterRequest): List<Transaction>
+        + syncTransaction(req: TransactionSyncRequest): TransactionResponse
+        + listTransactions(filter: TransactionFilterRequest): List<TransactionResponse>
     }
 
     class DashboardAggregationService <<Service>> {
         - TransactionRepository transactionRepository
-        - ReportDateRangeValidator dateValidator
-        + getDashboard(tenantId: String, period: ReportPeriod): DashboardResponse
+        - MachineSnapshotClient machineClient
+        - OperationInventoryClient inventoryClient
+        + aggregateDashboard(period: ReportPeriod): DashboardResponse
     }
 
     class ExcelExportService <<Service>> {
-        - TransactionQueryService queryService
-        + exportToExcel(tenantId: String, from: LocalDate, to: LocalDate): byte[]
+        - TransactionRepository transactionRepository
+        + exportToExcel(from: LocalDateTime, to: LocalDateTime): byte[]
     }
 
-    class OperationReportService <<Service>> {
-        - MachineSnapshotClient machineClient
-        - OperationInventoryClient inventoryClient
-        + generateOperationReport(tenantId: String): OperationReportResponse
+    class OrderPaymentSyncService <<Service>> {
+        - OrderPaymentClient orderPaymentClient
+        - TransactionService transactionService
+        + syncFromOrder(reference: String): TransactionResponse
     }
 }
 
 package "com.scentstation.reporting.controller" {
     class TransactionSyncController <<Controller>> {
         - TransactionService transactionService
-        - InternalApiKeyVerifier keyVerifier
-        + sync(req: TransactionSyncRequest): TransactionResponse
+        - OrderPaymentSyncService orderPaymentSyncService
+        - InternalApiKeyVerifier apiKeyVerifier
+        + syncTransaction(key: String, req: TransactionSyncRequest): ResponseEntity<TransactionResponse>
+        + syncFromOrder(key: String, reference: String): ResponseEntity<TransactionResponse>
     }
 
     class DashboardController <<Controller>> {
         - DashboardAggregationService dashboardService
-        + getDashboard(tenantId: String, period: ReportPeriod): DashboardResponse
+        + getDashboard(period: ReportPeriod): ResponseEntity<DashboardResponse>
     }
 
     class ExcelExportController <<Controller>> {
-        - ExcelExportService exportService
-        + export(tenantId: String): ResponseEntity<byte[]>
+        - ExcelExportService excelExportService
+        + exportExcel(from: String, to: String): ResponseEntity<byte[]>
     }
 }
 
 package "com.scentstation.reporting.client" {
     interface OrderPaymentClient <<Interface>> {
-        + fetchPayments(orderId: Long): OrderPaymentResponse
+        + getPayment(reference: String): OrderPaymentResponse
     }
     interface MachineSnapshotClient <<Interface>> {
-        + getMachineMetrics(machineId: Long): MachineSnapshot
+        + getMachineMetrics(): List<MachineSnapshot>
     }
     interface OperationInventoryClient <<Interface>> {
-        + getInventorySnapshots(tenantId: String): List<BottleSnapshot>
+        + getInventorySnapshots(): List<BottleSnapshot>
     }
 }
 
 ' ================= QUAN HỆ UML VÀ BẢN SỐ =================
-Transaction --> ReportPeriod : "phục vụ gom nhóm kỳ báo cáo"
-TransactionService --> Transaction : "quản lý dữ liệu giao dịch"
-DashboardAggregationService --> Transaction : "tính toán tổng hợp"
-DashboardAggregationService ..> DashboardResponse : "sinh dữ liệu"
+Transaction --> ReportPeriod : "phục vụ thống kê theo chu kỳ"
+TransactionService --> Transaction : "quản lý bản ghi giao dịch"
+DashboardAggregationService --> Transaction : "tổng hợp doanh thu"
+DashboardAggregationService ..> DashboardResponse : "sinh dữ liệu dashboard"
 
 TransactionSyncController --> TransactionService : "đồng bộ giao dịch"
-DashboardController --> DashboardAggregationService : "gọi nghiệp vụ dashboard"
-ExcelExportController --> ExcelExportService : "xuất file bảng tính"
+TransactionSyncController --> OrderPaymentSyncService : "kéo giao dịch từ order-service"
+DashboardController --> DashboardAggregationService : "truy vấn số liệu dashboard"
+ExcelExportController --> ExcelExportService : "xuất file báo cáo"
 
-OperationReportService --> MachineSnapshotClient : "kéo dữ liệu máy"
-OperationReportService --> OperationInventoryClient : "kéo dữ liệu kho chai"
+DashboardAggregationService --> MachineSnapshotClient : "kéo dữ liệu máy Kiosk"
+DashboardAggregationService --> OperationInventoryClient : "kéo số liệu tồn kho chai"
+OrderPaymentSyncService --> OrderPaymentClient : "kéo dữ liệu từ order-service"
 
 @enduml

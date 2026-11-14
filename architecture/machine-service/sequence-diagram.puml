@@ -13,22 +13,22 @@ participant "DispenseCommandService" as DispenseSvc
 participant "MachineRepository" as MachineRepo
 participant "MachineSlotRepository" as SlotRepo
 participant "MachineCommandRepository" as CmdRepo
-database "machine_db" as DB
+database "scentstation_machine" as DB
 participant "ESP32 Relay Controller\n(Kiosk Hardware)" as Hardware
 participant "MachineAlertService" as AlertSvc
 
 == LUỒNG: THỰC THI LỆNH PHUN HƯƠNG AT-MOST-ONCE ==
-OrderSvc -> Ctrl: POST /internal/v1/machines/10/dispense\n{commandId: "CMD-555", orderId: 9001, slotId: 2, paymentRef: "PAY-9001"}
+OrderSvc -> Ctrl: POST /api/machines/dispense-commands\n{commandId: "CMD-555", orderId: "9001", machineId: 10, slotId: "2", paymentReference: "PAY-9001"}
 activate Ctrl
 
-Ctrl -> DispenseSvc: execute(request)
+Ctrl -> DispenseSvc: submit(request)
 activate DispenseSvc
 
 DispenseSvc -> MachineRepo: findById(10)
 activate MachineRepo
 MachineRepo -> DB: SELECT * FROM machines WHERE id = 10
 activate DB
-DB --> MachineRepo: Machine {status: OPERATIONAL}
+DB --> MachineRepo: Machine {operationalStatus: ONLINE, deviceRegistrationStatus: ACTIVE}
 deactivate DB
 MachineRepo --> DispenseSvc: Machine Entity
 deactivate MachineRepo
@@ -37,38 +37,38 @@ DispenseSvc -> SlotRepo: findById(2)
 activate SlotRepo
 SlotRepo -> DB: SELECT * FROM machine_slots WHERE id = 2
 activate DB
-DB --> SlotRepo: MachineSlot {status: ACTIVE, remainingMl: 150}
+DB --> SlotRepo: MachineSlot {status: AVAILABLE, remainingSprays: 50, remainingMl: 150}
 deactivate DB
 SlotRepo --> DispenseSvc: Slot Entity
 deactivate SlotRepo
 
-DispenseSvc -> CmdRepo: save(MachineCommand {commandId: "CMD-555", status: REQUESTED})
+DispenseSvc -> CmdRepo: save(MachineCommand {commandId: "CMD-555", status: ACCEPTED})
 activate CmdRepo
 CmdRepo -> DB: INSERT INTO machine_commands (...)
 deactivate CmdRepo
 
-DispenseSvc -> Hardware: Kích hoạt xung điện bơm (Relay Pulse: 2.5ml)
+DispenseSvc -> Hardware: Kích hoạt xung điện bơm (Relay Pulse)
 activate Hardware
 
 alt Phần cứng phun thành công (Flow Sensor OK)
     Hardware --> DispenseSvc: Feedback: PULSE_COMPLETED
-    DispenseSvc -> SlotRepo: deductVolume(3) (Trừ 3ml khỏi slot)
+    DispenseSvc -> SlotRepo: deduct(sprays: 1, ml: 3)
     DispenseSvc -> CmdRepo: update status = 'DISPENSED'
-    DispenseSvc --> Ctrl: DispenseCommandResponse {status: 'DISPENSED', commandId: "CMD-555"}
+    DispenseSvc --> Ctrl: MachineCommandResponse {status: 'DISPENSED', commandId: "CMD-555"}
     Ctrl --> OrderSvc: 200 OK {status: 'DISPENSED'}
 
 else Lỗi kẹt vòi / Bơm mất áp suất (Sensor Alert)
-    Hardware --> DispenseSvc: Feedback: FLOW_BLOCKED / NOZZLE_CLOGGED
+    Hardware --> DispenseSvc: Feedback: SENSOR_FAILURE / ACTUATOR_FAILURE
     deactivate Hardware
-    DispenseSvc -> CmdRepo: update status = 'FAILED', message = "Nozzle blocked"
+    DispenseSvc -> CmdRepo: update status = 'FAILED'
     
-    DispenseSvc -> AlertSvc: raiseAlert(machineId: 10, type: NOZZLE_CLOGGED, severity: CRITICAL)
+    DispenseSvc -> AlertSvc: raise(machineId: 10, type: DISPENSE_FAILED, severity: CRITICAL)
     activate AlertSvc
-    AlertSvc -> DB: INSERT INTO machine_alerts (status: ACTIVE)\nUPDATE machines SET operational_status = 'MAINTENANCE_REQUIRED'
+    AlertSvc -> DB: INSERT INTO machine_alerts (status: OPEN)\nUPDATE machines SET operational_status = 'MAINTENANCE'
     AlertSvc -> DB: INSERT INTO alert_handoff_outbox (target: 'OPERATION_SERVICE')
     deactivate AlertSvc
 
-    DispenseSvc --> Ctrl: DispenseCommandResponse {status: 'FAILED', message: "Hardware failure"}
+    DispenseSvc --> Ctrl: MachineCommandResponse {status: 'FAILED', message: "Hardware failure"}
     Ctrl --> OrderSvc: 200 OK {status: 'FAILED'}
 end
 deactivate DispenseSvc

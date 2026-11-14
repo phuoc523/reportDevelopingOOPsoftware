@@ -11,12 +11,12 @@ actor "Kỹ thuật viên" as Tech
 participant "BottleInstallationController" as BottleCtrl
 participant "BottleInstallationService" as InstallSvc
 participant "MachineSlotClient" as MachineClient
-database "operation_db" as DB
+database "scentstation_operation" as DB
 participant "MaintenanceTicketController" as TicketCtrl
 participant "MaintenanceTicketService" as TicketSvc
 
 == PHẦN 1: LẮP ĐẶT CHAI HƯƠNG MỚI VÀO MÁY KIOSK ==
-Tech -> BottleCtrl: POST /api/inventory/installations/install\n{tenantId: 1, bottleId: 501, machineId: 10, slotId: 2}
+Tech -> BottleCtrl: POST /api/inventory/installations/install\n{tenantId: "1", bottleId: 501, machineId: 10, slotId: 2}
 activate BottleCtrl
 
 BottleCtrl -> InstallSvc: installBottle(request)
@@ -24,20 +24,20 @@ activate InstallSvc
 
 InstallSvc -> DB: SELECT * FROM bottles WHERE id = 501 AND tenant_id = 1
 activate DB
-DB --> InstallSvc: Bottle Entity {status: IN_STOCK, productId: 202}
+DB --> InstallSvc: Bottle Entity {status: AVAILABLE, productId: 202, bottleCode: "BTL-202-001"}
 deactivate DB
 
-InstallSvc -> MachineClient: getSlot(tenantId: 1, machineId: 10, slotId: 2)
+InstallSvc -> MachineClient: getSlot(tenantId: "1", machineId: 10, slotId: 2)\n[GET http://machine-service:8084/internal/machines/10/slots/2]
 activate MachineClient
 MachineClient --> InstallSvc: MachineSlotInfo {slotStatus: EMPTY, configuredProductId: "202"}
 deactivate MachineClient
 
 InstallSvc -> InstallSvc: Đối soát: Bottle.productId == Slot.configuredProductId
-InstallSvc -> DB: INSERT INTO bottle_installations (bottle_id: 501, machine_id: 10, slot_id: 2)\nUPDATE bottles SET status = 'INSTALLED'\nINSERT INTO bottle_movements (type: 'INSTALL')
+InstallSvc -> DB: INSERT INTO bottle_installations (bottle_id: 501, machine_id: 10, slot_id: 2)\nUPDATE bottles SET status = 'INSTALLED'\nINSERT INTO bottle_movements (movement_type: 'INSTALL')
 
-InstallSvc -> MachineClient: updateSlotCurrentBottle(tenantId: 1, machineId: 10, slotId: 2, bottleId: 501)
+InstallSvc -> MachineClient: updateSlotStatus(tenantId: "1", machineId: 10, slotId: 2, bottleId: "501")
 activate MachineClient
-MachineClient --> InstallSvc: 200 OK (Slot updated to ACTIVE)
+MachineClient --> InstallSvc: 200 OK (Slot updated to AVAILABLE)
 deactivate MachineClient
 
 InstallSvc --> BottleCtrl: BottleInstallationResponse {id: 88, status: "SUCCESS"}
@@ -57,11 +57,11 @@ activate DB
 DB --> TicketSvc: MaintenanceTicket Entity {status: IN_PROGRESS}
 deactivate DB
 
-TicketSvc -> DB: SELECT * FROM maintenance_checklists WHERE ticket_id = 701
+TicketSvc -> DB: SELECT * FROM maintenance_checklist_items WHERE ticket_id = 701
 TicketSvc -> DB: SELECT * FROM maintenance_repair_logs WHERE ticket_id = 701
 TicketSvc -> DB: SELECT * FROM post_maintenance_tests WHERE ticket_id = 701 ORDER BY id DESC LIMIT 1
 
-TicketSvc -> TicketSvc: validateClose():\n1. Tất cả Checklist item đều checked = true?\n2. Có ít nhất 1 bản ghi RepairLog?\n3. Bài kiểm thử PostTest mới nhất có status == PASSED?
+TicketSvc -> TicketSvc: validateClose():\n1. Tất cả Checklist item đều completed = true?\n2. Có ít nhất 1 bản ghi RepairLog?\n3. Bài kiểm thử PostTest mới nhất có status == PASSED?
 
 alt Điều kiện kiểm định chưa đạt chuẩn
     TicketSvc --> TicketCtrl: Throw InvalidMaintenanceTicketException("Checklist or Post-test incomplete")

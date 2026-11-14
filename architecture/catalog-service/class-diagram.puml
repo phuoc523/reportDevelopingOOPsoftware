@@ -17,58 +17,63 @@ package "com.scentstation.catalog.entity" {
     class Product <<Entity>> {
         - Long id
         - Long tenantId
-        - String sku
         - String name
         - String description
-        - BigDecimal basePrice
-        - Integer volumeMl
-        - Boolean active
+        - String fragranceNotes
+        - String imageUrl
+        - BigDecimal defaultPrice
+        - Boolean available
         - LocalDateTime createdAt
-        + isAvailable(): boolean
-        + canSell(): boolean
+        - LocalDateTime updatedAt
+        + getId(): Long
+        + getTenantId(): Long
+        + getDefaultPrice(): BigDecimal
+        + getAvailable(): Boolean
     }
 
     class Campaign <<Entity>> {
         - Long id
         - Long tenantId
+        - Long productId
         - String name
-        - String description
         - DiscountType discountType
         - BigDecimal discountValue
-        - LocalDateTime startDate
-        - LocalDateTime endDate
+        - LocalDateTime startAt
+        - LocalDateTime endAt
         - Boolean active
-        + isEffectiveAt(time: LocalDateTime): boolean
-        + applyDiscount(base: BigDecimal): BigDecimal
+        - LocalDateTime createdAt
+        - LocalDateTime updatedAt
+        + getProductId(): Long
+        + getDiscountType(): DiscountType
+        + getDiscountValue(): BigDecimal
     }
 }
 
 package "com.scentstation.catalog.dto.response" {
-    class ProductResponse <<DTO>> {
-        - Long id
-        - Long tenantId
-        - String sku
-        - String name
-        - BigDecimal basePrice
-        - Boolean active
+    class ProductResponse <<DTO Record>> {
+        + id(): Long
+        + tenantId(): Long
+        + name(): String
+        + defaultPrice(): BigDecimal
+        + available(): Boolean
+        + fragranceNotes(): String
     }
 
-    class EffectivePriceResponse <<DTO>> {
-        - Long productId
-        - BigDecimal originalPrice
-        - BigDecimal effectivePrice
-        - Long appliedCampaignId
-        - String campaignName
-        - BigDecimal discountAmount
+    class EffectivePriceResponse <<DTO Record>> {
+        + productId(): Long
+        + defaultPrice(): BigDecimal
+        + effectivePrice(): BigDecimal
+        + campaignId(): Long
+        + discountAmount(): BigDecimal
     }
 
-    class OrderProductSnapshotResponse <<DTO>> {
-        - Long productId
-        - Long tenantId
-        - String name
-        - BigDecimal unitPrice
-        - Boolean active
-        - Integer volumeMl
+    class OrderProductSnapshotResponse <<DTO Record>> {
+        + productId(): Long
+        + tenantId(): Long
+        + name(): String
+        + available(): Boolean
+        + unitPrice(): BigDecimal
+        + campaignId(): Long
     }
 }
 
@@ -78,7 +83,7 @@ package "com.scentstation.catalog.service" {
         + createProduct(req: CreateProductRequest): ProductResponse
         + getProduct(id: Long): ProductResponse
         + search(criteria: ProductSearchCriteria): List<ProductResponse>
-        + updateAvailability(id: Long, active: Boolean): ProductResponse
+        + updateAvailability(id: Long, available: Boolean): ProductResponse
     }
 
     class CampaignService <<Service>> {
@@ -91,7 +96,7 @@ package "com.scentstation.catalog.service" {
         - ProductRepository productRepository
         - CampaignRepository campaignRepository
         + calculateEffectivePrice(productId: Long): EffectivePriceResponse
-        + getAuthoritativeSnapshot(productId: Long): OrderProductSnapshotResponse
+        + getInternalEffectivePrice(product: Product): EffectivePriceResponse
     }
 
     class ProductMachineAvailabilityService <<Service>> {
@@ -114,9 +119,10 @@ package "com.scentstation.catalog.controller" {
     }
 
     class InternalOrderProductController <<Controller>> {
-        - PromotionalPricingService pricingService
-        - InternalServiceKeyVerifier keyVerifier
-        + getOrderSnapshot(productId: Long): OrderProductSnapshotResponse
+        - ProductRepository products
+        - PromotionalPricingService pricing
+        - InternalServiceKeyVerifier keys
+        + get(productId: Long, tenantId: Long, key: String): OrderProductSnapshotResponse
     }
 }
 
@@ -127,20 +133,20 @@ package "com.scentstation.catalog.integration.machine" {
 }
 
 ' ================= QUAN HỆ UML VÀ BẢN SỐ =================
-Campaign --> DiscountType : "loại chiết khấu"
-Product "1" ..> "0..*" Campaign : "áp dụng khuyến mãi"
+Campaign --> DiscountType : "loại chiết khấu áp dụng"
+Product "1" ..> "0..*" Campaign : "sản phẩm áp dụng chương trình ưu đãi"
 
 ProductService --> Product : "CRUD thực thể"
 CampaignService --> Campaign : "CRUD thực thể"
-PromotionalPricingService --> Product : "truy vấn giá gốc"
-PromotionalPricingService --> Campaign : "truy vấn chương trình ưu đãi"
-PromotionalPricingService ..> EffectivePriceResponse : "sinh dữ liệu"
-PromotionalPricingService ..> OrderProductSnapshotResponse : "sinh snapshot"
+PromotionalPricingService --> Product : "truy vấn defaultPrice"
+PromotionalPricingService --> Campaign : "tính toán giảm giá"
+PromotionalPricingService ..> EffectivePriceResponse : "sinh dữ liệu giá"
+PromotionalPricingService ..> OrderProductSnapshotResponse : "sinh snapshot phục vụ đơn hàng"
 
-ProductController --> ProductService : "điều phối request"
-PromotionalPricingController --> PromotionalPricingService : "gọi tính giá"
-InternalOrderProductController --> PromotionalPricingService : "gọi tạo snapshot chuẩn"
+ProductController --> ProductService : "điều phối request sản phẩm"
+PromotionalPricingController --> PromotionalPricingService : "tra cứu giá hiệu lực"
+InternalOrderProductController --> PromotionalPricingService : "tạo authoritative snapshot"
 
-ProductMachineAvailabilityService --> MachineAvailabilityClient : "gọi sang Machine Service"
+ProductMachineAvailabilityService --> MachineAvailabilityClient : "truy vấn máy chứa sản phẩm"
 
 @enduml
