@@ -1,0 +1,87 @@
+@startuml identity-sequence-diagram
+!theme plain
+autonumber
+skinparam responseMessageBelowArrow true
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title IDENTITY SERVICE - QUY TRÌNH ĐĂNG NHẬP & INTROSPECTION NỘI BỘ
+
+actor "Người dùng / Brand Admin" as User
+participant "API Gateway" as Gateway
+participant "AuthController" as AuthCtrl
+participant "AuthService" as AuthSvc
+participant "UserRepository" as UserRepo
+database "identity_db" as DB
+participant "JwtService" as JwtSvc
+participant "AuditService" as AuditSvc
+participant "Downstream Service\n(Catalog / Machine / Order)" as DownstreamSvc
+participant "InternalIntrospectionController" as IntroCtrl
+
+== LUỒNG 1: ĐĂNG NHẬP HỆ THỐNG VÀ CẤP PHÁT JWT ==
+User -> Gateway: POST /api/auth/login\n{"username": "admin_brandA", "password": "SecretPassword123"}
+activate Gateway
+Gateway -> AuthCtrl: Forward POST /api/auth/login
+activate AuthCtrl
+
+AuthCtrl -> AuthSvc: login(LoginRequest)
+activate AuthSvc
+
+AuthSvc -> UserRepo: findByUsername("admin_brandA")
+activate UserRepo
+UserRepo -> DB: SELECT * FROM users u LEFT JOIN roles r ... WHERE u.username = ?
+activate DB
+DB --> UserRepo: Trả về User Entity kèm Roles & Permissions
+deactivate DB
+UserRepo --> AuthSvc: Optional<User>
+deactivate UserRepo
+
+alt Người dùng không tồn tại
+    AuthSvc --> AuthCtrl: Throw BadCredentialsException
+    AuthCtrl --> Gateway: 401 Unauthorized {"error": "Invalid username or password"}
+    Gateway --> User: 401 Unauthorized
+else Người dùng tồn tại
+    AuthSvc -> AuthSvc: BCrypt.checkpw(password, user.getPasswordHash())
+    alt Mật khẩu không khớp
+        AuthSvc --> AuthCtrl: Throw BadCredentialsException
+        AuthCtrl --> Gateway: 401 Unauthorized
+        Gateway --> User: 401 Unauthorized
+    else Mật khẩu chính xác
+        AuthSvc -> JwtSvc: generateToken(user, user.getGrants())
+        activate JwtSvc
+        JwtSvc --> AuthSvc: String jwtAccessToken (HMAC-SHA256 Signed)
+        deactivate JwtSvc
+
+        AuthSvc -> AuditSvc: record(user.getId(), "USER_LOGIN", "users", "Login successful")
+        activate AuditSvc
+        AuditSvc -> DB: INSERT INTO audit_events (...)
+        deactivate AuditSvc
+
+        AuthSvc --> AuthCtrl: AuthResponse {accessToken, tokenType: "Bearer", expiresIn: 86400, principal}
+        deactivate AuthSvc
+        AuthCtrl --> Gateway: 200 OK {AuthResponse}
+        deactivate AuthCtrl
+        Gateway --> User: 200 OK (Đăng nhập thành công)
+        deactivate Gateway
+    end
+end
+
+== LUỒNG 2: DOWNSTREAM SERVICE GỌI INTROSPECT XÁC THỰC TOKEN ==
+DownstreamSvc -> IntroCtrl: POST /internal/v1/identity/introspect\n(Headers: Authorization: Bearer <JWT>, X-Internal-Service-Key: <Secret>)
+activate IntroCtrl
+
+IntroCtrl -> IntroCtrl: Verify Internal Service Key
+alt Khóa bí mật không đúng
+    IntroCtrl --> DownstreamSvc: 401 Unauthorized ("Invalid internal service key")
+else Khóa bí mật hợp lệ
+    IntroCtrl -> JwtSvc: validateToken(bearerToken)
+    activate JwtSvc
+    JwtSvc -> JwtSvc: Parse claims, verify chữ ký số & hạn sử dụng (exp)
+    JwtSvc --> IntroCtrl: AccountPrincipal {id: 101, username: "admin_brandA", tenantId: 1, grants: ["CATALOG_MANAGE"]}
+    deactivate JwtSvc
+
+    IntroCtrl --> DownstreamSvc: 200 OK {AccountPrincipal}
+end
+deactivate IntroCtrl
+
+@enduml

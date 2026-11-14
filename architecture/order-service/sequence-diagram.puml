@@ -1,0 +1,91 @@
+@startuml order-sequence-diagram
+!theme plain
+autonumber
+skinparam responseMessageBelowArrow true
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title ORDER SERVICE - XỬ LÝ PAYMENT CALLBACK & ĐIỀU PHỐI DISPENSE
+
+participant "Payment Provider\n(VietQR / Webhook)" as Provider
+participant "PaymentController" as Ctrl
+participant "PaymentService" as PaymentSvc
+participant "OrderService" as OrderSvc
+participant "PaymentRepository" as PaymentRepo
+participant "OrderRepository" as OrderRepo
+database "order_db" as DB
+participant "DispensingService" as DispenseSvc
+participant "MachineServiceGateway" as MachineClient
+participant "TransactionReviewService" as ReviewSvc
+
+== 1. TIẾP NHẬN WEBHOOK TỪ CỔNG THANH TOÁN ==
+Provider -> Ctrl: POST /api/v1/payments/callback\n{eventId: "EVT-123", reference: "PAY-9001", orderId: 9001, amount: 50000, status: "PAID"}\n(Header: X-Callback-Token)
+activate Ctrl
+
+Ctrl -> PaymentSvc: processCallback(request, token)
+activate PaymentSvc
+
+PaymentSvc -> PaymentSvc: verifyCallbackToken(token)
+
+== 2. KIỂM TRA CHỐNG TRÙNG LẶP (IDEMPOTENCY) ==
+PaymentSvc -> PaymentRepo: findCallbackEvent("EVT-123")
+activate PaymentRepo
+PaymentRepo -> DB: SELECT * FROM payment_callback_events WHERE event_id = 'EVT-123'
+activate DB
+DB --> PaymentRepo: Optional.empty (Sự kiện mới tinh)
+deactivate DB
+PaymentRepo --> PaymentSvc: null
+deactivate PaymentRepo
+
+PaymentSvc -> PaymentRepo: findByReference("PAY-9001")
+activate PaymentRepo
+PaymentRepo -> DB: SELECT * FROM payments WHERE reference = 'PAY-9001'
+activate DB
+DB --> PaymentRepo: Payment {id: 55, orderId: 9001, status: PENDING, amount: 50000}
+deactivate DB
+PaymentRepo --> PaymentSvc: Payment Entity
+deactivate PaymentRepo
+
+== 3. CẬP NHẬT TRẠNG THÁI VÀ GHI SỰ KIỆN ==
+PaymentSvc -> OrderSvc: confirmOrderAfterPayment(9001, markPaymentPaid)
+activate OrderSvc
+OrderSvc -> OrderRepo: findById(9001)
+OrderRepo -> DB: UPDATE orders SET status = 'CONFIRMED' WHERE id = 9001
+OrderSvc --> PaymentSvc: Order Confirmed
+deactivate OrderSvc
+
+PaymentSvc -> PaymentRepo: save(Payment {status: PAID, paidAt: NOW()})
+PaymentSvc -> PaymentRepo: saveCallbackEvent(PaymentCallbackEvent {eventId: 'EVT-123', outcome: ACCEPTED})
+
+== 4. KÍCH HOẠT LỆNH PHUN HƯƠNG (AT-MOST-ONCE DISPENSE) ==
+PaymentSvc -> DispenseSvc: requestDispensing(9001)
+activate DispenseSvc
+
+DispenseSvc -> DB: INSERT INTO dispensing_commands (commandId: UUID, orderId: 9001, status: 'REQUESTED')
+DispenseSvc -> MachineClient: POST /internal/v1/machines/10/dispense\n{commandId: UUID, orderId: 9001, slotId: 2}
+activate MachineClient
+
+alt Phun thành công tại Kiosk (Machine returns DISPENSED)
+    MachineClient --> DispenseSvc: 200 OK {commandId: UUID, status: "DISPENSED"}
+    DispenseSvc -> DB: UPDATE dispensing_commands SET status = 'DISPENSED'
+    DispenseSvc -> DB: UPDATE orders SET status = 'DISPENSED'
+
+else Phun thất bại / Kẹt vòi (Machine returns FAILED)
+    MachineClient --> DispenseSvc: 200 OK {commandId: UUID, status: "FAILED", message: "Nozzle blocked"}
+    deactivate MachineClient
+    DispenseSvc -> DB: UPDATE dispensing_commands SET status = 'FAILED', manual_review_required = TRUE
+    DispenseSvc -> DB: UPDATE orders SET status = 'FAILED'
+    
+    DispenseSvc -> ReviewSvc: openOrUpdate(paymentRef: "PAY-9001", orderId: 9001, reason: "DISPENSE_FAILED")
+    activate ReviewSvc
+    ReviewSvc -> DB: INSERT INTO transaction_reviews (order_id: 9001, status: 'OPEN')
+    deactivate ReviewSvc
+end
+deactivate DispenseSvc
+
+PaymentSvc --> Ctrl: PaymentResponse {status: PAID}
+deactivate PaymentSvc
+Ctrl --> Provider: 200 OK {"message": "Callback processed"}
+deactivate Ctrl
+
+@enduml

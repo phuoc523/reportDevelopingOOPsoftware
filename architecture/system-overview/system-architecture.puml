@@ -1,0 +1,104 @@
+@startuml system-architecture
+!theme plain
+skinparam componentStyle uml2
+skinparam linetype ortho
+skinparam packageBackgroundColor #FAFAFA
+skinparam packageBorderColor #708090
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+title KIẾN TRÚC TỔNG THỂ HỆ THỐNG MICROSERVICES SCENTSTATION
+
+' ================= ACTORS & CLIENTS =================
+package "Khách hàng & Người dùng (Clients)" {
+    actor "Khách hàng Kiosk\n(Màn hình cảm ứng)" as ActorCustomer #E8F8F5
+    actor "Quản trị Thương hiệu\n(Brand Admin Web)" as ActorBrandAdmin #FEF9E7
+    actor "Kỹ thuật viên\n(Technician Mobile Web)" as ActorTech #FADBD8
+    actor "Quản trị Nền tảng\n(Super Admin)" as ActorSuperAdmin #D5F5E3
+}
+
+cloud "Hệ thống Thanh toán Đối tác\n(VietQR / PayOS / Mock Gateway)" as ExtPayment #EBF5FB
+
+' ================= EDGE LAYER =================
+package "Lớp Cửa ngõ (Edge Layer)" {
+    component [API Gateway\n(Spring Cloud Gateway :8080)] as APIGW #D5F5E3
+    note right of APIGW
+        - GatewayTrustBoundaryFilter:
+          Bóc tách, loại bỏ header giả mạo
+          (X-Internal-Service-Key, X-Actor-*)
+        - CORS Global Filter
+        - Reverse Proxy Routing theo URL prefix
+    end note
+}
+
+' ================= BUSINESS SERVICES LAYER =================
+package "Lớp Dịch vụ Nghiệp vụ (Business Microservices Layer)" {
+    
+    component [Identity Service\n:8081] as IdentitySvc #E8EAED
+    component [Catalog Service\n:8082] as CatalogSvc #E8EAED
+    component [Machine Service\n:8083] as MachineSvc #E8EAED
+    component [Order Service\n:8084] as OrderSvc #FCF3CF
+    component [Operation Service\n:8085] as OperationSvc #E8EAED
+    component [Reporting Service\n:8086] as ReportingSvc #E8EAED
+}
+
+' ================= HARDWARE LAYER =================
+package "Thiết bị Ngoại vi (IoT Hardware Layer)" {
+    node "Trạm Kiosk ScentStation\n(ESP32 / MCU Controller)" as HardwareKiosk #EDBB99
+}
+
+' ================= DATABASE PER SERVICE LAYER =================
+package "Lớp Dữ liệu Độc lập (Database-per-Service - MySQL 8.0)" {
+    database "identity_db" as DBIdentity #AED6F1
+    database "catalog_db" as DBCatalog #AED6F1
+    database "machine_db" as DBMachine #AED6F1
+    database "order_db" as DBOrder #F9E79F
+    database "operation_db" as DBOperation #AED6F1
+    database "reporting_db" as DBReporting #AED6F1
+}
+
+' ================= CLIENTS TO GATEWAY =================
+ActorCustomer --> APIGW : "[1] Đặt hàng & Tra cứu QR\n(HTTP /api/v1/orders, /api/v1/payments)"
+ActorBrandAdmin --> APIGW : "[2] Quản lý SP & Khuyến mãi\n(HTTP /api/catalog/**, /api/campaigns/**)"
+ActorTech --> APIGW : "[3] Lắp chai & Bảo trì\n(HTTP /api/inventory/**, /api/maintenance/**)"
+ActorSuperAdmin --> APIGW : "[4] Quản trị Tenant & Users\n(HTTP /api/auth/**, /api/admin/**)"
+ExtPayment --> APIGW : "[5] Webhook IPN Callback\n(HTTP /api/v1/payments/callback)"
+
+' ================= GATEWAY ROUTING =================
+APIGW --> IdentitySvc : "Path: /api/auth/**, /api/admin/**"
+APIGW --> CatalogSvc : "Path: /api/products/**, /api/campaigns/**, /api/catalog/**"
+APIGW --> OrderSvc : "Path: /api/v1/orders/**, /api/v1/payments/**"
+APIGW --> MachineSvc : "Path: /api/machines/**, /api/alerts/**, /api/locations/**"
+APIGW --> OperationSvc : "Path: /api/inventory/**, /api/maintenance/**"
+APIGW --> ReportingSvc : "Path: /api/reporting/**"
+
+' ================= DATABASE ISOLATION =================
+IdentitySvc -- DBIdentity : "Ownership (Isolated)"
+CatalogSvc -- DBCatalog : "Ownership (Isolated)"
+MachineSvc -- DBMachine : "Ownership (Isolated)"
+OrderSvc -- DBOrder : "Ownership (Isolated)"
+OperationSvc -- DBOperation : "Ownership (Isolated)"
+ReportingSvc -- DBReporting : "Ownership (Isolated)"
+
+' ================= INTER-SERVICE SYNCHRONOUS HTTP CALLS =================
+CatalogSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
+MachineSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
+OrderSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
+OperationSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
+ReportingSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
+
+OrderSvc ..> MachineSvc : "[Authoritative Check]\nValidate Slot Readiness\n(/internal/v1/machines/{mId}/slots/{sId})"
+OrderSvc ..> CatalogSvc : "[Authoritative Check]\nFetch Pricing & Product Snapshot\n(/internal/v1/catalog/products/{pId}/order-snapshot)"
+OrderSvc ..> MachineSvc : "[Dispense Dispatch]\nTrigger Physical Spray\n(/internal/v1/machines/{mId}/dispense)"
+
+OperationSvc ..> MachineSvc : "[Slot Sync]\nUpdate Slot Status & Current Bottle\n(/internal/v1/machines/{mId}/slots/{sId})"
+MachineSvc ..> OperationSvc : "[Alert Handoff]\nAuto-create Maintenance Ticket\n(/internal/v1/maintenance/tickets)"
+
+ReportingSvc ..> OrderSvc : "[Data Sync] Pull Transactions"
+ReportingSvc ..> MachineSvc : "[Data Sync] Pull Machine Metrics"
+ReportingSvc ..> OperationSvc : "[Data Sync] Pull Inventory Snapshots"
+
+' ================= HARDWARE PROTOCOL =================
+MachineSvc ..|> HardwareKiosk : "Machine Command Serial/MQTT\n(Relay Pulse / Flow Sensor Telemetry)"
+
+@enduml

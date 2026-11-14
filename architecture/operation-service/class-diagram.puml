@@ -1,0 +1,180 @@
+@startuml operation-class-diagram
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title CLASS DIAGRAM - OPERATION SERVICE DOMAIN & ARCHITECTURE
+
+package "com.scentstation.operation.inventory" {
+    class InventoryBatch <<Entity>> {
+        - Long id
+        - Long tenantId
+        - String batchCode
+        - Long productId
+        - Integer totalQuantity
+        - LocalDate manufacturingDate
+        - LocalDate expiryDate
+        + isExpired(): boolean
+    }
+
+    class Bottle <<Entity>> {
+        - Long id
+        - Long tenantId
+        - String barcode
+        - Long batchId
+        - Long productId
+        - BottleStatus status
+        - BigDecimal initialVolumeMl
+        - BigDecimal currentVolumeMl
+        + isInstallable(): boolean
+        + deduct(ml: BigDecimal): void
+    }
+
+    class BottleInstallation <<Entity>> {
+        - Long id
+        - Long tenantId
+        - Long bottleId
+        - Long machineId
+        - Long slotId
+        - LocalDateTime installedAt
+        - LocalDateTime removedAt
+        - Long installedByActorId
+        + isActive(): boolean
+        + markRemoved(): void
+    }
+
+    class BottleMovement <<Entity>> {
+        - Long id
+        - Long tenantId
+        - Long bottleId
+        - BottleMovementType movementType
+        - String fromLocation
+        - String toLocation
+        - LocalDateTime timestamp
+    }
+
+    enum BottleStatus <<Enumeration>> {
+        IN_STOCK
+        INSTALLED
+        EMPTY
+        EXPIRED
+        DAMAGED
+    }
+
+    enum BottleMovementType <<Enumeration>> {
+        INBOUND
+        INSTALL
+        REMOVE
+        TRANSFER
+        DISPOSAL
+    }
+}
+
+package "com.scentstation.operation.maintenance" {
+    class MaintenanceTicket <<Entity>> {
+        - Long id
+        - Long tenantId
+        - Long machineId
+        - String title
+        - String description
+        - MaintenanceStatus status
+        - MaintenanceSeverity severity
+        - MaintenancePriority priority
+        - Long assigneeActorId
+        - LocalDateTime createdAt
+        - LocalDateTime dueAt
+        - LocalDateTime closedAt
+        + isReadyToClose(): boolean
+    }
+
+    class MaintenanceChecklistItem <<Entity>> {
+        - Long id
+        - Long ticketId
+        - String itemDescription
+        - Boolean completed
+        - LocalDateTime checkedAt
+        - Long checkedByActorId
+    }
+
+    class MaintenanceRepairLog <<Entity>> {
+        - Long id
+        - Long ticketId
+        - String workDescription
+        - String replacedParts
+        - MaintenanceRepairResult result
+        - LocalDateTime loggedAt
+    }
+
+    class PostMaintenanceTest <<Entity>> {
+        - Long id
+        - Long ticketId
+        - PostMaintenanceTestStatus testResult
+        - String sprayTelemetry
+        - LocalDateTime testedAt
+        + isPassed(): boolean
+    }
+
+    enum MaintenanceStatus <<Enumeration>> {
+        OPEN
+        ASSIGNED
+        IN_PROGRESS
+        PENDING_PARTS
+        COMPLETED
+        CANCELLED
+    }
+
+    enum PostMaintenanceTestStatus <<Enumeration>> {
+        NOT_TESTED
+        PASSED
+        FAILED
+    }
+}
+
+package "com.scentstation.operation.services" {
+    class BottleInstallationService <<Service>> {
+        - BottleRepository bottleRepo
+        - BottleInstallationRepository installRepo
+        - BottleMovementRepository movementRepo
+        - MachineSlotClient machineSlotClient
+        + installBottle(req: InstallBottleRequest): BottleInstallationResponse
+        + removeBottle(req: RemoveBottleRequest): BottleInstallationResponse
+    }
+
+    class MaintenanceTicketService <<Service>> {
+        - MaintenanceTicketRepository ticketRepo
+        - MaintenanceChecklistRepository checklistRepo
+        - MaintenanceRepairLogRepository repairLogRepo
+        - PostMaintenanceTestRepository postTestRepo
+        + createTicket(req: CreateMaintenanceTicketRequest): MaintenanceTicketResponse
+        + closeTicket(ticketId: Long, req: CloseMaintenanceTicketRequest): MaintenanceTicketResponse
+    }
+}
+
+package "com.scentstation.operation.integration.machine" {
+    interface MachineSlotClient <<Interface>> {
+        + getSlot(tenantId: Long, machineId: Long, slotId: Long): MachineSlotInfo
+        + updateSlotCurrentBottle(tenantId: Long, machineId: Long, slotId: Long, bottleId: Long): void
+    }
+}
+
+' ================= QUAN HỆ UML VÀ BẢN SỐ =================
+InventoryBatch "1" *-- "1..*" Bottle : "sản xuất theo lô (Composition)"
+Bottle "1" o-- "0..*" BottleInstallation : "lịch sử gắn máy"
+Bottle "1" o-- "0..*" BottleMovement : "nhật ký di chuyển"
+Bottle --> BottleStatus
+BottleMovement --> BottleMovementType
+
+MaintenanceTicket "1" *-- "0..*" MaintenanceChecklistItem : "danh mục kiểm tra (Composition)"
+MaintenanceTicket "1" *-- "0..*" MaintenanceRepairLog : "nhật ký sửa chữa (Composition)"
+MaintenanceTicket "1" *-- "0..1" PostMaintenanceTest : "kiểm thử hoàn tất (Composition)"
+MaintenanceTicket --> MaintenanceStatus
+PostMaintenanceTest --> PostMaintenanceTestStatus
+
+BottleInstallationService --> Bottle : "cập nhật trạng thái"
+BottleInstallationService --> BottleInstallation : "lưu bản ghi"
+BottleInstallationService --> MachineSlotClient : "đồng bộ máy Kiosk"
+
+MaintenanceTicketService --> MaintenanceTicket : "quản lý vòng đời"
+
+@enduml

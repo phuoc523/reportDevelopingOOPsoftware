@@ -1,0 +1,205 @@
+@startuml order-class-diagram
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title CLASS DIAGRAM - ORDER & PAYMENT SERVICE DOMAIN & ARCHITECTURE
+
+package "com.scentstation.order.entity" {
+    class Order <<Entity>> {
+        - Long id
+        - String tenantId
+        - Long customerId
+        - Long machineId
+        - Long slotId
+        - BigDecimal totalAmount
+        - OrderStatus status
+        - LocalDateTime createdAt
+        - LocalDateTime expiresAt
+        + isExpired(): boolean
+        + canTransitionTo(target: OrderStatus): boolean
+        + markExpired(): void
+    }
+
+    class OrderItem <<Entity>> {
+        - Long id
+        - Long orderId
+        - Long productId
+        - String productName
+        - BigDecimal unitPrice
+        - Integer quantity
+        - BigDecimal subtotal
+    }
+
+    class Payment <<Entity>> {
+        - Long id
+        - String reference
+        - Long orderId
+        - BigDecimal amount
+        - String currency
+        - PaymentStatus status
+        - String qrPayload
+        - LocalDateTime createdAt
+        - LocalDateTime expiresAt
+        - LocalDateTime paidAt
+        + markPaid(): void
+        + markFailed(): void
+        + isExpired(): boolean
+    }
+
+    class PaymentCallbackEvent <<Entity>> {
+        - Long id
+        - String eventId
+        - String reference
+        - Long orderId
+        - BigDecimal amount
+        - String currency
+        - String status
+        - Outcome outcome
+        - Integer errorStatus
+        - String message
+        - LocalDateTime receivedAt
+        + matches(ref, ord, amt, cur, st): boolean
+    }
+
+    class DispensingCommand <<Entity>> {
+        - Long id
+        - String commandId
+        - Long orderId
+        - String paymentReference
+        - Long machineId
+        - Long slotId
+        - DispensingStatus status
+        - Boolean manualReviewRequired
+        - String manualReviewReason
+        + recordResult(status: DispensingStatus, reason: String): void
+    }
+
+    class TransactionReview <<Entity>> {
+        - Long id
+        - Long orderId
+        - String paymentReference
+        - String reviewReason
+        - TransactionReviewStatus status
+        - LocalDateTime openedAt
+        - LocalDateTime resolvedAt
+        + markRefunded(): void
+        + markResolved(): void
+    }
+
+    enum OrderStatus <<Enumeration>> {
+        PENDING
+        CONFIRMED
+        PROCESSING
+        DISPENSED
+        SHIPPED
+        DELIVERED
+        CANCELLED
+        EXPIRED
+        FAILED
+    }
+
+    enum PaymentStatus <<Enumeration>> {
+        PENDING
+        PAID
+        FAILED
+        EXPIRED
+    }
+
+    enum DispensingStatus <<Enumeration>> {
+        NOT_REQUESTED
+        REQUESTED
+        DISPENSED
+        FAILED
+        UNKNOWN
+    }
+
+    enum TransactionReviewStatus <<Enumeration>> {
+        OPEN
+        RESOLVED
+        REFUNDED
+    }
+}
+
+package "com.scentstation.order.service" {
+    class OrderService <<Service>> {
+        - OrderRepository orderRepository
+        - PaymentRepository paymentRepository
+        - DispensingRepository dispensingRepository
+        - CatalogServiceGateway catalog
+        - MachineAuthorityGateway machines
+        - Duration orderExpiration
+        + createOrder(req: CreateOrderRequest, actor: IdentityPrincipal): OrderResponse
+        + getOrderById(id: Long): OrderResponse
+        + confirmOrderAfterPayment(id: Long, markPaymentPaid: Runnable): void
+        + failOrderAfterPayment(id: Long, markPaymentFailed: Runnable): void
+    }
+
+    class PaymentService <<Service>> {
+        - PaymentRepository paymentRepository
+        - OrderService orderService
+        - DispensingService dispensingService
+        - ReportingTransactionClient reportingClient
+        - String callbackToken
+        + createOrGetQr(orderId: Long): PaymentResponse
+        + processCallback(req: PaymentCallbackRequest, token: String): PaymentResponse
+    }
+
+    class DispensingService <<Service>> {
+        - OrderRepository orderRepository
+        - PaymentRepository paymentRepository
+        - DispensingRepository dispensingRepository
+        - MachineServiceGateway machineServiceClient
+        - TransactionReviewRepository reviewRepository
+        + requestDispensing(orderId: Long): DispensingResponse
+        + getDispensingResult(orderId: Long): DispensingResponse
+    }
+
+    class TransactionReviewService <<Service>> {
+        - TransactionReviewRepository reviewRepository
+        + openOrUpdate(paymentRef: String, orderId: Long, reason: String): void
+        + resolve(orderId: Long): void
+    }
+}
+
+package "com.scentstation.order.controller" {
+    class OrderController <<Controller>> {
+        - OrderService orderService
+        + create(req: CreateOrderRequest): OrderResponse
+        + get(id: Long): OrderResponse
+    }
+
+    class PaymentController <<Controller>> {
+        - PaymentService paymentService
+        + getQr(orderId: Long): PaymentResponse
+        + callback(req: PaymentCallbackRequest, token: String): PaymentResponse
+    }
+
+    class TransactionReviewController <<Controller>> {
+        - TransactionReviewService reviewService
+        + listOpenReviews(): List<TransactionReviewResponse>
+    }
+}
+
+' ================= QUAN HỆ UML VÀ BẢN SỐ =================
+Order "1" *-- "1..*" OrderItem : "chứa các mặt hàng (Composition)"
+Order "1" o-- "0..1" Payment : "quan hệ thanh toán (Aggregation)"
+Order "1" o-- "0..1" DispensingCommand : "quan hệ lệnh xịt (Aggregation)"
+Payment "1" *-- "0..*" PaymentCallbackEvent : "nhật ký webhook (Composition)"
+DispensingCommand "0..1" --> "0..1" TransactionReview : "mở rà soát khi lỗi"
+
+Order --> OrderStatus
+Payment --> PaymentStatus
+DispensingCommand --> DispensingStatus
+TransactionReview --> TransactionReviewStatus
+
+OrderController --> OrderService
+PaymentController --> PaymentService
+TransactionReviewController --> TransactionReviewService
+
+PaymentService --> OrderService : "gọi cập nhật trạng thái đơn"
+PaymentService --> DispensingService : "gọi phát lệnh phun sau thanh toán"
+DispensingService --> TransactionReviewService : "gọi mở ticket rà soát"
+
+@enduml

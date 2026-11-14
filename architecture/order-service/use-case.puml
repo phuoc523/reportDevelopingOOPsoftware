@@ -1,0 +1,65 @@
+@startuml order-use-case
+!theme plain
+left to right direction
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+actor "Khách hàng Kiosk" as Customer #E8F8F5
+actor "Cổng thanh toán Đối tác\n(VietQR / PayOS)" as PaymentGateway #EBF5FB
+actor "Kỹ thuật viên / Rà soát" as Reviewer #FADBD8
+actor "Hệ thống Báo cáo (Nội bộ)" as ReportingSvc #E8EAED
+
+rectangle "Phân hệ Order & Payment Fulfillment Service" {
+
+    package "Khởi tạo & Quản lý Đơn hàng (Order Lifecycle)" {
+        usecase "UC_ORD01. Khởi tạo Đơn hàng (Create Order)" as UC_CreateOrder
+        usecase "UC_ORD02. Tra cứu Trạng thái Đơn hàng (Get Order Status)" as UC_GetOrderStatus
+        usecase "UC_ORD03. Hủy Đơn hàng khi Chưa thanh toán (Cancel Order)" as UC_CancelOrder
+        usecase "UC_ORD04. Tự động Hết hạn Đơn sau 15 phút (Expire Order PT15M)" as UC_ExpireOrder
+    }
+
+    package "Thanh toán & Xử lý Webhook (Payment Processing)" {
+        usecase "UC_ORD05. Tạo Mã QR Thanh toán (Generate Payment QR)" as UC_GenQR
+        usecase "UC_ORD06. Tra cứu Trạng thái Thanh toán (Get Payment)" as UC_GetPayment
+        usecase "UC_ORD07. Tiếp nhận Webhook Callback Thanh toán (Process Callback)" as UC_Callback
+        usecase "UC_ORD08. Xác thực Chữ ký & Chống trùng lặp (Verify Token & Idempotency)" as UC_VerifyCallback
+        usecase "UC_ORD09. Xác nhận Đơn hàng đã Trả tiền (Confirm Order)" as UC_ConfirmOrder
+    }
+
+    package "Điều phối Phun hương & Bù trừ Sự cố (Dispense & Review)" {
+        usecase "UC_ORD10. Phát lệnh Phun hương sang Machine (Request Dispense)" as UC_ReqDispense
+        usecase "UC_ORD11. Tra cứu Tiến độ Phun hương (Poll Dispense Result)" as UC_PollDispense
+        usecase "UC_ORD12. Mở Hồ sơ Rà soát Sự cố (Open Transaction Review)" as UC_OpenReview
+        usecase "UC_ORD13. Xử lý Hoàn tiền hoặc Phun bù (Resolve / Refund Review)" as UC_ResolveReview
+        usecase "UC_ORD14. Đồng bộ Giao dịch sang Reporting Service" as UC_SyncReport
+    }
+}
+
+' Liên kết Actor
+Customer -- UC_CreateOrder
+Customer -- UC_GetOrderStatus
+Customer -- UC_CancelOrder
+Customer -- UC_GenQR
+Customer -- UC_GetPayment
+
+PaymentGateway -- UC_Callback
+
+Reviewer -- UC_OpenReview
+Reviewer -- UC_ResolveReview
+
+ReportingSvc -- UC_SyncReport
+
+' Quan hệ Include / Extend
+UC_CreateOrder ..> UC_ExpireOrder : <<extend>>\n(Khi quá thời gian thanh toán)
+UC_Callback ..> UC_VerifyCallback : <<include>>
+UC_Callback ..> UC_ConfirmOrder : <<include>>
+UC_Callback ..> UC_ReqDispense : <<include>>
+
+UC_ReqDispense ..> UC_PollDispense : <<include>>
+UC_OpenReview ..> UC_ReqDispense : <<extend>>\n(Khi Machine phản hồi FAILED hoặc UNKNOWN)
+UC_ResolveReview ..> UC_OpenReview : <<include>>
+
+UC_ConfirmOrder ..> UC_SyncReport : <<include>>
+
+@enduml

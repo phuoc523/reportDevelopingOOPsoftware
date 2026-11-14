@@ -1,0 +1,71 @@
+@startuml reporting-sequence-diagram
+!theme plain
+autonumber
+skinparam responseMessageBelowArrow true
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title REPORTING SERVICE - ĐỒNG BỘ GIAO DỊCH VÀ XUẤT BÁO CÁO EXCEL
+
+actor "Order Service" as OrderSvc
+participant "TransactionSyncController" as SyncCtrl
+participant "TransactionService" as TxnSvc
+participant "TransactionSyncValidator" as Validator
+participant "TransactionRepository" as TxnRepo
+database "reporting_db" as DB
+actor "Brand Admin" as Admin
+participant "ExcelExportController" as ExportCtrl
+participant "ExcelExportService" as ExportSvc
+
+== PHẦN 1: ĐỒNG BỘ DỮ LIỆU GIAO DỊCH TỪ ORDER SERVICE ==
+OrderSvc -> SyncCtrl: POST /internal/v1/reporting/sync/transactions\n{transactionId: "TXN-9001", orderId: 9001, amount: 50000, status: "DISPENSED"}\n(Header: X-Internal-Service-Key)
+activate SyncCtrl
+
+SyncCtrl -> SyncCtrl: verifyInternalApiKey(key)
+SyncCtrl -> TxnSvc: syncTransaction(request)
+activate TxnSvc
+
+TxnSvc -> Validator: validate(request)
+activate Validator
+Validator --> TxnSvc: OK (Dữ liệu hợp lệ)
+deactivate Validator
+
+TxnSvc -> TxnRepo: findByTransactionId("TXN-9001")
+activate TxnRepo
+TxnRepo -> DB: SELECT * FROM transactions WHERE transaction_id = 'TXN-9001'
+activate DB
+DB --> TxnRepo: Optional.empty (Giao dịch mới)
+deactivate DB
+TxnRepo --> TxnSvc: null
+deactivate TxnRepo
+
+TxnSvc -> TxnRepo: save(Transaction Entity)
+activate TxnRepo
+TxnRepo -> DB: INSERT INTO transactions (transaction_id, order_id, amount, status, ...)
+deactivate TxnRepo
+
+TxnSvc --> SyncCtrl: Saved Transaction Entity
+deactivate TxnSvc
+SyncCtrl --> OrderSvc: 200 OK {"status": "SYNCED"}
+deactivate SyncCtrl
+
+== PHẦN 2: BRAND ADMIN TRUY VẤN VÀ XUẤT FILE BÁO CÁO EXCEL ==
+Admin -> ExportCtrl: GET /api/reporting/excel/export?tenantId=1&from=2026-11-01&to=2026-11-14
+activate ExportCtrl
+
+ExportCtrl -> ExportSvc: exportToExcel(tenantId, from, to)
+activate ExportSvc
+
+ExportSvc -> DB: SELECT * FROM transactions WHERE tenant_id = 1 AND transaction_time BETWEEN ...
+activate DB
+DB --> ExportSvc: List<Transaction>
+deactivate DB
+
+ExportSvc -> ExportSvc: Khởi tạo Apache POI XSSFWorkbook:\n1. Tạo Sheet "Doanh Thu Chi Tiết"\n2. Ghi Header, định dạng tiền tệ VND\n3. Tính tổng SUM(amount) và tỷ lệ thành công\n4. Xuất mảng byte[] (Content-Type: application/vnd.openxmlformats...)
+
+ExportSvc --> ExportCtrl: byte[] Excel File Stream
+deactivate ExportSvc
+ExportCtrl --> Admin: 200 OK (Download file: BaoCaoDoanhThu_202611.xlsx)
+deactivate ExportCtrl
+
+@enduml

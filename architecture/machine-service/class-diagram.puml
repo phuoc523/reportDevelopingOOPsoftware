@@ -1,0 +1,204 @@
+@startuml machine-class-diagram
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title CLASS DIAGRAM - MACHINE SERVICE DOMAIN & ARCHITECTURE
+
+package "com.scentstation.entity" {
+    class Location <<Entity>> {
+        - Long id
+        - String name
+        - String address
+        - String city
+        - String country
+    }
+
+    class Machine <<Entity>> {
+        - Long id
+        - String tenantId
+        - Long locationId
+        - String serialNumber
+        - String model
+        - MachineOperationalStatus operationalStatus
+        - DeviceRegistrationStatus registrationStatus
+        - Boolean maintenanceChecklistComplete
+        - Boolean postMaintenanceTestPassed
+        - LocalDateTime lastHeartbeatAt
+        + isOperational(): boolean
+        + canDispense(): boolean
+        + restoreOperation(): void
+    }
+
+    class MachineSlot <<Entity>> {
+        - Long id
+        - Long machineId
+        - Integer slotNumber
+        - String configuredProductId
+        - Long currentBottleId
+        - SlotStatus status
+        - Integer capacityMl
+        - Integer remainingMl
+        + isReady(): boolean
+        + deductVolume(ml: Integer): void
+    }
+
+    class MachineAlert <<Entity>> {
+        - Long id
+        - Long machineId
+        - MachineAlertType alertType
+        - MachineAlertSeverity severity
+        - MachineAlertStatus status
+        - String details
+        - LocalDateTime raisedAt
+        - LocalDateTime acknowledgedAt
+        - LocalDateTime resolvedAt
+        + acknowledge(): void
+        + resolve(): void
+    }
+
+    class MachineCommand <<Entity>> {
+        - Long id
+        - String commandId
+        - Long orderId
+        - Long machineId
+        - Long slotId
+        - MachineCommandStatus status
+        - String message
+        - LocalDateTime dispatchedAt
+        - LocalDateTime completedAt
+    }
+
+    class AlertHandoffOutbox <<Entity>> {
+        - Long id
+        - Long alertId
+        - String targetService
+        - String payload
+        - String status
+        - Integer retryCount
+    }
+
+    class MachineHistory <<Entity>> {
+        - Long id
+        - Long machineId
+        - MachineHistoryAction action
+        - String details
+        - String actorId
+        - LocalDateTime timestamp
+    }
+
+    enum MachineOperationalStatus <<Enumeration>> {
+        OPERATIONAL
+        MAINTENANCE_REQUIRED
+        OFFLINE
+        DECOMMISSIONED
+    }
+
+    enum DeviceRegistrationStatus <<Enumeration>> {
+        PENDING
+        REGISTERED
+        REVOKED
+    }
+
+    enum SlotStatus <<Enumeration>> {
+        ACTIVE
+        EMPTY
+        DISABLED
+        MAINTENANCE
+        ERROR
+    }
+
+    enum MachineAlertType <<Enumeration>> {
+        NOZZLE_CLOGGED
+        LOW_STOCK
+        HARDWARE_FAILURE
+        POWER_OUTAGE
+        DOOR_OPEN
+    }
+
+    enum MachineAlertSeverity <<Enumeration>> {
+        INFO
+        WARNING
+        CRITICAL
+    }
+}
+
+package "com.scentstation.service" {
+    class MachineService <<Service>> {
+        - MachineRepository machineRepo
+        - MachineHistoryRepository historyRepo
+        + register(req: CreateMachineRequest): MachineResponse
+        + control(id: Long, req: MachineControlRequest, actorId: String): MachineResponse
+        + updateDeviceRegistrationStatus(id: Long, req: UpdateDeviceRegistrationStatusRequest): MachineResponse
+    }
+
+    class SlotService <<Service>> {
+        - MachineSlotRepository slotRepo
+        + configureSlot(machineId: Long, slotId: Long, productId: String): SlotResponse
+        + updateSlotStatus(machineId: Long, slotId: Long, status: SlotStatus): SlotResponse
+        + linkBottle(machineId: Long, slotId: Long, bottleId: Long): void
+    }
+
+    class DispenseCommandService <<Service>> {
+        - MachineCommandRepository commandRepo
+        - MachineSlotRepository slotRepo
+        + execute(req: CreateDispenseCommandRequest): DispenseCommandResponse
+        + getResult(commandId: String): DispenseCommandResponse
+    }
+
+    class MachineAlertService <<Service>> {
+        - MachineAlertRepository alertRepo
+        - AlertHandoffOutboxService outboxService
+        + raiseAlert(machineId: Long, req: LowStockAlertRequest): MachineAlertResponse
+        + acknowledge(alertId: Long): MachineAlertResponse
+        + resolve(alertId: Long): MachineAlertResponse
+    }
+}
+
+package "com.scentstation.controller" {
+    class MachineController <<Controller>> {
+        - MachineService machineService
+        + register(req: CreateMachineRequest): MachineResponse
+        + control(id: Long, req: MachineControlRequest): MachineResponse
+    }
+
+    class SlotController <<Controller>> {
+        - SlotService slotService
+        + getSlots(machineId: Long): List<SlotResponse>
+    }
+
+    class InternalOrderMachineController <<Controller>> {
+        - SlotService slotService
+        - MachineService machineService
+        + getSlotSnapshot(machineId: Long, slotId: Long): OrderMachineSlotResponse
+    }
+
+    class DispenseCommandController <<Controller>> {
+        - DispenseCommandService dispenseService
+        + dispatch(req: CreateDispenseCommandRequest): DispenseCommandResponse
+        + getStatus(commandId: String): DispenseCommandResponse
+    }
+}
+
+' ================= QUAN HỆ UML VÀ BẢN SỐ =================
+Location "1" o-- "0..*" Machine : "chứa các máy kiosk (Aggregation)"
+Machine "1" *-- "1..*" MachineSlot : "chứa các khay chứa (Composition)"
+Machine "1" *-- "0..*" MachineAlert : "danh sách cảnh báo (Composition)"
+Machine "1" o-- "0..*" MachineCommand : "lịch sử lệnh phần cứng"
+Machine "1" *-- "0..*" MachineHistory : "nhật ký kiểm toán máy (Composition)"
+MachineAlert "1" *-- "0..1" AlertHandoffOutbox : "sự kiện đẩy ngoại vi (Composition)"
+
+Machine --> MachineOperationalStatus
+Machine --> DeviceRegistrationStatus
+MachineSlot --> SlotStatus
+MachineAlert --> MachineAlertType
+MachineAlert --> MachineAlertSeverity
+
+MachineController --> MachineService
+SlotController --> SlotService
+InternalOrderMachineController --> SlotService
+DispenseCommandController --> DispenseCommandService
+MachineAlertService --> AlertHandoffOutbox : "tạo outbox event"
+
+@enduml

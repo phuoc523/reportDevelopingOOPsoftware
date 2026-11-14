@@ -1,0 +1,74 @@
+@startuml order-activity-diagram
+!theme plain
+skinparam conditionStyle insidediamond
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+|Khách hàng Kiosk|
+start
+:Lựa chọn hương nước hoa và thể tích muốn chiết;
+:Gửi yêu cầu khởi tạo đơn hàng (CreateOrderRequest);
+
+|Order Service (Controller & Service)|
+:Đọc thông tin Actor từ JWT Token;
+:Gọi Machine Service kiểm tra trạng thái máy & khay cắm;
+
+if (Máy và Slot sẵn sàng hoạt động?) then (sẵn sàng)
+    :Gọi Catalog Service lấy snapshot giá chuẩn authoritative;
+    if (Giá Client gửi khớp hoàn toàn với giá Catalog và SP đang bán?) then (khớp giá)
+        :Tính hạn chót thanh toán (expiresAt = Now + 15 phút);
+        :Lưu Order vào Order DB với trạng thái PENDING;
+        :Tạo bản ghi Payment trạng thái PENDING và sinh chuỗi mã VietQR;
+        |Khách hàng Kiosk|
+        :Xem mã QR thanh toán trên màn hình Kiosk;
+        :Dùng ứng dụng Ngân hàng quét QR chuyển khoản;
+
+        |Cổng thanh toán / Provider|
+        :Ghi nhận tiền vào tài khoản;
+        :Gửi webhook callback thông báo giao dịch thành công;
+
+        |Order Service (Payment & Dispense)|
+        :Kiểm tra chữ ký webhook và đối soát Idempotency;
+        if (Callback hợp lệ?) then (hợp lệ)
+            :Đổi trạng thái Payment = PAID;
+            :Đổi trạng thái Order = CONFIRMED;
+            :Tạo DispensingCommand trạng thái REQUESTED;
+            :Gửi lệnh kích hoạt phun sang Machine Service;
+
+            |Machine Service & Kiosk|
+            :Kích hoạt bơm màng và cảm biến lưu lượng;
+            if (Cảm biến báo phun thành công?) then (thành công)
+                |Order Service (Payment & Dispense)|
+                :Cập nhật DispensingCommand = DISPENSED;
+                :Cập nhật Order = DISPENSED;
+                |Khách hàng Kiosk|
+                :Nhận nước hoa tại vòi xịt;
+                stop
+            else (lỗi vòi/kẹt bơm)
+                |Order Service (Payment & Dispense)|
+                :Cập nhật DispensingCommand = FAILED;
+                :Cập nhật Order = FAILED;
+                :Tạo bản ghi TransactionReview (cần hoàn tiền/hỗ trợ);
+                |Khách hàng Kiosk|
+                :Hiển thị thông báo xin lỗi và mã tra cứu hoàn tiền;
+                stop
+            endif
+        else (sai chữ ký)
+            :Từ chối callback (401 Unauthorized);
+            stop
+        endif
+
+    else (sai lệch giá)
+        :Báo lỗi 400 Bad Request;
+        |Khách hàng Kiosk|
+        :Hiển thị thông báo giá có thay đổi, tải lại giỏ hàng;
+        stop
+    endif
+else (máy bận/bảo trì)
+    :Báo lỗi 409 Conflict;
+    |Khách hàng Kiosk|
+    :Thông báo khay hương đang bảo trì, mời chọn hương khác;
+    stop
+endif
+
+@enduml

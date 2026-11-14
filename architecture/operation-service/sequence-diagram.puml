@@ -1,0 +1,77 @@
+@startuml operation-sequence-diagram
+!theme plain
+autonumber
+skinparam responseMessageBelowArrow true
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title OPERATION SERVICE - LẮP ĐẶT CHAI HƯƠNG VÀ ĐÓNG PHIẾU BẢO TRÌ
+
+actor "Kỹ thuật viên" as Tech
+participant "BottleInstallationController" as BottleCtrl
+participant "BottleInstallationService" as InstallSvc
+participant "MachineSlotClient" as MachineClient
+database "operation_db" as DB
+participant "MaintenanceTicketController" as TicketCtrl
+participant "MaintenanceTicketService" as TicketSvc
+
+== PHẦN 1: LẮP ĐẶT CHAI HƯƠNG MỚI VÀO MÁY KIOSK ==
+Tech -> BottleCtrl: POST /api/inventory/installations/install\n{tenantId: 1, bottleId: 501, machineId: 10, slotId: 2}
+activate BottleCtrl
+
+BottleCtrl -> InstallSvc: installBottle(request)
+activate InstallSvc
+
+InstallSvc -> DB: SELECT * FROM bottles WHERE id = 501 AND tenant_id = 1
+activate DB
+DB --> InstallSvc: Bottle Entity {status: IN_STOCK, productId: 202}
+deactivate DB
+
+InstallSvc -> MachineClient: getSlot(tenantId: 1, machineId: 10, slotId: 2)
+activate MachineClient
+MachineClient --> InstallSvc: MachineSlotInfo {slotStatus: EMPTY, configuredProductId: "202"}
+deactivate MachineClient
+
+InstallSvc -> InstallSvc: Đối soát: Bottle.productId == Slot.configuredProductId
+InstallSvc -> DB: INSERT INTO bottle_installations (bottle_id: 501, machine_id: 10, slot_id: 2)\nUPDATE bottles SET status = 'INSTALLED'\nINSERT INTO bottle_movements (type: 'INSTALL')
+
+InstallSvc -> MachineClient: updateSlotCurrentBottle(tenantId: 1, machineId: 10, slotId: 2, bottleId: 501)
+activate MachineClient
+MachineClient --> InstallSvc: 200 OK (Slot updated to ACTIVE)
+deactivate MachineClient
+
+InstallSvc --> BottleCtrl: BottleInstallationResponse {id: 88, status: "SUCCESS"}
+deactivate InstallSvc
+BottleCtrl --> Tech: 200 OK {message: "Bottle installed and slot activated"}
+deactivate BottleCtrl
+
+== PHẦN 2: HOÀN TẤT VÀ ĐÓNG PHIẾU BẢO TRÌ (CLOSE TICKET) ==
+Tech -> TicketCtrl: POST /api/maintenance/tickets/701/close\n{tenantId: 1, closedByActorId: 99}
+activate TicketCtrl
+
+TicketCtrl -> TicketSvc: closeTicket(701, request)
+activate TicketSvc
+
+TicketSvc -> DB: SELECT * FROM maintenance_tickets WHERE id = 701
+activate DB
+DB --> TicketSvc: MaintenanceTicket Entity {status: IN_PROGRESS}
+deactivate DB
+
+TicketSvc -> DB: SELECT * FROM maintenance_checklists WHERE ticket_id = 701
+TicketSvc -> DB: SELECT * FROM maintenance_repair_logs WHERE ticket_id = 701
+TicketSvc -> DB: SELECT * FROM post_maintenance_tests WHERE ticket_id = 701 ORDER BY id DESC LIMIT 1
+
+TicketSvc -> TicketSvc: validateClose():\n1. Tất cả Checklist item đều checked = true?\n2. Có ít nhất 1 bản ghi RepairLog?\n3. Bài kiểm thử PostTest mới nhất có status == PASSED?
+
+alt Điều kiện kiểm định chưa đạt chuẩn
+    TicketSvc --> TicketCtrl: Throw InvalidMaintenanceTicketException("Checklist or Post-test incomplete")
+    TicketCtrl --> Tech: 400 Bad Request
+else Đạt đầy đủ tiêu chuẩn an toàn
+    TicketSvc -> DB: UPDATE maintenance_tickets SET status = 'COMPLETED', closed_at = NOW()
+    TicketSvc --> TicketCtrl: MaintenanceTicketResponse {status: 'COMPLETED'}
+    TicketCtrl --> Tech: 200 OK {message: "Ticket closed successfully, ready to restore machine"}
+end
+deactivate TicketSvc
+deactivate TicketCtrl
+
+@enduml

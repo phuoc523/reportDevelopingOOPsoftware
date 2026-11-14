@@ -1,0 +1,60 @@
+@startuml operation-activity-diagram
+!theme plain
+skinparam conditionStyle insidediamond
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+|Kỹ thuật viên / Client|
+start
+:Yêu cầu lắp đặt chai hương vào vị trí khay máy Kiosk;
+
+|Operation Service (BottleInstallationService)|
+:Truy vấn CSDL kiểm tra thông tin Chai hương (Bottle);
+
+if (Chai hương tồn tại và trạng thái IN_STOCK?) then (hợp lệ)
+    :Gọi Machine Service kiểm tra trạng thái khay cắm (Slot);
+    |Machine Service|
+    :Truy vấn slotStatus và configuredProductId;
+    :Trả về thông tin MachineSlotInfo;
+    
+    |Operation Service (BottleInstallationService)|
+    if (Khay đang EMPTY và configuredProductId khớp với Chai?) then (khớp cấu hình)
+        :Lưu bản ghi BottleInstallation mới;
+        :Cập nhật trạng thái Bottle = INSTALLED;
+        :Ghi nhận lịch sử di chuyển BottleMovement (INSTALL);
+        :Gọi Machine Service cập nhật currentBottleId và kích hoạt slot sang ACTIVE;
+        |Kỹ thuật viên / Client|
+        :Nhận thông báo lắp đặt thành công, máy sẵn sàng xịt hương;
+    else (khay đã có chai hoặc sai mã sản phẩm)
+        :Báo lỗi SlotAlreadyOccupiedException hoặc ProductMismatch;
+        |Kỹ thuật viên / Client|
+        :Từ chối thao tác, yêu cầu kiểm tra lại đúng vị trí slot;
+        stop
+    endif
+else (chai không hợp lệ/đã dùng)
+    :Báo lỗi BottleNotInstallableException;
+    |Kỹ thuật viên / Client|
+    :Thông báo chai nước hoa không đủ điều kiện lắp đặt;
+    stop
+endif
+
+|Kỹ thuật viên / Client|
+:Thực hiện quy trình bảo dưỡng máy Kiosk theo phiếu bảo trì;
+repeat
+    :Thực hiện từng hạng mục checklist;
+    :Ghi chép vật tư thay thế vào nhật ký sửa chữa;
+    :Chạy bài kiểm thử xịt thử nghiệm (Post-Maintenance Test);
+backward:Tiếp tục hiệu chỉnh;
+repeat while (Cảm biến xác nhận Post-test đạt PASSED?) is (không đạt)
+->đạt chuẩn;
+
+:Gửi yêu cầu đóng phiếu bảo trì (Close Ticket);
+|Operation Service (MaintenanceTicketService)|
+:Xác thực checklist đầy đủ, nhật ký đầy đủ và bài test đạt chuẩn;
+:Cập nhật trạng thái Ticket = COMPLETED;
+:Cho phép kỹ thuật viên khôi phục trạng thái máy sang OPERATIONAL;
+|Kỹ thuật viên / Client|
+:Hoàn tất quy trình bảo trì, đưa trạm Kiosk vào hoạt động;
+stop
+
+@enduml

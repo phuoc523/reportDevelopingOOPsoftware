@@ -1,0 +1,174 @@
+@startuml identity-class-diagram
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title CLASS DIAGRAM - IDENTITY SERVICE DOMAIN & ARCHITECTURE
+
+package "com.scentstation.identity.entity" {
+    class User <<Entity>> {
+        - Long id
+        - String username
+        - String passwordHash
+        - String email
+        - String fullName
+        - String status
+        - Long tenantId
+        - LocalDateTime createdAt
+        + checkPassword(raw: String): boolean
+    }
+
+    class Role <<Entity>> {
+        - Long id
+        - String code
+        - String name
+        - String description
+    }
+
+    class Permission <<Entity>> {
+        - Long id
+        - String code
+        - String resource
+        - String action
+    }
+}
+
+package "com.scentstation.identity.tenant" {
+    class Tenant <<Entity>> {
+        - Long id
+        - String code
+        - String name
+        - String status
+        - LocalDateTime createdAt
+    }
+
+    class TenantProfile <<Entity>> {
+        - Long id
+        - String contactEmail
+        - String contactPhone
+        - String address
+        - String taxNumber
+    }
+}
+
+package "com.scentstation.identity.audit" {
+    class AuditEvent <<Entity>> {
+        - Long id
+        - Long actorId
+        - String action
+        - String targetResource
+        - String details
+        - LocalDateTime timestamp
+    }
+}
+
+package "com.scentstation.identity.dto" {
+    class AuthResponse <<DTO>> {
+        - String accessToken
+        - String tokenType
+        - Long expiresIn
+        - AccountPrincipal principal
+    }
+
+    class LoginRequest <<DTO>> {
+        - String username
+        - String password
+    }
+
+    class RegisterRequest <<DTO>> {
+        - String username
+        - String password
+        - String email
+        - String fullName
+        - Long tenantId
+    }
+}
+
+package "com.scentstation.identity.rbac" {
+    class AccountPrincipal <<ValueObject>> {
+        - Long id
+        - String username
+        - Long tenantId
+        - List<String> roles
+        - List<String> grants
+        + hasPermission(permission: String): boolean
+    }
+
+    class AccessPolicy <<Component>> {
+        + current(): AccountPrincipal
+        + require(permission: String): void
+        + requireTenant(tenantId: Long): void
+    }
+}
+
+package "com.scentstation.identity.service" {
+    class AuthService <<Service>> {
+        - UserRepository userRepository
+        - JwtService jwtService
+        - AuditService auditService
+        + register(request: RegisterRequest): AuthResponse
+        + login(request: LoginRequest): AuthResponse
+        + logout(): void
+    }
+
+    class JwtService <<Service>> {
+        - String secretKey
+        - Duration tokenValidity
+        + generateToken(user: User, grants: List<String>): String
+        + validateToken(token: String): AccountPrincipal
+    }
+
+    class TenantService <<Service>> {
+        - TenantRepository tenantRepository
+        + createTenant(req: CreateTenantRequest): Tenant
+        + updateProfile(id: Long, req: UpdateTenantRequest): TenantProfile
+    }
+
+    class AuditService <<Service>> {
+        - AuditRepository auditRepository
+        + record(actorId: Long, action: String, resource: String, details: String): void
+    }
+}
+
+package "com.scentstation.identity.controller" {
+    class AuthController <<Controller>> {
+        - AuthService authService
+        - AccessPolicy accessPolicy
+        + register(r: RegisterRequest): AuthResponse
+        + login(r: LoginRequest): AuthResponse
+        + logout(): void
+        + me(): AccountPrincipal
+    }
+
+    class InternalIntrospectionController <<Controller>> {
+        - JwtService jwtService
+        + introspect(bearerToken: String): AccountPrincipal
+    }
+
+    class TenantController <<Controller>> {
+        - TenantService tenantService
+        + createTenant(req: CreateTenantRequest): Tenant
+    }
+}
+
+' ================= QUAN HỆ UML VÀ BẢN SỐ =================
+Tenant "1" *-- "0..1" TenantProfile : "sở hữu hồ sơ (Composition)"
+Tenant "1" o-- "0..*" User : "quản lý danh sách tài khoản (Aggregation)"
+User "0..*" o-- "1..*" Role : "được gán vai trò"
+Role "1" *-- "1..*" Permission : "chứa danh sách quyền (Composition)"
+User "1" ..> "0..*" AuditEvent : "là đối tượng phát sinh kiểm toán"
+
+AuthService --> JwtService : "gọi tạo JWT"
+AuthService --> AuditService : "gọi ghi nhận log"
+AuthService ..> User : "xác thực thông tin"
+
+AuthController --> AuthService : "chuyển tiếp nghiệp vụ"
+AuthController --> AccessPolicy : "soát quyền hiện tại"
+InternalIntrospectionController --> JwtService : "giải mã token nội bộ"
+TenantController --> TenantService : "điều phối nghiệp vụ tenant"
+
+AccessPolicy ..> AccountPrincipal : "cung cấp ngữ cảnh actor"
+AuthResponse *-- AccountPrincipal : "đóng gói kết quả trả về"
+
+@enduml

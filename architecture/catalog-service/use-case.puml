@@ -1,0 +1,64 @@
+@startuml catalog-use-case
+!theme plain
+left to right direction
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+actor "Khách hàng Kiosk" as Customer #E8F8F5
+actor "Quản trị Thương hiệu\n(Brand Admin)" as BrandAdmin #FEF9E7
+actor "Order Service (Nội bộ)" as OrderSvc #FCF3CF
+actor "Machine Service (Nội bộ)" as MachineSvc #E8EAED
+
+rectangle "Phân hệ Catalog & Promotional Pricing Service" {
+
+    package "Quản lý Sản phẩm (Product Management)" {
+        usecase "UC_CAT01. Tra cứu Danh mục Sản phẩm" as UC_BrowseCatalog
+        usecase "UC_CAT02. Tìm kiếm Nước hoa theo Tiêu chí (Search Criteria)" as UC_SearchProduct
+        usecase "UC_CAT03. Thêm mới Nước hoa (Create Product)" as UC_CreateProduct
+        usecase "UC_CAT04. Cập nhật Thông tin & Giá gốc" as UC_UpdateProduct
+        usecase "UC_CAT05. Bật/Tắt Trạng thái Bán (Active/Inactive)" as UC_ToggleProduct
+    }
+
+    package "Quản lý Chiến dịch Khuyến mãi (Campaign & Discount)" {
+        usecase "UC_CAT06. Tạo mới Chiến dịch Khuyến mãi" as UC_CreateCampaign
+        usecase "UC_CAT07. Cấu hình Giảm giá theo % (PERCENTAGE)" as UC_DiscountPercent
+        usecase "UC_CAT08. Cấu hình Giảm giá Cố định (FIXED_AMOUNT)" as UC_DiscountFixed
+        usecase "UC_CAT09. Bật/Tắt Hiệu lực Chiến dịch" as UC_ToggleCampaign
+    }
+
+    package "Tính giá Khuyến mãi & Khả dụng (Pricing Engine)" {
+        usecase "UC_CAT10. Tính Giá bán Hiệu lực (Calculate Effective Price)" as UC_CalcPrice
+        usecase "UC_CAT11. Tra cứu Khả dụng Sản phẩm theo Máy\n(Product Availability across Machines)" as UC_ProductMachineAvail
+    }
+
+    package "Cung cấp Snapshot Đơn hàng (Authoritative Snapshot)" {
+        usecase "UC_CAT12. Xuất Snapshot Sản phẩm Chuẩn cho Order\n(/internal/v1/catalog/products/{id}/order-snapshot)" as UC_ExportSnapshot
+    }
+}
+
+' Liên kết Actor
+Customer -- UC_BrowseCatalog
+Customer -- UC_SearchProduct
+Customer -- UC_CalcPrice
+
+BrandAdmin -- UC_CreateProduct
+BrandAdmin -- UC_UpdateProduct
+BrandAdmin -- UC_ToggleProduct
+BrandAdmin -- UC_CreateCampaign
+BrandAdmin -- UC_ToggleCampaign
+BrandAdmin -- UC_ProductMachineAvail
+
+OrderSvc -- UC_ExportSnapshot
+MachineSvc -- UC_ProductMachineAvail
+
+' Quan hệ Include / Extend / Generalization
+UC_CreateProduct ..> UC_UpdateProduct : <<include>>
+UC_DiscountPercent --|> UC_CreateCampaign : <<generalization>>
+UC_DiscountFixed --|> UC_CreateCampaign : <<generalization>>
+
+UC_CalcPrice ..> UC_CreateCampaign : <<include>>
+UC_ExportSnapshot ..> UC_CalcPrice : <<include>>
+UC_ProductMachineAvail ..> UC_BrowseCatalog : <<include>>
+
+@enduml

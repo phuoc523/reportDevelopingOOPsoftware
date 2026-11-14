@@ -1,0 +1,60 @@
+@startuml catalog-sequence-diagram
+!theme plain
+autonumber
+skinparam responseMessageBelowArrow true
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title CATALOG SERVICE - TÍNH GIÁ HIỆU LỰC & XUẤT AUTHORITATIVE SNAPSHOT
+
+actor "Khách hàng / Order Service" as Caller
+participant "InternalOrderProductController" as Ctrl
+participant "PromotionalPricingService" as PricingSvc
+participant "ProductRepository" as ProductRepo
+participant "CampaignRepository" as CampaignRepo
+database "catalog_db" as DB
+
+== LUỒNG: ORDER SERVICE YÊU CẦU SNAPSHOT SẢN PHẨM CHUẨN ==
+Caller -> Ctrl: GET /internal/v1/catalog/products/202/order-snapshot\n(Headers: X-Internal-Service-Key: <Secret>)
+activate Ctrl
+
+Ctrl -> Ctrl: verifyInternalServiceKey(suppliedKey)
+alt Khóa bí mật không hợp lệ
+    Ctrl --> Caller: 401 Unauthorized ("Invalid internal service key")
+else Khóa bí mật hợp lệ
+    Ctrl -> PricingSvc: getAuthoritativeSnapshot(202)
+    activate PricingSvc
+
+    PricingSvc -> ProductRepo: findById(202)
+    activate ProductRepo
+    ProductRepo -> DB: SELECT * FROM products WHERE id = 202
+    activate DB
+    DB --> ProductRepo: Product Entity {id: 202, name: "Bleu de Chanel", basePrice: 60000, active: true}
+    deactivate DB
+    ProductRepo --> PricingSvc: Optional<Product>
+    deactivate ProductRepo
+
+    alt Sản phẩm không tồn tại
+        PricingSvc --> Ctrl: Throw ProductNotFoundException(202)
+        Ctrl --> Caller: 404 Not Found {"error": "Product 202 not found"}
+    else Sản phẩm tồn tại
+        PricingSvc -> CampaignRepo: findActiveCampaignsForTenant(tenantId, NOW())
+        activate CampaignRepo
+        CampaignRepo -> DB: SELECT * FROM campaigns WHERE active = true AND start_date <= NOW() AND end_date >= NOW()
+        activate DB
+        DB --> CampaignRepo: List<Campaign>
+        deactivate DB
+        CampaignRepo --> PricingSvc: List<Campaign>
+        deactivate CampaignRepo
+
+        PricingSvc -> PricingSvc: Duyệt các chiến dịch hợp lệ:\n1. Tính mức giảm tối ưu (DiscountValue)\n2. AuthoritativePrice = BasePrice - Discount\n(Ví dụ: 60,000 - 10,000 = 50,000)
+
+        PricingSvc --> Ctrl: OrderProductSnapshotResponse\n{productId: 202, tenantId: 1, name: "Bleu de Chanel", unitPrice: 50000, active: true}
+        deactivate PricingSvc
+
+        Ctrl --> Caller: 200 OK {OrderProductSnapshotResponse}
+    end
+end
+deactivate Ctrl
+
+@enduml

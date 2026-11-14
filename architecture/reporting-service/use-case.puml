@@ -1,0 +1,52 @@
+@startuml reporting-use-case
+!theme plain
+left to right direction
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+actor "Quản trị Thương hiệu\n(Brand Admin)" as BrandAdmin #FEF9E7
+actor "Quản lý Vận hành\n(Ops Manager)" as OpsManager #FCF3CF
+actor "Order Service (Nội bộ)" as OrderSvc #FCF3CF
+
+rectangle "Phân hệ Báo cáo & Phân tích (Reporting Service)" {
+
+    package "Đồng bộ Dữ liệu Giao dịch (Transaction Ingestion & Sync)" {
+        usecase "UC_REP01. Đồng bộ Giao dịch Đơn hàng từ Order Service\n(/internal/v1/reporting/sync/transactions)" as UC_SyncTransaction
+        usecase "UC_REP02. Xác thực Dữ liệu Giao dịch Đồng bộ (Validate Sync Payload)" as UC_ValidateSync
+        usecase "UC_REP03. Kéo Snapshot từ Machine & Operation Service" as UC_PullSnapshots
+    }
+
+    package "Tổng hợp Dashboard (Dashboard Aggregation)" {
+        usecase "UC_REP04. Xem Tổng quan Doanh thu & Lượng xịt (Revenue & Sprays Dashboard)" as UC_ViewDashboard
+        usecase "UC_REP05. Xem Tỷ lệ Trạng thái Giao dịch (Thành công, Thất bại, Hoàn tiền)" as UC_ViewTxnStatus
+        usecase "UC_REP06. Lọc Thống kê theo Khoảng Thời gian (Report Period: DAY, MONTH)" as UC_FilterPeriod
+    }
+
+    package "Báo cáo Chuyên sâu & Xuất dữ liệu (Advanced Analytics & Export)" {
+        usecase "UC_REP07. Báo cáo Chi tiết Doanh thu theo Máy và Điểm đặt" as UC_RevenueByMachine
+        usecase "UC_REP08. Báo cáo Mức tiêu hao Hương & Hiệu suất Vận hành" as UC_OperationReport
+        usecase "UC_REP09. Xuất Báo cáo Tài chính ra file Excel (.xlsx)" as UC_ExportExcel
+    }
+}
+
+' Liên kết Actor
+OrderSvc -- UC_SyncTransaction
+
+BrandAdmin -- UC_ViewDashboard
+BrandAdmin -- UC_ViewTxnStatus
+BrandAdmin -- UC_FilterPeriod
+BrandAdmin -- UC_RevenueByMachine
+BrandAdmin -- UC_ExportExcel
+
+OpsManager -- UC_OperationReport
+OpsManager -- UC_ViewDashboard
+
+' Quan hệ Include / Extend
+UC_SyncTransaction ..> UC_ValidateSync : <<include>>
+UC_SyncTransaction ..> UC_PullSnapshots : <<extend>>\n(Bổ sung metadata vị trí máy)
+
+UC_ViewDashboard ..> UC_FilterPeriod : <<include>>
+UC_ExportExcel ..> UC_RevenueByMachine : <<include>>
+
+@enduml

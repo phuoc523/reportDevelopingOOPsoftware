@@ -1,0 +1,146 @@
+@startuml catalog-class-diagram
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title CLASS DIAGRAM - CATALOG SERVICE DOMAIN & ARCHITECTURE
+
+package "com.scentstation.catalog.enums" {
+    enum DiscountType <<Enumeration>> {
+        PERCENTAGE
+        FIXED_AMOUNT
+    }
+}
+
+package "com.scentstation.catalog.entity" {
+    class Product <<Entity>> {
+        - Long id
+        - Long tenantId
+        - String sku
+        - String name
+        - String description
+        - BigDecimal basePrice
+        - Integer volumeMl
+        - Boolean active
+        - LocalDateTime createdAt
+        + isAvailable(): boolean
+        + canSell(): boolean
+    }
+
+    class Campaign <<Entity>> {
+        - Long id
+        - Long tenantId
+        - String name
+        - String description
+        - DiscountType discountType
+        - BigDecimal discountValue
+        - LocalDateTime startDate
+        - LocalDateTime endDate
+        - Boolean active
+        + isEffectiveAt(time: LocalDateTime): boolean
+        + applyDiscount(base: BigDecimal): BigDecimal
+    }
+}
+
+package "com.scentstation.catalog.dto.response" {
+    class ProductResponse <<DTO>> {
+        - Long id
+        - Long tenantId
+        - String sku
+        - String name
+        - BigDecimal basePrice
+        - Boolean active
+    }
+
+    class EffectivePriceResponse <<DTO>> {
+        - Long productId
+        - BigDecimal originalPrice
+        - BigDecimal effectivePrice
+        - Long appliedCampaignId
+        - String campaignName
+        - BigDecimal discountAmount
+    }
+
+    class OrderProductSnapshotResponse <<DTO>> {
+        - Long productId
+        - Long tenantId
+        - String name
+        - BigDecimal unitPrice
+        - Boolean active
+        - Integer volumeMl
+    }
+}
+
+package "com.scentstation.catalog.service" {
+    class ProductService <<Service>> {
+        - ProductRepository productRepository
+        + createProduct(req: CreateProductRequest): ProductResponse
+        + getProduct(id: Long): ProductResponse
+        + search(criteria: ProductSearchCriteria): List<ProductResponse>
+        + updateAvailability(id: Long, active: Boolean): ProductResponse
+    }
+
+    class CampaignService <<Service>> {
+        - CampaignRepository campaignRepository
+        + createCampaign(req: CreateCampaignRequest): CampaignResponse
+        + getActiveCampaigns(tenantId: Long): List<Campaign>
+    }
+
+    class PromotionalPricingService <<Service>> {
+        - ProductRepository productRepository
+        - CampaignRepository campaignRepository
+        + calculateEffectivePrice(productId: Long): EffectivePriceResponse
+        + getAuthoritativeSnapshot(productId: Long): OrderProductSnapshotResponse
+    }
+
+    class ProductMachineAvailabilityService <<Service>> {
+        - MachineAvailabilityClient machineClient
+        + getProductAvailabilityOnMachines(productId: Long): ProductMachineAvailabilityResponse
+    }
+}
+
+package "com.scentstation.catalog.controller" {
+    class ProductController <<Controller>> {
+        - ProductService productService
+        + list(): List<ProductResponse>
+        + get(id: Long): ProductResponse
+        + create(req: CreateProductRequest): ProductResponse
+    }
+
+    class PromotionalPricingController <<Controller>> {
+        - PromotionalPricingService pricingService
+        + getEffectivePrice(productId: Long): EffectivePriceResponse
+    }
+
+    class InternalOrderProductController <<Controller>> {
+        - PromotionalPricingService pricingService
+        - InternalServiceKeyVerifier keyVerifier
+        + getOrderSnapshot(productId: Long): OrderProductSnapshotResponse
+    }
+}
+
+package "com.scentstation.catalog.integration.machine" {
+    interface MachineAvailabilityClient <<Interface>> {
+        + getAvailability(productId: Long): MachineAvailabilityInfo
+    }
+}
+
+' ================= QUAN HỆ UML VÀ BẢN SỐ =================
+Campaign --> DiscountType : "loại chiết khấu"
+Product "1" ..> "0..*" Campaign : "áp dụng khuyến mãi"
+
+ProductService --> Product : "CRUD thực thể"
+CampaignService --> Campaign : "CRUD thực thể"
+PromotionalPricingService --> Product : "truy vấn giá gốc"
+PromotionalPricingService --> Campaign : "truy vấn chương trình ưu đãi"
+PromotionalPricingService ..> EffectivePriceResponse : "sinh dữ liệu"
+PromotionalPricingService ..> OrderProductSnapshotResponse : "sinh snapshot"
+
+ProductController --> ProductService : "điều phối request"
+PromotionalPricingController --> PromotionalPricingService : "gọi tính giá"
+InternalOrderProductController --> PromotionalPricingService : "gọi tạo snapshot chuẩn"
+
+ProductMachineAvailabilityService --> MachineAvailabilityClient : "gọi sang Machine Service"
+
+@enduml

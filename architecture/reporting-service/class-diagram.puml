@@ -1,0 +1,135 @@
+@startuml reporting-class-diagram
+!theme plain
+skinparam classAttributeIconSize 0
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title CLASS DIAGRAM - REPORTING SERVICE DOMAIN & ARCHITECTURE
+
+package "com.scentstation.reporting.entity" {
+    class Transaction <<Entity>> {
+        - Long id
+        - String transactionId
+        - Long orderId
+        - String tenantId
+        - Long customerId
+        - Long machineId
+        - Long slotId
+        - Long productId
+        - BigDecimal amount
+        - String currency
+        - String status
+        - String paymentMethod
+        - String paymentReference
+        - LocalDateTime transactionTime
+        - LocalDateTime createdAt
+        + isSuccessful(): boolean
+    }
+
+    enum ReportPeriod <<Enumeration>> {
+        DAILY
+        WEEKLY
+        MONTHLY
+        QUARTERLY
+        YEARLY
+    }
+}
+
+package "com.scentstation.reporting.dto" {
+    class DashboardResponse <<DTO>> {
+        - BigDecimal totalRevenue
+        - Long totalTransactions
+        - Long successfulDispenses
+        - Long failedTransactions
+        - Double successRate
+    }
+
+    class TransactionSummaryResponse <<DTO>> {
+        - Long totalCount
+        - BigDecimal totalAmount
+        - Map<String, Long> statusCounts
+    }
+
+    class TransactionSyncRequest <<DTO>> {
+        - String transactionId
+        - Long orderId
+        - String tenantId
+        - Long machineId
+        - Long slotId
+        - Long productId
+        - BigDecimal amount
+        - String status
+        - LocalDateTime transactionTime
+    }
+}
+
+package "com.scentstation.reporting.service" {
+    class TransactionService <<Service>> {
+        - TransactionRepository transactionRepository
+        - TransactionSyncValidator validator
+        + syncTransaction(req: TransactionSyncRequest): Transaction
+        + filterTransactions(filter: TransactionFilterRequest): List<Transaction>
+    }
+
+    class DashboardAggregationService <<Service>> {
+        - TransactionRepository transactionRepository
+        - ReportDateRangeValidator dateValidator
+        + getDashboard(tenantId: String, period: ReportPeriod): DashboardResponse
+    }
+
+    class ExcelExportService <<Service>> {
+        - TransactionQueryService queryService
+        + exportToExcel(tenantId: String, from: LocalDate, to: LocalDate): byte[]
+    }
+
+    class OperationReportService <<Service>> {
+        - MachineSnapshotClient machineClient
+        - OperationInventoryClient inventoryClient
+        + generateOperationReport(tenantId: String): OperationReportResponse
+    }
+}
+
+package "com.scentstation.reporting.controller" {
+    class TransactionSyncController <<Controller>> {
+        - TransactionService transactionService
+        - InternalApiKeyVerifier keyVerifier
+        + sync(req: TransactionSyncRequest): TransactionResponse
+    }
+
+    class DashboardController <<Controller>> {
+        - DashboardAggregationService dashboardService
+        + getDashboard(tenantId: String, period: ReportPeriod): DashboardResponse
+    }
+
+    class ExcelExportController <<Controller>> {
+        - ExcelExportService exportService
+        + export(tenantId: String): ResponseEntity<byte[]>
+    }
+}
+
+package "com.scentstation.reporting.client" {
+    interface OrderPaymentClient <<Interface>> {
+        + fetchPayments(orderId: Long): OrderPaymentResponse
+    }
+    interface MachineSnapshotClient <<Interface>> {
+        + getMachineMetrics(machineId: Long): MachineSnapshot
+    }
+    interface OperationInventoryClient <<Interface>> {
+        + getInventorySnapshots(tenantId: String): List<BottleSnapshot>
+    }
+}
+
+' ================= QUAN HỆ UML VÀ BẢN SỐ =================
+Transaction --> ReportPeriod : "phục vụ gom nhóm kỳ báo cáo"
+TransactionService --> Transaction : "quản lý dữ liệu giao dịch"
+DashboardAggregationService --> Transaction : "tính toán tổng hợp"
+DashboardAggregationService ..> DashboardResponse : "sinh dữ liệu"
+
+TransactionSyncController --> TransactionService : "đồng bộ giao dịch"
+DashboardController --> DashboardAggregationService : "gọi nghiệp vụ dashboard"
+ExcelExportController --> ExcelExportService : "xuất file bảng tính"
+
+OperationReportService --> MachineSnapshotClient : "kéo dữ liệu máy"
+OperationReportService --> OperationInventoryClient : "kéo dữ liệu kho chai"
+
+@enduml
