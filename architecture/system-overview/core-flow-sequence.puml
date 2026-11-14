@@ -5,92 +5,58 @@ skinparam responseMessageBelowArrow true
 skinparam defaultFontName Arial
 skinparam defaultFontSize 11
 
-title LUỒNG NGHIỆP VỤ TRỤ CỘT: TẠO ĐƠN - THANH TOÁN - PHUN HƯƠNG TỰ ĐỘNG
+title CORE FLOW AS-IS - ORDER, PAYMENT VÀ DISPENSING COMMAND
 
-actor "Khách hàng Kiosk" as Customer
-participant "API Gateway\n(:8080)" as Gateway
-participant "Order Service\n(:8083)" as OrderSvc
-participant "Identity Service\n(:8081)" as IdentitySvc
-participant "Machine Service\n(:8084)" as MachineSvc
-participant "Catalog Service\n(:8082)" as CatalogSvc
-database "order_db" as OrderDB
-participant "Cổng thanh toán" as PaymentGw
-participant "Kiosk Hardware" as Hardware
+actor "API consumer" as Client
+participant Gateway
+participant "Order Service" as Order
+participant "Identity Service" as Identity
+participant "Machine Service" as Machine
+participant "Catalog Service" as Catalog
+database order_db as DB
+actor "Payment Provider" as Provider
+participant "Device adapter\n<<future extension>>" as Device #EAF2F8
 
-== GIAI ĐOẠN 1: TẠO ĐƠN HÀNG AUTHORITATIVE ==
-Customer -> Gateway: POST /api/v1/orders\n{tenantId: "1", machineId: "10", slotId: "2", items: [{productId: 202, unitPrice: 50000}]}
-activate Gateway
-Gateway -> OrderSvc: Forward POST /api/v1/orders
-activate OrderSvc
+== Create order ==
+Client -> Gateway : POST /api/v1/orders + Bearer token
+Gateway -> Order : sanitized request
+Order -> Identity : POST /internal/auth/introspect\nX-Internal-Service-Key
+Identity --> Order : AccountPrincipal
+Order -> Machine : GET /internal/machines/{machineId}/slots/{slotId}
+Machine --> Order : authoritative slot snapshot
+Order -> Catalog : GET /internal/catalog/order-products/{productId}
+Catalog --> Order : authoritative product/price snapshot
+Order -> DB : save Order(PENDING) + OrderItem
+Order --> Client : 201 OrderResponse
 
-OrderSvc -> IdentitySvc: POST /internal/v1/identity/introspect (Validate Bearer Token)
-activate IdentitySvc
-IdentitySvc --> OrderSvc: 200 OK (IdentityPrincipal: id: 101, tenantId: 1, grants: ["KIOSK_ORDER"])
-deactivate IdentitySvc
+== Payment ==
+Client -> Gateway : POST /api/v1/orders/{id}/payments/qr
+Gateway -> Order : request
+Order -> DB : create/find Payment(PENDING)
+Order --> Client : PaymentResponse + QR payload
+Provider -> Gateway : POST /api/v1/payments/callback
+Gateway -> Order : callback + callback token
+Order -> DB : idempotency check; Payment=PAID; Order=CONFIRMED
+Order -> Machine : POST /api/machines/dispense-commands
+Machine --> Order : 202 ACCEPTED
+Order -> DB : save DispensingCommand(ACCEPTED)
+Order --> Provider : 200 PaymentResponse
 
-OrderSvc -> MachineSvc: GET /internal/machines/10/slots/2?tenantId=1\n(Header: X-Internal-Service-Key)
-activate MachineSvc
-MachineSvc --> OrderSvc: OrderMachineSlotResponse\n{machineAvailable: true, slotAvailable: true, productId: "202"}
-deactivate MachineSvc
+== Poll result ==
+Client -> Gateway : GET /api/v1/orders/{id}/dispensing
+Gateway -> Order
+Order -> Machine : GET /api/machines/dispense-commands/{commandId}
+Machine --> Order : current command status
+alt terminal DISPENSED / FAILED
+  Order -> DB : update command and order
+  Order --> Client : terminal DispensingResponse
+else non-terminal ACCEPTED / PROCESSING / ACKNOWLEDGED
+  Order --> Client : non-terminal DispensingResponse
+end
 
-OrderSvc -> CatalogSvc: GET /internal/catalog/order-products/202?tenantId=1\n(Header: X-Internal-Service-Key)
-activate CatalogSvc
-CatalogSvc --> OrderSvc: OrderProductSnapshotResponse\n{productId: 202, name: "Bleu de Chanel", available: true, unitPrice: 50000}
-deactivate CatalogSvc
-
-OrderSvc -> OrderSvc: Đối soát dữ liệu Authoritative:\n1. Giá Client gửi == unitPrice từ Catalog\n2. Sản phẩm đúng với cấu hình Slot\n3. Máy ONLINE & Slot AVAILABLE
-OrderSvc -> OrderDB: INSERT INTO orders (status='PENDING', total_amount=50000, expires_at=NOW()+15m)\nINSERT INTO order_items (...)
-activate OrderDB
-OrderDB --> OrderSvc: Saved Order (ID = 9001)
-deactivate OrderDB
-
-OrderSvc --> Gateway: 201 Created {orderId: 9001, status: "PENDING", totalAmount: 50000}
-deactivate OrderSvc
-Gateway --> Customer: 201 Created {orderId: 9001}
-deactivate Gateway
-
-== GIAI ĐOẠN 2: TẠO MÃ QR VÀ QUÉT THANH TOÁN ==
-Customer -> Gateway: POST /api/v1/orders/9001/payments/qr (Lấy mã QR)
-activate Gateway
-Gateway -> OrderSvc: Forward POST /api/v1/orders/9001/payments/qr
-activate OrderSvc
-OrderSvc -> OrderDB: INSERT INTO payments (reference='PAY-XYZ', order_id=9001, amount=50000, status='PENDING')
-OrderSvc --> Gateway: 200 OK {reference: 'PAY-XYZ', qrPayload: 'scentstation://pay/...'}
-deactivate OrderSvc
-Gateway --> Customer: 200 OK (Hiển thị mã QR VietQR)
-deactivate Gateway
-
-Customer -> PaymentGw: Quét mã trên App Ngân hàng & Chuyển tiền
-
-== GIAI ĐOẠN 3: WEBHOOK CALLBACK VÀ ĐIỀU PHỐI PHUN HƯƠNG ==
-PaymentGw -> Gateway: POST /api/v1/payments/callback\n{eventId: 'EVT-888', reference: 'PAY-XYZ', orderId: 9001, amount: 50000, status: 'PAID'}\n(Header: X-Payment-Callback-Token)
-activate Gateway
-Gateway -> OrderSvc: Forward Callback
-activate OrderSvc
-
-OrderSvc -> OrderSvc: verifyCallbackToken() & Chống trùng lặp qua eventId
-OrderSvc -> OrderDB: UPDATE payments SET status='PAID', paid_at=NOW()\nUPDATE orders SET status='CONFIRMED'\nINSERT INTO payment_callback_events (event_id, outcome='ACCEPTED')
-OrderSvc -> OrderDB: INSERT INTO dispensing_commands (command_id: UUID, status='REQUESTED')
-
-OrderSvc -> MachineSvc: POST /api/machines/dispense-commands\n{commandId: UUID, orderId: "9001", machineId: 10, slotId: "2"}
-activate MachineSvc
-
-MachineSvc -> Hardware: Kích xung điện bơm màng (Relay Pulse)
-activate Hardware
-Hardware --> MachineSvc: Cảm biến lưu lượng xác nhận phun thành công
-deactivate Hardware
-
-MachineSvc --> OrderSvc: 200 OK {commandId: UUID, status: 'DISPENSED'}
-deactivate MachineSvc
-
-OrderSvc -> OrderDB: UPDATE dispensing_commands SET status='DISPENSED'\nUPDATE orders SET status='DISPENSED'
-
-OrderSvc --> Gateway: 200 OK {"message": "Callback processed"}
-deactivate OrderSvc
-Gateway --> PaymentGw: 200 OK
-deactivate Gateway
-
-== GIAI ĐOẠN 4: KHÁCH HÀNG NHẬN HƯƠNG TẠI KIOSK ==
-Customer -> Hardware: Đặt cổ tay tại vòi xịt và nhận tia nước hoa!
+note over Machine,Device
+  Hiện chưa có adapter gọi MachineCommand.acknowledge()/complete().
+  Device chỉ là điểm mở rộng để tích hợp sau này.
+end note
 
 @enduml

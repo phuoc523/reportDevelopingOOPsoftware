@@ -4,55 +4,29 @@ skinparam conditionStyle insidediamond
 skinparam defaultFontName Arial
 skinparam defaultFontSize 11
 
-|Order Service / Caller|
+title MACHINE SERVICE - CREATE DISPENSE COMMAND
+
 start
-:Gửi lệnh yêu cầu phun nước hoa kèm mã commandId, machineId, slotId;
-
-|Machine Service (Controller)|
-:Tiếp nhận request và chuyển sang DispenseCommandService;
-
-|DispenseCommandService & DB|
-:Kiểm tra Idempotency xem commandId đã từng tồn tại chưa;
-
-if (Lệnh đã xử lý trước đó?) then (đã tồn tại)
-    :Đọc kết quả cũ từ CSDL (DISPENSED hoặc FAILED);
-    |Order Service / Caller|
-    :Trả về phản hồi cũ chống thực thi lặp (Idempotent response);
-    stop
-else (lệnh mới)
-    :Truy vấn trạng thái Machine và MachineSlot;
-    if (Máy OPERATIONAL và Slot ACTIVE?) then (sẵn sàng)
-        :Ghi nhận MachineCommand trạng thái REQUESTED;
-        
-        |Phần cứng Kiosk (Hardware)|
-        :Kích hoạt mạch rơ-le bơm màng theo lượng ml cấu hình;
-        :Đọc tín hiệu cảm biến lưu lượng dòng chảy (Flow Sensor);
-        
-        if (Cảm biến xác nhận phun đủ dung lượng?) then (thành công)
-            |DispenseCommandService & DB|
-            :Trừ thể tích còn lại trong khay (remainingMl);
-            :Cập nhật MachineCommand status = DISPENSED;
-            :Ghi nhận lịch sử MachineHistory;
-            |Order Service / Caller|
-            :Trả về 200 OK {status: DISPENSED};
-            stop
-        else (phần cứng nghẽn/lỗi)
-            |DispenseCommandService & DB|
-            :Cập nhật MachineCommand status = FAILED;
-            :Phát sinh MachineAlert (mức CRITICAL: NOZZLE_CLOGGED);
-            :Chuyển trạng thái máy thành MAINTENANCE_REQUIRED;
-            :Ghi bản ghi vào AlertHandoffOutbox để đồng bộ sang Operation Service;
-            |Order Service / Caller|
-            :Trả về kết quả FAILED để Order Service mở phiếu rà soát hoàn tiền;
-            stop
-        endif
-    else (máy hoặc slot đang bảo trì/hết hương)
-        |DispenseCommandService & DB|
-        :Báo lỗi 409 Conflict (Máy hoặc Slot không sẵn sàng);
-        |Order Service / Caller|
-        :Từ chối thực thi lệnh;
-        stop
-    endif
+:Nhận request và service key;
+if (Service key hợp lệ?) then (không)
+  :Trả 401;
+  stop
 endif
+if (commandId đã tồn tại?) then (có)
+  :Trả command hiện có;
+  stop
+endif
+:Kiểm tra machine và slot availability;
+if (Khả dụng?) then (không)
+  :Trả business error;
+  stop
+endif
+:Lưu MachineCommand trạng thái ACCEPTED;
+:Trả 202 ACCEPTED;
+stop
+
+legend bottom
+  Hoạt động kết thúc ở ACCEPTED vì device-result adapter chưa được triển khai.
+endlegend
 
 @enduml

@@ -1,0 +1,122 @@
+@startuml proposed-reporting-class-diagram
+!theme plain
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+
+title REPORTING SERVICE - AS-IS DOMAIN AND APPLICATION API
+
+package "domain / DTO" {
+  class Transaction <<Entity>> {
+    - Long id
+    - String reference
+    - String orderId
+    - BigDecimal amount
+    - String currency
+    - String status
+    - LocalDateTime createdAt
+    - LocalDateTime paidAt
+  }
+  enum ReportPeriod {
+    DAY
+    WEEK
+    MONTH
+    CUSTOM
+  }
+  class TransactionSyncRequest <<record>> {
+    + reference(): String
+    + orderId(): String
+    + amount(): BigDecimal
+    + currency(): String
+    + status(): String
+    + createdAt(): LocalDateTime
+    + paidAt(): LocalDateTime
+  }
+  class DashboardResponse <<record>> {
+    + transactions(): TransactionSummaryResponse
+    + machines(): MachineStatusSummary
+    + alerts(): AlertStatusSummary
+    + inventory(): InventoryStatusSummary
+    + upstream(): Map<String,String>
+    + machineLocations(): List<MachineLocationSummary>
+    + operations(): OperationReportResponse
+    + access(): ReportAccess
+  }
+}
+
+package "application" {
+  class TransactionService <<Service>> {
+    + createTransaction(request): TransactionResponse
+    + syncTransaction(request: TransactionSyncRequest): TransactionResponse
+  }
+  class TransactionQueryService <<Service>> {
+    + search(filter, pageable, refundsOnly): Page<TransactionResponse>
+    + findById(id: Long): TransactionResponse
+    + findByReference(reference: String): TransactionResponse
+  }
+  class TransactionReportService <<Service>>
+  class DashboardAggregationService <<Service>> {
+    + getDashboard(tenantId: String, period: ReportPeriod): DashboardResponse
+    + getDashboard(tenantId: String, period: ReportPeriod, includePlatformTransactions: boolean): DashboardResponse
+  }
+  class ExcelExportService <<Service>> {
+    + exportTransactions(filter: TransactionFilterRequest): byte[]
+    + exportRevenue(start: LocalDate, end: LocalDate): byte[]
+  }
+  class OrderPaymentSyncService <<Service>> {
+    + syncFromOrder(reference: String): TransactionResponse
+  }
+  class OperationReportService <<Service>>
+}
+
+package "controllers / clients" {
+  class TransactionSyncController <<Controller>> {
+    + syncTransaction(key: String, request): ResponseEntity<TransactionResponse>
+    + syncFromOrder(key: String, reference: String): ResponseEntity<TransactionResponse>
+  }
+  class DashboardController <<Controller>> {
+    + dashboard(tenantId: String, period: String): DashboardResponse
+  }
+  class ExcelExportController <<Controller>> {
+    + exportTransactions(...): ResponseEntity<byte[]>
+    + exportRevenue(startDate: LocalDate, endDate: LocalDate): ResponseEntity<byte[]>
+  }
+  class OrderPaymentClient <<HTTP client>> {
+    + getPayment(reference: String): OrderPaymentResponse
+  }
+  class MachineSnapshotClient <<HTTP client>> {
+    + listMachines(tenantId: String): List<MachineSnapshot>
+    + listLocations(tenantId: String): List<LocationSnapshot>
+    + listAlerts(tenantId: String): List<MachineAlertSnapshot>
+  }
+  class OperationInventoryClient <<HTTP client>> {
+    + listBottles(tenantId: long): List<BottleSnapshot>
+    + listBatches(tenantId: long): List<InventoryBatchSnapshot>
+    + listMovements(tenantId: long): List<InventoryMovementSnapshot>
+    + listMaintenanceTickets(tenantId: long): List<MaintenanceTicketSnapshot>
+  }
+}
+
+TransactionService --> Transaction
+TransactionQueryService --> Transaction
+TransactionReportService --> Transaction
+DashboardAggregationService --> TransactionReportService
+DashboardAggregationService --> MachineSnapshotClient
+DashboardAggregationService --> OperationInventoryClient
+DashboardAggregationService --> OperationReportService
+ExcelExportService --> TransactionQueryService
+OrderPaymentSyncService --> OrderPaymentClient
+OrderPaymentSyncService --> TransactionService
+TransactionSyncController --> TransactionService
+TransactionSyncController --> OrderPaymentSyncService
+DashboardController --> DashboardAggregationService
+ExcelExportController --> ExcelExportService
+
+note bottom of Transaction
+  Transaction does not store tenantId, machineId, slotId or productId.
+  Operational dashboard data is pulled from upstream services.
+end note
+
+@enduml

@@ -1,0 +1,45 @@
+@startuml order-state-diagram
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title ORDER SERVICE - TRẠNG THÁI LIÊN QUAN ĐẾN THANH TOÁN VÀ DISPENSING
+
+state "Order" as Order {
+  [*] --> PENDING
+  PENDING --> CONFIRMED : valid paid callback
+  PENDING --> EXPIRED : order/payment expires
+  PENDING --> CANCELLED : explicit status update
+  CONFIRMED --> PROCESSING : dispensing processing
+  CONFIRMED --> DISPENSED : terminal success
+  CONFIRMED --> FAILED : terminal failure
+  PROCESSING --> DISPENSED : terminal success
+  PROCESSING --> FAILED : terminal failure
+}
+
+state "Payment" as Payment {
+  [*] --> PAY_PENDING
+  PAY_PENDING --> PAID : valid callback
+  PAY_PENDING --> PAY_FAILED : failed callback
+  PAY_PENDING --> PAY_EXPIRED : expires
+}
+
+state "DispensingCommand" as Dispensing {
+  [*] --> NOT_REQUESTED
+  NOT_REQUESTED --> REQUESTED : requestDispensing()
+  REQUESTED --> ACCEPTED : Machine accepts
+  ACCEPTED --> PROCESSING : polled result
+  ACCEPTED --> DISPENSED : terminal result
+  ACCEPTED --> DISP_FAILED : terminal failure
+  REQUESTED --> UNKNOWN : uncertain HTTP outcome
+  ACCEPTED --> UNKNOWN : invalid/mismatched response
+  PROCESSING --> DISPENSED
+  PROCESSING --> DISP_FAILED
+}
+
+note bottom
+  SHIPPED/DELIVERED vẫn tồn tại trong OrderStatus nhưng không thuộc core kiosk dispensing flow.
+  UNKNOWN yêu cầu manual review/reconciliation thay vì tự suy đoán kết quả.
+end note
+
+@enduml

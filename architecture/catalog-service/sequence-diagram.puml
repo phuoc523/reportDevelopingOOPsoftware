@@ -5,55 +5,28 @@ skinparam responseMessageBelowArrow true
 skinparam defaultFontName Arial
 skinparam defaultFontSize 11
 
-title CATALOG SERVICE - TÍNH GIÁ HIỆU LỰC & XUẤT AUTHORITATIVE SNAPSHOT
+title CATALOG SERVICE - AUTHORITATIVE PRODUCT/PRICE SNAPSHOT
 
-actor "Order Service" as Caller
-participant "InternalOrderProductController" as Ctrl
-participant "PromotionalPricingService" as PricingSvc
-participant "ProductRepository" as ProductRepo
-participant "CampaignRepository" as CampaignRepo
-database "scentstation_catalog" as DB
+participant "Order Service" as Order
+participant InternalOrderProductController as Controller
+participant InternalServiceKeyVerifier as KeyVerifier
+database catalog_db as DB
+participant PromotionalPricingService as Pricing
 
-== LUỒNG: ORDER SERVICE YÊU CẦU SNAPSHOT SẢN PHẨM CHUẨN ==
-Caller -> Ctrl: GET /internal/catalog/order-products/202?tenantId=1\n(Headers: X-Internal-Service-Key: <Secret>)
-activate Ctrl
-
-Ctrl -> Ctrl: verify(key)
-alt Khóa bí mật không hợp lệ
-    Ctrl --> Caller: 401 Unauthorized ("Invalid internal service key")
-else Khóa bí mật hợp lệ
-    Ctrl -> ProductRepo: findByIdAndTenantId(202, 1)
-    activate ProductRepo
-    ProductRepo -> DB: SELECT * FROM products WHERE id = 202 AND tenant_id = 1
-    activate DB
-    DB --> ProductRepo: Product Entity {id: 202, name: "Bleu de Chanel", defaultPrice: 60000, available: true}
-    deactivate DB
-    ProductRepo --> Ctrl: Optional<Product>
-    deactivate ProductRepo
-
-    alt Sản phẩm không tồn tại
-        Ctrl --> Caller: 404 Not Found (ProductNotFoundException)
-    else Sản phẩm tồn tại
-        Ctrl -> PricingSvc: getInternalEffectivePrice(product)
-        activate PricingSvc
-
-        PricingSvc -> CampaignRepo: findByTenantIdAndProductIdAndActiveTrue(tenantId, productId)
-        activate CampaignRepo
-        CampaignRepo -> DB: SELECT * FROM campaigns WHERE tenant_id = 1 AND product_id = 202 AND active = true
-        activate DB
-        DB --> CampaignRepo: List<Campaign>
-        deactivate DB
-        CampaignRepo --> PricingSvc: List<Campaign>
-        deactivate CampaignRepo
-
-        PricingSvc -> PricingSvc: Lọc chiến dịch hiệu lực (startAt <= NOW <= endAt):\n1. Tính mức giảm (PERCENTAGE hoặc FIXED_AMOUNT)\n2. effectivePrice = defaultPrice - discountAmount\n(Ví dụ: 60,000 - 10,000 = 50,000)
-
-        PricingSvc --> Ctrl: EffectivePriceResponse {productId: 202, defaultPrice: 60000, effectivePrice: 50000, campaignId: 5}
-        deactivate PricingSvc
-
-        Ctrl --> Caller: 200 OK OrderProductSnapshotResponse\n{productId: 202, tenantId: 1, name: "Bleu de Chanel", available: true, unitPrice: 50000, campaignId: 5}
-    end
+Order -> Controller : GET /internal/catalog/order-products/{productId}\n?tenantId=... + service key
+Controller -> KeyVerifier : verify(key)
+alt key không hợp lệ
+  KeyVerifier --> Order : 401 Unauthorized
+else key hợp lệ
+  Controller -> DB : findByIdAndTenantId(productId, tenantId)
+  alt không tìm thấy
+    Controller --> Order : 404 Not Found
+  else tìm thấy
+    Controller -> Pricing : getInternalEffectivePrice(product)
+    Pricing -> DB : find active campaigns at current time
+    Pricing --> Controller : EffectivePriceResponse
+    Controller --> Order : OrderProductSnapshotResponse
+  end
 end
-deactivate Ctrl
 
 @enduml

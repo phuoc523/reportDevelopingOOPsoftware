@@ -3,69 +3,38 @@
 left to right direction
 skinparam packageStyle rectangle
 skinparam defaultFontName Arial
-skinparam defaultFontSize 12
+skinparam defaultFontSize 11
 
-actor "Quản lý Vận hành" as OpsManager #FCF3CF
-actor "Kỹ thuật viên Hiện trường" as Technician #FADBD8
-actor "Hệ thống Cảm biến Kiosk" as Sensor #EDBB99
-actor "Order Service (Nội bộ)" as OrderSvc #FCF3CF
-actor "Operation Service (Nội bộ)" as OperationSvc #E8EAED
+title MACHINE SERVICE - USE CASE
 
-rectangle "Phân hệ Machine & Hardware Control Service" {
+actor "Quản lý vận hành" as Operator
+actor "Order Service" as Order
+actor "Operation Service" as Operation
+actor "Device adapter\n<<future extension>>" as Device
 
-    package "Quản lý Điểm đặt & Máy Kiosk (Machine Registry)" {
-        usecase "UC_MCH01. Quản lý Địa điểm Đặt máy (Location CRUD)" as UC_ManageLocation
-        usecase "UC_MCH02. Đăng ký Máy Kiosk mới (Register Machine)" as UC_RegisterMachine
-        usecase "UC_MCH03. Cập nhật Trạng thái Đăng ký Thiết bị (Revoke/Activate Device)" as UC_UpdateDeviceReg
-        usecase "UC_MCH04. Điều khiển Bật/Tắt Vận hành (RESTORE_OPERATION / MAINTENANCE)" as UC_ControlMachine
-    }
-
-    package "Quản lý Khay cắm Chai hương (Slot Management)" {
-        usecase "UC_MCH05. Cấu hình Khay cắm (Slot Config: Gán Product ID)" as UC_ConfigSlot
-        usecase "UC_MCH06. Cập nhật Trạng thái Slot (ACTIVE, EMPTY, DISABLED)" as UC_UpdateSlotStatus
-        usecase "UC_MCH07. Liên kết Mã Chai hương vào Slot (Link Current Bottle)" as UC_LinkBottle
-    }
-
-    package "Xử lý Sự cố & Cảnh báo (Alerts & Outbox)" {
-        usecase "UC_MCH08. Tiếp nhận Cảnh báo Cảm biến (Sensor / Low Stock Alert)" as UC_ReceiveAlert
-        usecase "UC_MCH09. Xác nhận Cảnh báo (Acknowledge Alert)" as UC_AckAlert
-        usecase "UC_MCH10. Đóng Cảnh báo khi Khắc phục (Resolve Alert)" as UC_ResolveAlert
-        usecase "UC_MCH11. Đẩy Cảnh báo sang Phiếu Bảo trì (Alert Handoff Outbox)" as UC_AlertHandoff
-    }
-
-    package "Điều phối Lệnh Phần cứng (Hardware Command Execution)" {
-        usecase "UC_MCH12. Soát tính Khả dụng Máy & Slot cho Đơn hàng\n(/internal/v1/machines/{mId}/slots/{sId})" as UC_ValidateSlot
-        usecase "UC_MCH13. Thực thi Lệnh Phun hương (Execute Dispense Command)" as UC_ExecuteDispense
-        usecase "UC_MCH14. Tra cứu Kết quả Lệnh Phun (Query Dispense Result)" as UC_QueryDispenseResult
-    }
+rectangle "Machine Service" {
+  usecase "Quản lý location và machine" as Machine
+  usecase "Cấu hình slot" as Slot
+  usecase "Xem availability/history" as Availability
+  usecase "Quản lý cảnh báo" as Alert
+  usecase "Nhận lệnh dispensing" as Submit
+  usecase "Tra cứu trạng thái command" as Result
+  usecase "ACK / hoàn tất command" as Complete
+  usecase "Chuyển critical alert" as Handoff
 }
 
-' Liên kết Actor
-OpsManager -- UC_ManageLocation
-OpsManager -- UC_RegisterMachine
-OpsManager -- UC_UpdateDeviceReg
-OpsManager -- UC_ControlMachine
-OpsManager -- UC_AckAlert
-OpsManager -- UC_ResolveAlert
+Operator --> Machine
+Operator --> Slot
+Operator --> Availability
+Operator --> Alert
+Order --> Submit
+Order --> Result
+Device --> Complete
+Operation --> Handoff
 
-Technician -- UC_ConfigSlot
-Technician -- UC_UpdateSlotStatus
-Technician -- UC_ControlMachine
-
-Sensor -- UC_ReceiveAlert
-
-OrderSvc -- UC_ValidateSlot
-OrderSvc -- UC_ExecuteDispense
-OrderSvc -- UC_QueryDispenseResult
-
-OperationSvc -- UC_LinkBottle
-OperationSvc -- UC_AlertHandoff
-
-' Quan hệ Include / Extend
-UC_RegisterMachine ..> UC_ManageLocation : <<include>>
-UC_ConfigSlot ..> UC_RegisterMachine : <<include>>
-UC_ReceiveAlert ..> UC_AlertHandoff : <<extend>>\n(Khi mức độ CRITICAL)
-UC_ControlMachine ..> UC_ResolveAlert : <<extend>>\n(Khi khôi phục OPERATIONAL)
-UC_ExecuteDispense ..> UC_QueryDispenseResult : <<include>>
+note bottom of Complete
+  Domain transition đã có, nhưng chưa có inbound device adapter.
+  Use case này là cổng mở rộng, không phải tính năng đã hoàn tất.
+end note
 
 @enduml

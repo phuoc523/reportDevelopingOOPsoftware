@@ -1,0 +1,147 @@
+@startuml proposed-machine-class-diagram
+!theme plain
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+
+title MACHINE SERVICE - AS-IS DOMAIN AND APPLICATION API
+
+package "domain" {
+  class Machine <<Entity>> {
+    - Long id
+    - String serialNumber
+    - String deviceIdentity
+    - String tenantId
+    - String locationId
+    - DeviceRegistrationStatus deviceRegistrationStatus
+    - MachineOperationalStatus operationalStatus
+    - LocalTime operatingHoursStart
+    - LocalTime operatingHoursEnd
+    - Instant lastSeenAt
+  }
+  class MachineSlot <<Entity>> {
+    - Long id
+    - Long machineId
+    - int slotNumber
+    - String slotCode
+    - Long productId
+    - String cartridgeId
+    - boolean enabled
+    - SlotStatus status
+    - BigDecimal doseMl
+    - Integer remainingSprays
+  }
+  class MachineCommand <<Entity>> {
+    - String commandId
+    - Long machineId
+    - String tenantId
+    - String orderId
+    - String slotId
+    - MachineCommandStatus status
+    - Instant issuedAt
+    - Instant expiresAt
+    - Instant acknowledgedAt
+    - Instant completedAt
+    + acknowledge(at: Instant): void
+    + complete(success: boolean, details: String, at: Instant): void
+  }
+  class MachineAlert <<Entity>> {
+    - String dedupeKey
+    - MachineAlertType type
+    - MachineAlertSeverity severity
+    - MachineAlertStatus status
+    - MachineAlertSource source
+    - String summary
+    - Instant firstSeenAt
+    - Instant lastSeenAt
+  }
+  enum MachineOperationalStatus {
+    ONLINE
+    OFFLINE
+    UNSTABLE
+    DISABLED
+    MAINTENANCE
+    ERROR
+  }
+  enum DeviceRegistrationStatus {
+    ACTIVE
+    REVOKED
+  }
+  enum SlotStatus {
+    AVAILABLE
+    EMPTY
+    DISABLED
+    ERROR
+  }
+  enum MachineCommandStatus {
+    ACCEPTED
+    PROCESSING
+    ACKNOWLEDGED
+    DISPENSED
+    FAILED
+    EXPIRED
+    UNKNOWN
+  }
+}
+
+package "application" {
+  class MachineService <<Service>> {
+    + register(request): MachineResponse
+    + list(tenantId: String): List<MachineResponse>
+    + get(id: Long): MachineResponse
+    + update(id: Long, request, actorId: String): MachineResponse
+    + updateDeviceRegistrationStatus(id: Long, request, actorId: String): MachineResponse
+    + updateOperationalStatus(id: Long, request, actorId: String): MachineResponse
+    + control(id: Long, request, actorId: String): MachineResponse
+    + completeMaintenance(id: Long, request): MachineResponse
+  }
+  class SlotService <<Service>> {
+    + create(machineId: Long, request, actorId: String): SlotResponse
+    + list(machineId: Long): List<SlotResponse>
+    + get(machineId: Long, slotId: Long): SlotResponse
+    + update(machineId: Long, slotId: Long, request, actorId: String): SlotResponse
+    + setEnabled(machineId: Long, slotId: Long, request, actorId: String): SlotResponse
+    + updateReportedStatus(machineId: Long, slotId: Long, request, actorId: String): SlotResponse
+  }
+  class AvailabilityService <<Service>>
+  class DispenseCommandService <<Service>> {
+    + create(request: CreateDispenseCommandRequest): DispenseCommandResponse
+    + get(commandId: String, tenantId: String): DispenseCommandResponse
+  }
+  class MachineAlertService <<Service>> {
+    + record(...): MachineAlert
+    + recordLowStock(request): MachineAlert
+    + list(tenantId: String, status, severity): List<MachineAlert>
+    + acknowledge(alertId: Long, tenantId: String, actorId: String): MachineAlert
+    + assign(alertId: Long, tenantId: String, assigneeId: String): MachineAlert
+    + resolve(alertId: Long, tenantId: String, actorId: String, notes: String): MachineAlert
+    + reopen(alertId: Long, tenantId: String, notes: String): MachineAlert
+  }
+  class MachineCommandExpiryJob <<scheduled>>
+  class "Device result adapter" as DeviceAdapter <<missing>> #F8CECC
+}
+
+MachineSlot ..> Machine : machineId
+MachineCommand ..> Machine : machineId
+MachineAlert ..> Machine : machineId
+Machine --> MachineOperationalStatus
+Machine --> DeviceRegistrationStatus
+MachineSlot --> SlotStatus
+MachineCommand --> MachineCommandStatus
+MachineService --> Machine
+SlotService --> MachineSlot
+SlotService --> AvailabilityService
+DispenseCommandService --> AvailabilityService
+DispenseCommandService --> MachineCommand
+MachineAlertService --> MachineAlert
+MachineCommandExpiryJob --> MachineCommand
+DeviceAdapter ..> MachineCommand : should call acknowledge/complete
+
+note bottom of DeviceAdapter
+  Entity transitions exist, but no inbound HTTP/MQTT/serial adapter
+  invokes them in the current source tree.
+end note
+
+@enduml

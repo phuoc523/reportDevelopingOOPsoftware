@@ -1,0 +1,84 @@
+@startuml proposed-as-is-system-architecture
+!theme plain
+left to right direction
+skinparam componentStyle uml2
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title SCENTSTATION - AS-IS SYSTEM ARCHITECTURE (PROPOSED REVIEW)
+
+actor "Public clients\nWeb / Kiosk / Payment Provider" as Client
+
+package "Edge" {
+  component "API Gateway\n:8080" as Gateway
+  component "GatewayTrustBoundaryFilter" as Trust
+  Gateway -[hidden]-> Trust
+}
+
+package "Business services" {
+  component "Identity Service\n:8081" as Identity
+  component "Catalog Service\n:8082" as Catalog
+  component "Order Service\n:8083" as Order
+  component "Machine Service\n:8084" as Machine
+  component "Operation Service\n:8085" as Operation
+  component "Reporting Service\n:8086" as Reporting
+}
+
+package "Database per service - MySQL 8.4" {
+  database "scentstation_identity" as IdentityDB
+  database "scentstation_catalog" as CatalogDB
+  database "order_db" as OrderDB
+  database "scentstation_machine" as MachineDB
+  database "scentstation_operation" as OperationDB
+  database "scentstation_reporting" as ReportingDB
+}
+
+component "Device / MQTT / Serial adapter\n<<not implemented>>" as DeviceAdapter #F8CECC
+component "Operation MachineSlotClient\n<<local/test/docker-local stub>>" as SlotStub #FFF2CC
+component "Catalog MachineAvailabilityClient\n<<local/test stub>>" as AvailabilityStub #FFF2CC
+
+Client --> Gateway : HTTP
+Gateway --> Trust : sanitize headers / block internal path
+Trust --> Identity : identity route prefixes
+Trust --> Catalog : catalog route prefixes
+Trust --> Order : /api/v1/orders/**\n/api/v1/payments/**
+Trust --> Machine : machine route prefixes
+Trust --> Operation : /api/inventory/**\n/api/maintenance/**
+Trust --> Reporting : /api/reporting/**
+
+Identity -- IdentityDB
+Catalog -- CatalogDB
+Order -- OrderDB
+Machine -- MachineDB
+Operation -- OperationDB
+Reporting -- ReportingDB
+
+Catalog ..> Identity : POST /internal/auth/introspect
+Order ..> Identity : POST /internal/auth/introspect
+Machine ..> Identity : POST /internal/auth/introspect
+Operation ..> Identity : POST /internal/auth/introspect
+Reporting ..> Identity : POST /internal/auth/introspect
+
+Order ..> Machine : GET /internal/machines/{machineId}/slots/{slotId}\nPOST /api/machines/dispense-commands
+Order ..> Catalog : GET /internal/catalog/order-products/{productId}
+Order ..> Reporting : POST /api/reporting/internal/transactions/sync
+
+Reporting ..> Order : GET /api/v1/payments/{reference}
+Reporting ..> Machine : list machines / locations / alerts
+Reporting ..> Operation : list batches / bottles / movements / tickets
+
+Operation ..> SlotStub : getSlot() only
+Catalog ..> AvailabilityStub : getProductAvailability()
+Machine ..> Operation : optional configured alert handoff\n/api/maintenance/alerts/critical
+Machine ..> DeviceAdapter : missing ACK/result transport
+
+legend right
+  |= Connector |= Meaning |
+  | solid | public routing / data ownership |
+  | dotted | synchronous service integration |
+  | yellow | implemented stub, not production HTTP adapter |
+  | red | required adapter is not implemented |
+endlegend
+
+@enduml

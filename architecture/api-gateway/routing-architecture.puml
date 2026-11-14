@@ -1,48 +1,40 @@
 @startuml gateway-routing-architecture
 !theme plain
+left to right direction
 skinparam componentStyle uml2
 skinparam linetype ortho
-skinparam packageBackgroundColor #FAFAFA
 skinparam defaultFontName Arial
-skinparam defaultFontSize 11
+skinparam defaultFontSize 10
 
-title KIẾN TRÚC ĐỊNH TUYẾN VÀ BẢO VỆ RANH GIỚI CỦA API GATEWAY (:8080)
+title API GATEWAY - ROUTING VÀ TRUST BOUNDARY
 
-cloud "Public Clients\n(Web, Mobile, Kiosk, Payment Webhook)" as Clients #E8F8F5
+actor "API consumer" as Client
+component "API Gateway :8080" as Gateway
+component "TrustBoundaryFilter" as Filter
 
-package "API Gateway (Spring Cloud Gateway :8080)" {
-    component [GatewayTrustBoundaryFilter\n(Order: HIGHEST_PRECEDENCE)] as Filter #FADBD8
-    component [GlobalCorsFilter\n(Allow Origins, Headers, Methods)] as Cors #D5F5E3
-    component [RoutePredicateHandlerMapping\n(Path Matching & Route Resolution)] as Router #FCF3CF
-    
-    note bottom of Filter
-        Ranh giới bảo mật tin cậy:
-        1. Xóa bỏ triệt để header nội bộ giả mạo:
-           - X-Internal-Service-Key
-           - X-Actor-Id, X-Actor-TenantId, X-Actor-Grants
-        2. Tự động sinh hoặc bảo toàn X-Request-Id
-        3. Cho phép Header Authorization (Bearer JWT) đi qua
-    end note
+package "Downstream routes" {
+  component "Identity :8081\n/auth /admin /staff /customer\n/platform /brand /audit" as Identity
+  component "Catalog :8082\n/products /campaigns /catalog /pricing" as Catalog
+  component "Order :8083\n/v1/orders /v1/payments" as Order
+  component "Machine :8084\n/machines /alerts /locations /dispense-commands" as Machine
+  component "Operation :8085\n/inventory /maintenance" as Operation
+  component "Reporting :8086\n/reporting" as Reporting
 }
 
-package "Mạng Nội bộ An toàn (Protected Internal Network)" {
-    component [Identity Service :8081\n/api/auth/**, /api/admin/**] as SvcIdentity #E8EAED
-    component [Catalog Service :8082\n/api/products/**, /api/campaigns/**] as SvcCatalog #E8EAED
-    component [Order Service :8083\n/api/v1/orders/**, /api/v1/payments/**] as SvcOrder #FCF3CF
-    component [Machine Service :8084\n/api/machines/**, /api/alerts/**] as SvcMachine #E8EAED
-    component [Operation Service :8085\n/api/inventory/**, /api/maintenance/**] as SvcOperation #E8EAED
-    component [Reporting Service :8086\n/api/reporting/**] as SvcReporting #E8EAED
-}
+Client --> Gateway : /api/**
+Gateway --> Filter : highest precedence
+Filter --> Identity
+Filter --> Catalog
+Filter --> Order
+Filter --> Machine
+Filter --> Operation
+Filter --> Reporting
 
-Clients --> Filter : "[1] Gửi HTTP Request"
-Filter --> Cors : "[2] Headers Đã Làm Sạch (Sanitized)"
-Cors --> Router : "[3] Kiểm tra CORS Hợp Lệ"
-
-Router --> SvcIdentity : "Path = /api/auth/**, /api/admin/**"
-Router --> SvcCatalog : "Path = /api/products/**, /api/campaigns/**"
-Router --> SvcOrder : "Path = /api/v1/orders/**, /api/v1/payments/**"
-Router --> SvcMachine : "Path = /api/machines/**, /api/alerts/**"
-Router --> SvcOperation : "Path = /api/inventory/**, /api/maintenance/**"
-Router --> SvcReporting : "Path = /api/reporting/**"
+note bottom of Filter
+  - Chặn mọi URL có segment "internal"
+  - Xóa header reserved và prefix nội bộ
+  - Luôn tạo X-Request-Id mới
+  - Gateway chỉ route; JWT/RBAC thuộc từng service
+end note
 
 @enduml

@@ -5,87 +5,45 @@ skinparam responseMessageBelowArrow true
 skinparam defaultFontName Arial
 skinparam defaultFontSize 11
 
-title ORDER SERVICE - XỬ LÝ PAYMENT CALLBACK & ĐIỀU PHỐI DISPENSE
+title ORDER SERVICE - PAYMENT CALLBACK VÀ DISPENSING
 
-participant "Payment Provider\n(VietQR / Webhook)" as Provider
-participant "PaymentController" as Ctrl
-participant "PaymentService" as PaymentSvc
-participant "OrderService" as OrderSvc
-participant "PaymentRepository" as PaymentRepo
-participant "OrderRepository" as OrderRepo
-database "order_db" as DB
-participant "DispensingService" as DispenseSvc
-participant "MachineServiceGateway" as MachineClient
-participant "TransactionReviewService" as ReviewSvc
+actor "Payment Provider" as Provider
+participant PaymentController
+participant PaymentService
+database order_db as DB
+participant DispensingService
+participant "Machine Service" as Machine
 
-== 1. TIẾP NHẬN WEBHOOK TỪ CỔNG THANH TOÁN ==
-Provider -> Ctrl: POST /api/v1/payments/callback\n{eventId: "provider-event-001", reference: "PAY-XYZ", orderId: 9001, amount: 50000, currency: "VND", status: "PAID"}\n(Header: X-Payment-Callback-Token: <Token>)
-activate Ctrl
-
-Ctrl -> PaymentSvc: processCallback(request, callbackToken)
-activate PaymentSvc
-
-PaymentSvc -> PaymentSvc: verifyCallbackToken(callbackToken)
-
-== 2. KIỂM TRA CHỐNG TRÙNG LẶP (IDEMPOTENCY) ==
-PaymentSvc -> PaymentRepo: findCallbackEvent("provider-event-001")
-activate PaymentRepo
-PaymentRepo -> DB: SELECT * FROM payment_callback_events WHERE event_id = 'provider-event-001'
-activate DB
-DB --> PaymentRepo: Optional.empty (Sự kiện mới tinh)
-deactivate DB
-PaymentRepo --> PaymentSvc: null
-deactivate PaymentRepo
-
-PaymentSvc -> PaymentRepo: findByReference("PAY-XYZ")
-activate PaymentRepo
-PaymentRepo -> DB: SELECT * FROM payments WHERE reference = 'PAY-XYZ'
-activate DB
-DB --> PaymentRepo: Payment {reference: "PAY-XYZ", orderId: 9001, status: PENDING, amount: 50000}
-deactivate DB
-PaymentRepo --> PaymentSvc: Payment Entity
-deactivate PaymentRepo
-
-== 3. CẬP NHẬT TRẠNG THÁI VÀ GHI SỰ KIỆN ==
-PaymentSvc -> OrderSvc: confirmOrderAfterPayment(9001, markPaymentPaid)
-activate OrderSvc
-OrderSvc -> OrderRepo: findById(9001)
-OrderRepo -> DB: UPDATE orders SET status = 'CONFIRMED' WHERE id = 9001
-OrderSvc --> PaymentSvc: Order Confirmed
-deactivate OrderSvc
-
-PaymentSvc -> PaymentRepo: save(Payment {status: PAID, paidAt: NOW()})
-PaymentSvc -> PaymentRepo: saveCallbackEvent(PaymentCallbackEvent {eventId: 'provider-event-001', outcome: ACCEPTED})
-
-== 4. KÍCH HOẠT LỆNH PHUN HƯƠNG (AT-MOST-ONCE DISPENSE) ==
-PaymentSvc -> DispenseSvc: requestDispensing(9001)
-activate DispenseSvc
-
-DispenseSvc -> DB: INSERT INTO dispensing_commands (command_id: UUID, order_id: 9001, status: 'REQUESTED')
-DispenseSvc -> MachineClient: submit(MachineCommandRequest {commandId: UUID, orderId: "9001", machineId: "10", slotId: "2"})\n[POST http://machine-service:8084/api/machines/dispense-commands]
-activate MachineClient
-
-alt Phun thành công tại Kiosk (Machine returns DISPENSED)
-    MachineClient --> DispenseSvc: MachineCommandResponse {commandId: UUID, status: "DISPENSED"}
-    DispenseSvc -> DB: UPDATE dispensing_commands SET status = 'DISPENSED'
-    DispenseSvc -> DB: UPDATE orders SET status = 'DISPENSED'
-
-else Phun thất bại / Kẹt vòi (Machine returns FAILED)
-    MachineClient --> DispenseSvc: MachineCommandResponse {commandId: UUID, status: "FAILED", message: "Actuator failure"}
-    deactivate MachineClient
-    DispenseSvc -> DB: UPDATE dispensing_commands SET status = 'FAILED', manual_review_required = TRUE
-    DispenseSvc -> DB: UPDATE orders SET status = 'FAILED'
-    
-    DispenseSvc -> ReviewSvc: openOrUpdate(paymentRef: "PAY-XYZ", orderId: 9001, reason: "Dispensing failed")
-    activate ReviewSvc
-    ReviewSvc -> DB: INSERT INTO transaction_reviews (reference: "PAY-XYZ", order_id: 9001, status: 'OPEN')
-    deactivate ReviewSvc
+Provider -> PaymentController : POST /api/v1/payments/callback\ncallback token + eventId
+PaymentController -> PaymentService : processCallback(request, token)
+PaymentService -> PaymentService : verify callback token
+PaymentService -> DB : find callback event / payment / order
+alt duplicate eventId
+  PaymentService --> Provider : previous idempotent result
+else invalid reference, amount or currency
+  PaymentService -> DB : store failure/review where applicable
+  PaymentService --> Provider : error response
+else valid paid callback
+  PaymentService -> DB : Payment=PAID; Order=CONFIRMED; save event
+  PaymentService -> DispensingService : requestDispensing(orderId)
+  DispensingService -> DB : save command(REQUESTED)
+  DispensingService -> Machine : POST /api/machines/dispense-commands
+  Machine --> DispensingService : ACCEPTED / PROCESSING / terminal / UNKNOWN
+  DispensingService -> DB : record returned state; open review if needed
+  PaymentService --> Provider : PaymentResponse
 end
-deactivate DispenseSvc
 
-PaymentSvc --> Ctrl: PaymentResponse {reference: "PAY-XYZ", status: PAID}
-deactivate PaymentSvc
-Ctrl --> Provider: 200 OK (PaymentResponse)
-deactivate Ctrl
+== Later status lookup ==
+actor "API consumer" as Client
+Client -> DispensingService : GET /api/v1/orders/{id}/dispensing
+DispensingService -> DB : load command
+alt already terminal
+  DispensingService --> Client : stored result
+else non-terminal
+  DispensingService -> Machine : GET command result
+  Machine --> DispensingService : current state
+  DispensingService -> DB : update state/review
+  DispensingService --> Client : DispensingResponse
+end
 
 @enduml

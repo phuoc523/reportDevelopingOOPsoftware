@@ -1,140 +1,82 @@
 @startuml reporting-class-diagram
 !theme plain
+left to right direction
 skinparam classAttributeIconSize 0
+skinparam linetype ortho
 skinparam defaultFontName Arial
-skinparam defaultFontSize 11
+skinparam defaultFontSize 10
 
-title CLASS DIAGRAM - REPORTING SERVICE DOMAIN & ARCHITECTURE
+title REPORTING SERVICE - DOMAIN, AGGREGATION VÀ CLIENTS
 
-package "com.scentstation.reporting.entity" {
-    class Transaction <<Entity>> {
-        - Long id
-        - String reference
-        - String orderId
-        - BigDecimal amount
-        - String currency
-        - String status
-        - LocalDateTime createdAt
-        - LocalDateTime paidAt
-        + getId(): Long
-        + getReference(): String
-        + getOrderId(): String
-        + getAmount(): BigDecimal
-        + getStatus(): String
-    }
-
-    enum ReportPeriod <<Enumeration>> {
-        DAILY
-        WEEKLY
-        MONTHLY
-        QUARTERLY
-        YEARLY
-    }
+package "Domain / DTO" {
+  class Transaction <<Entity>> {
+    - id: Long
+    - reference: String
+    - orderId: String
+    - amount: BigDecimal
+    - currency: String
+    - status: String
+    - createdAt: LocalDateTime
+    - paidAt: LocalDateTime
+  }
+  enum ReportPeriod {
+    DAY
+    WEEK
+    MONTH
+    CUSTOM
+  }
+  class TransactionSyncRequest <<record>>
+  class DashboardResponse <<record>> {
+    + transactions(): TransactionSummaryResponse
+    + machines(): MachineStatusSummary
+    + alerts(): AlertStatusSummary
+    + inventory(): InventoryStatusSummary
+    + upstream(): Map<String,String>
+    + operations(): OperationReportResponse
+    + access(): ReportAccess
+  }
 }
 
-package "com.scentstation.reporting.dto" {
-    class DashboardResponse <<DTO Record>> {
-        + totalRevenue(): BigDecimal
-        + totalOrders(): Long
-        + totalVolumeMl(): BigDecimal
-        + totalBottlesInstalled(): Long
-        + activeMachines(): Long
-        + averageOrderValue(): BigDecimal
-    }
-
-    class TransactionResponse <<DTO Record>> {
-        + id(): Long
-        + reference(): String
-        + orderId(): String
-        + amount(): BigDecimal
-        + currency(): String
-        + status(): String
-        + createdAt(): LocalDateTime
-        + paidAt(): LocalDateTime
-    }
-
-    class TransactionSyncRequest <<DTO Record>> {
-        + reference(): String
-        + orderId(): String
-        + amount(): BigDecimal
-        + currency(): String
-        + status(): String
-        + paidAt(): LocalDateTime
-    }
+package "Application" {
+  class TransactionService <<Service>> {
+    + createTransaction(request): TransactionResponse
+    + syncTransaction(request): TransactionResponse
+  }
+  class TransactionQueryService <<Service>> {
+    + search(filter, pageable, refundsOnly): Page<TransactionResponse>
+    + findById(id: Long): TransactionResponse
+    + findByReference(reference: String): TransactionResponse
+  }
+  class DashboardAggregationService <<Service>> {
+    + getDashboard(tenantId: String, period: ReportPeriod): DashboardResponse
+    + getDashboard(tenantId: String, period: ReportPeriod, includePlatform: boolean): DashboardResponse
+  }
+  class ExcelExportService <<Service>> {
+    + exportTransactions(filter): byte[]
+    + exportRevenue(start: LocalDate, end: LocalDate): byte[]
+  }
+  class OrderPaymentSyncService <<Service>> {
+    + syncFromOrder(reference: String): TransactionResponse
+  }
 }
 
-package "com.scentstation.reporting.service" {
-    class TransactionService <<Service>> {
-        - TransactionRepository transactionRepository
-        - TransactionSyncValidator validator
-        + syncTransaction(req: TransactionSyncRequest): TransactionResponse
-        + listTransactions(filter: TransactionFilterRequest): List<TransactionResponse>
-    }
-
-    class DashboardAggregationService <<Service>> {
-        - TransactionRepository transactionRepository
-        - MachineSnapshotClient machineClient
-        - OperationInventoryClient inventoryClient
-        + aggregateDashboard(period: ReportPeriod): DashboardResponse
-    }
-
-    class ExcelExportService <<Service>> {
-        - TransactionRepository transactionRepository
-        + exportToExcel(from: LocalDateTime, to: LocalDateTime): byte[]
-    }
-
-    class OrderPaymentSyncService <<Service>> {
-        - OrderPaymentClient orderPaymentClient
-        - TransactionService transactionService
-        + syncFromOrder(reference: String): TransactionResponse
-    }
+package "HTTP clients" {
+  class OrderPaymentClient
+  class MachineSnapshotClient
+  class OperationInventoryClient
 }
 
-package "com.scentstation.reporting.controller" {
-    class TransactionSyncController <<Controller>> {
-        - TransactionService transactionService
-        - OrderPaymentSyncService orderPaymentSyncService
-        - InternalApiKeyVerifier apiKeyVerifier
-        + syncTransaction(key: String, req: TransactionSyncRequest): ResponseEntity<TransactionResponse>
-        + syncFromOrder(key: String, reference: String): ResponseEntity<TransactionResponse>
-    }
+TransactionService --> Transaction
+TransactionQueryService --> Transaction
+DashboardAggregationService --> MachineSnapshotClient
+DashboardAggregationService --> OperationInventoryClient
+ExcelExportService --> TransactionQueryService
+OrderPaymentSyncService --> OrderPaymentClient
+OrderPaymentSyncService --> TransactionService
 
-    class DashboardController <<Controller>> {
-        - DashboardAggregationService dashboardService
-        + getDashboard(period: ReportPeriod): ResponseEntity<DashboardResponse>
-    }
-
-    class ExcelExportController <<Controller>> {
-        - ExcelExportService excelExportService
-        + exportExcel(from: String, to: String): ResponseEntity<byte[]>
-    }
-}
-
-package "com.scentstation.reporting.client" {
-    interface OrderPaymentClient <<Interface>> {
-        + getPayment(reference: String): OrderPaymentResponse
-    }
-    interface MachineSnapshotClient <<Interface>> {
-        + getMachineMetrics(): List<MachineSnapshot>
-    }
-    interface OperationInventoryClient <<Interface>> {
-        + getInventorySnapshots(): List<BottleSnapshot>
-    }
-}
-
-' ================= QUAN HỆ UML VÀ BẢN SỐ =================
-Transaction --> ReportPeriod : "phục vụ thống kê theo chu kỳ"
-TransactionService --> Transaction : "quản lý bản ghi giao dịch"
-DashboardAggregationService --> Transaction : "tổng hợp doanh thu"
-DashboardAggregationService ..> DashboardResponse : "sinh dữ liệu dashboard"
-
-TransactionSyncController --> TransactionService : "đồng bộ giao dịch"
-TransactionSyncController --> OrderPaymentSyncService : "kéo giao dịch từ order-service"
-DashboardController --> DashboardAggregationService : "truy vấn số liệu dashboard"
-ExcelExportController --> ExcelExportService : "xuất file báo cáo"
-
-DashboardAggregationService --> MachineSnapshotClient : "kéo dữ liệu máy Kiosk"
-DashboardAggregationService --> OperationInventoryClient : "kéo số liệu tồn kho chai"
-OrderPaymentSyncService --> OrderPaymentClient : "kéo dữ liệu từ order-service"
+note bottom of Transaction
+  Entity không lưu tenantId/machineId/productId.
+  Dữ liệu vận hành dashboard được đọc từ upstream services.
+end note
 
 @enduml

@@ -3,106 +3,48 @@
 left to right direction
 skinparam packageStyle rectangle
 skinparam defaultFontName Arial
-skinparam defaultFontSize 12
+skinparam defaultFontSize 11
 
-actor "Khách hàng Kiosk" as Customer #E8F8F5
-actor "Người dùng đã Xác thực" as AuthUser #EAEDED
-actor "Quản trị Thương hiệu\n(Brand Admin)" as BrandAdmin #FEF9E7
-actor "Quản lý Vận hành\n(Operations Manager)" as OpsManager #FCF3CF
-actor "Kỹ thuật viên Hiện trường\n(Technician)" as Technician #FADBD8
-actor "Quản trị Nền tảng\n(Super Admin)" as SuperAdmin #D5F5E3
-actor "Cổng thanh toán Đối tác\n(Payment Provider)" as PaymentProvider #EBF5FB
-actor "Thiết bị Cảm biến Kiosk\n(IoT Sensor)" as IoTSensor #EDBB99
+title SCENTSTATION - USE CASE TOÀN HỆ THỐNG
 
-' Kế thừa Actor
-AuthUser <|-- BrandAdmin
-AuthUser <|-- OpsManager
-AuthUser <|-- Technician
-AuthUser <|-- SuperAdmin
+actor "API consumer\nFrontend/Kiosk tương lai" as Customer
+actor "Platform Admin" as PlatformAdmin
+actor "Brand Admin" as BrandAdmin
+actor "Nhân viên vận hành" as Operator
+actor "Kỹ thuật viên" as Technician
+actor "Payment Provider" as Provider
+actor "Service nội bộ" as InternalService
 
-rectangle "Hệ thống Nền tảng Chiết hương Tự động ScentStation" {
-
-    package "Phân hệ Identity & Multi-tenancy" {
-        usecase "UC01. Đăng nhập & Lấy JWT" as UC_Login
-        usecase "UC02. Quản trị Đối tác (Tenant Profile)" as UC_Tenant
-        usecase "UC03. Phân quyền Người dùng (RBAC)" as UC_RBAC
-        usecase "UC04. Tra cứu Nhật ký Kiểm toán (Audit)" as UC_Audit
-    }
-
-    package "Phân hệ Catalog & Pricing" {
-        usecase "UC05. Xem Danh mục Nước hoa" as UC_ViewCatalog
-        usecase "UC06. Quản lý Sản phẩm (Product CRUD)" as UC_ManageProduct
-        usecase "UC07. Quản lý Chiến dịch Khuyến mãi" as UC_ManageCampaign
-        usecase "UC08. Tra cứu Giá bán Hiệu lực (Effective Price)" as UC_CalcPrice
-    }
-
-    package "Phân hệ Order & Payment" {
-        usecase "UC09. Khởi tạo Đơn hàng Chiết hương" as UC_CreateOrder
-        usecase "UC10. Tạo mã QR & Thanh toán" as UC_PayOrder
-        usecase "UC11. Tiếp nhận Webhook Thanh toán" as UC_PaymentWebhook
-        usecase "UC12. Điều phối Phun hương (Dispense)" as UC_Dispense
-        usecase "UC13. Rà soát & Hoàn tiền Sự cố" as UC_ReviewRefund
-    }
-
-    package "Phân hệ Machine & Hardware" {
-        usecase "UC14. Đăng ký & Cấu hình Máy Kiosk" as UC_ManageMachine
-        usecase "UC15. Quản lý Khay cắm (Slot Config)" as UC_ManageSlot
-        usecase "UC16. Tiếp nhận & Xử lý Cảnh báo Máy" as UC_HandleAlert
-        usecase "UC17. Bật/Tắt Trạng thái Hoạt động Máy" as UC_ControlMachine
-    }
-
-    package "Phân hệ Operation (Inventory & Maintenance)" {
-        usecase "UC18. Quản lý Lô & Chai nước hoa (Bottle)" as UC_ManageBottle
-        usecase "UC19. Lắp đặt Chai vào Khay máy (Installation)" as UC_InstallBottle
-        usecase "UC20. Tiếp nhận & Xử lý Phiếu Bảo trì (Ticket)" as UC_MaintenanceTicket
-        usecase "UC21. Chạy Kiểm thử Sau Bảo trì (Post-Test)" as UC_PostTest
-    }
-
-    package "Phân hệ Reporting & Analytics" {
-        usecase "UC22. Xem Dashboard Doanh thu & Vận hành" as UC_Dashboard
-        usecase "UC23. Xuất Báo cáo Chi tiết ra Excel" as UC_ExportExcel
-    }
+rectangle ScentStation {
+  usecase "Đăng ký / đăng nhập" as UCAuth
+  usecase "Quản lý tenant và tài khoản" as UCIam
+  usecase "Quản lý sản phẩm và chiến dịch" as UCCatalog
+  usecase "Tạo và theo dõi đơn hàng" as UCOrder
+  usecase "Thanh toán đơn hàng" as UCPayment
+  usecase "Quản lý máy, slot và cảnh báo" as UCMachine
+  usecase "Quản lý kho và chai hương" as UCInventory
+  usecase "Bảo trì máy" as UCMaintenance
+  usecase "Xem dashboard / xuất báo cáo" as UCReporting
+  usecase "Xác thực principal nội bộ" as UCIntrospect
 }
 
-' Liên kết Khách hàng Kiosk
-Customer -- UC_ViewCatalog
-Customer -- UC_CreateOrder
-Customer -- UC_PayOrder
-Customer -- UC_Dispense
+Customer --> UCAuth
+Customer --> UCOrder
+Customer --> UCPayment
+PlatformAdmin --> UCIam
+BrandAdmin --> UCIam
+BrandAdmin --> UCCatalog
+BrandAdmin --> UCReporting
+Operator --> UCMachine
+Operator --> UCInventory
+Operator --> UCReporting
+Technician --> UCMaintenance
+Provider --> UCPayment
+InternalService --> UCIntrospect
 
-' Liên kết Cổng thanh toán
-PaymentProvider -- UC_PaymentWebhook
-
-' Liên kết Cảm biến Kiosk
-IoTSensor -- UC_HandleAlert
-
-' Liên kết Người dùng có quyền
-AuthUser -- UC_Login
-
-SuperAdmin -- UC_Tenant
-SuperAdmin -- UC_RBAC
-SuperAdmin -- UC_Audit
-
-BrandAdmin -- UC_ManageProduct
-BrandAdmin -- UC_ManageCampaign
-BrandAdmin -- UC_Dashboard
-BrandAdmin -- UC_ExportExcel
-
-OpsManager -- UC_ManageMachine
-OpsManager -- UC_ManageSlot
-OpsManager -- UC_ControlMachine
-OpsManager -- UC_ManageBottle
-OpsManager -- UC_ReviewRefund
-
-Technician -- UC_InstallBottle
-Technician -- UC_MaintenanceTicket
-Technician -- UC_PostTest
-
-' Quan hệ Include / Extend chính yếu
-UC_CreateOrder ..> UC_CalcPrice : <<include>>
-UC_PaymentWebhook ..> UC_Dispense : <<include>>
-UC_ReviewRefund ..> UC_Dispense : <<extend>>\n(Khi máy kẹt vòi/hỏng bơm)
-UC_MaintenanceTicket ..> UC_HandleAlert : <<extend>>\n(Khi có cảnh báo mức CRITICAL)
-UC_PostTest ..> UC_MaintenanceTicket : <<include>>
+note bottom of Customer
+  Đây là actor API logic. Frontend chưa nằm trong repository
+  và không được xem là một component đã triển khai.
+end note
 
 @enduml

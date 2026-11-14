@@ -4,52 +4,30 @@ skinparam conditionStyle insidediamond
 skinparam defaultFontName Arial
 skinparam defaultFontSize 11
 
-|Client / Người dùng|
+title IDENTITY SERVICE - LOGIN ACTIVITY
+
 start
-:Nhập thông tin username, password và gửi request Login;
-
-|API Gateway|
-:Kiểm tra ranh giới tin cậy (Loại bỏ các header giả mạo);
-:Chuyển tiếp yêu cầu đến Identity Service;
-
-|Identity Service (Auth Controller)|
-:Nhận request và chuyển sang AuthService;
-
-|AuthService & DB|
-:Tìm kiếm tài khoản trong CSDL theo username;
-
-if (Tài khoản có tồn tại trong hệ thống?) then (có)
-    if (Trạng thái tài khoản là ACTIVE?) then (active)
-        :Kiểm tra mật khẩu qua giải thuật BCrypt;
-        if (Mật khẩu trùng khớp?) then (khớp)
-            :Đọc danh sách Roles và tập hợp Permissions tương ứng;
-            :Tạo JWT Token ký số chứa Principal (userId, tenantId, grants);
-            :Ghi nhận sự kiện đăng nhập thành công vào bảng audit_events;
-            :Trả về AuthResponse kèm AccessToken và Principal;
-            |Client / Người dùng|
-            :Nhận mã Token và lưu vào Secure Storage;
-            stop
-        else (sai mật khẩu)
-            |AuthService & DB|
-            :Ghi nhận nhật ký đăng nhập thất bại (sai password);
-            :Trả về mã lỗi 401 Unauthorized;
-            |Client / Người dùng|
-            :Hiển thị thông báo sai tên đăng nhập hoặc mật khẩu;
-            stop
-        endif
-    else (bị khóa/tạm ngưng)
-        |AuthService & DB|
-        :Trả về mã lỗi 403 Forbidden (Tài khoản bị khóa);
-        |Client / Người dùng|
-        :Hiển thị thông báo tài khoản bị vô hiệu hóa;
-        stop
-    endif
-else (không tồn tại)
-    |AuthService & DB|
-    :Trả về mã lỗi 401 Unauthorized;
-    |Client / Người dùng|
-    :Hiển thị thông báo sai thông tin đăng nhập;
-    stop
+:Nhận username/password;
+:Tìm User;
+if (User tồn tại?) then (không)
+  :Ghi audit thất bại;
+  :Trả 401;
+  stop
 endif
+:So khớp BCrypt;
+if (Mật khẩu hợp lệ?) then (không)
+  :Ghi audit thất bại;
+  :Trả 401;
+  stop
+endif
+if (active và không locked?) then (không)
+  :Ghi audit thất bại;
+  :Trả 401;
+  stop
+endif
+:Tạo JWT chứa subject, role(s), tenantId, tokenVersion;
+:Ghi audit thành công;
+:Trả AuthResponse;
+stop
 
 @enduml

@@ -1,0 +1,130 @@
+@startuml proposed-order-class-diagram
+!theme plain
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+
+title ORDER SERVICE - AS-IS DOMAIN AND APPLICATION API
+
+package "domain" {
+  class Order <<Entity>> {
+    - Long id
+    - String tenantId
+    - Long customerId
+    - String machineId
+    - String slotId
+    - List<OrderItem> items
+    - BigDecimal totalAmount
+    - String currency
+    - OrderStatus status
+    - LocalDateTime expiresAt
+  }
+  class OrderItem <<Entity>> {
+    - Long productId
+    - String productName
+    - BigDecimal unitPrice
+    - int quantity
+    - BigDecimal lineTotal
+  }
+  class Payment <<Entity>> {
+    - String reference
+    - Long orderId
+    - BigDecimal amount
+    - String currency
+    - PaymentStatus status
+    - String qrPayload
+    - LocalDateTime expiresAt
+    - LocalDateTime paidAt
+    + markPaid(): void
+    + markFailed(): void
+  }
+  class PaymentCallbackEvent <<Entity>> {
+    - String eventId
+    - Outcome outcome
+    + matches(...): boolean
+  }
+  class DispensingCommand <<Entity>> {
+    - String commandId
+    - Long orderId
+    - String paymentReference
+    - String machineId
+    - String slotId
+    - DispensingStatus status
+    - boolean manualReviewRequired
+    + recordResult(result: DispensingStatus, reason: String): void
+  }
+  class TransactionReview <<Entity>> {
+    - String reference
+    - Long orderId
+    - String reason
+    - TransactionReviewStatus status
+    + updateReason(reason: String): void
+    + resolve(): void
+  }
+  enum DispensingStatus {
+    NOT_REQUESTED
+    REQUESTED
+    ACCEPTED
+    PROCESSING
+    DISPENSED
+    FAILED
+    UNKNOWN
+  }
+}
+
+package "application" {
+  class OrderService <<Service>> {
+    + createOrder(request, actor): OrderResponse
+    + getOrders(actor): List<OrderResponse>
+    + getOrderById(id: Long, actor): OrderResponse
+    + getOrderStatus(id: Long, actor): OrderStatusResponse
+    + updateOrderStatus(id: Long, request, actor): OrderStatusResponse
+    + confirmOrderAfterPayment(id: Long, callback: Runnable): void
+    + failOrderAfterPayment(id: Long, callback: Runnable): void
+  }
+  class PaymentService <<Service>> {
+    + createOrGetQr(orderId: Long, actor): PaymentResponse
+    + getPayment(reference: String, actor): PaymentResponse
+    + simulatePayment(reference: String, actor): PaymentResponse
+    + processCallback(request, token: String): PaymentResponse
+  }
+  class DispensingService <<Service>> {
+    + requestDispensing(orderId: Long): DispensingResponse
+    + getDispensingResult(orderId: Long): DispensingResponse
+  }
+  class TransactionReviewService <<Service>> {
+    + getReviews(actor): List<TransactionReviewResponse>
+    + getReview(reference: String, actor): TransactionReviewResponse
+    + resolveReview(reference: String, actor): TransactionReviewResponse
+    + reconcile(request, actor): PaymentReconciliationResponse
+  }
+  interface CatalogServiceGateway
+  interface MachineAuthorityGateway
+  interface MachineServiceGateway
+  class CatalogServiceClient
+  class MachineServiceClient
+}
+
+Order "1" *-- "1..*" OrderItem : JPA cascade + orphanRemoval
+Payment ..> Order : orderId
+PaymentCallbackEvent ..> Payment : reference/orderId
+DispensingCommand ..> Order : orderId
+TransactionReview ..> Payment : reference
+DispensingCommand --> DispensingStatus
+OrderService --> CatalogServiceGateway
+OrderService --> MachineAuthorityGateway
+PaymentService --> DispensingService
+DispensingService --> MachineServiceGateway
+DispensingService --> TransactionReview
+CatalogServiceClient ..|> CatalogServiceGateway
+MachineServiceClient ..|> MachineAuthorityGateway
+MachineServiceClient ..|> MachineServiceGateway
+
+note bottom of DispensingService
+  submit() stores ACCEPTED/PROCESSING as non-terminal.
+  getDispensingResult() polls Machine Service for later status.
+end note
+
+@enduml

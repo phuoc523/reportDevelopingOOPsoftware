@@ -5,54 +5,31 @@ skinparam responseMessageBelowArrow true
 skinparam defaultFontName Arial
 skinparam defaultFontSize 11
 
-title API GATEWAY - CƠ CHẾ BẢO VỆ RANH GIỚI TIN CẬY (TRUST BOUNDARY FILTER)
+title API GATEWAY - TRUST BOUNDARY FILTER AS-IS
 
-actor "Attacker / Malicious Client" as BadClient
-actor "Legitimate Customer" as GoodClient
+actor Client
 participant "GatewayTrustBoundaryFilter" as Filter
-participant "RoutePredicateHandler" as Router
-participant "Downstream Microservice\n(Ví dụ: Order Service)" as Service
+participant "Route chain" as Chain
+participant "Downstream service" as Service
 
-== KỊCH BẢN 1: ATTACKER CỐ TÌNH CHÈN HEADER NỘI BỘ GIẢ MẠO ==
-BadClient -> Filter: POST /api/v1/orders\nHeaders:\n- X-Internal-Service-Key: "HACKED_KEY"\n- X-Actor-Grants: "SUPER_ADMIN,ORDER_OVERRIDE"\n- Authorization: Bearer <FakeToken>
-activate Filter
+Client -> Filter : request(path, headers)
+alt URL chứa segment "internal"
+  Filter --> Client : 403 Forbidden
+else public route
+  Filter -> Filter : generate UUID requestId
+  Filter -> Filter : remove exact RESERVED headers
+  Filter -> Filter : remove x-verified-* / x-internal-* / x-authenticated-*
+  Filter -> Filter : replace X-Request-Id
+  Filter -> Chain : sanitized request
+  Chain -> Service : routed request
+  Service --> Chain : response
+  Chain --> Filter : response
+  Filter --> Client : response + X-Request-Id
+end
 
-Filter -> Filter: Phát hiện các Header thuộc danh sách cấm (Forbidden Internal Headers):\n- X-Internal-Service-Key\n- X-Actor-Grants
-Filter -> Filter: mutate().headers(httpHeaders -> {\n  httpHeaders.remove("X-Internal-Service-Key");\n  httpHeaders.remove("X-Actor-Grants");\n  httpHeaders.set("X-Request-Id", UUID.randomUUID().toString());\n})
-
-Filter -> Router: Forward sanitized request (Headers nội bộ đã bị loại bỏ hoàn toàn!)
-activate Router
-
-Router -> Service: Forward POST /api/v1/orders (Chỉ còn Authorization Bearer)
-activate Service
-
-Service -> Service: Introspect Bearer Token với Identity Service
-Service --> Router: 401 Unauthorized ("Token không hợp lệ")
-deactivate Service
-
-Router --> Filter: 401 Unauthorized
-deactivate Router
-
-Filter --> BadClient: 401 Unauthorized (Tấn công leo thang đặc quyền thất bại!)
-deactivate Filter
-
-== KỊCH BẢN 2: REQUEST HỢP LỆ TỪ KHÁCH HÀNG ==
-GoodClient -> Filter: GET /api/products/202\nHeaders:\n- Authorization: Bearer <ValidJwtToken>
-activate Filter
-
-Filter -> Filter: Kiểm tra Header: Không có header cấm\nBổ sung Header X-Request-Id: "req-98765"
-Filter -> Router: Forward sanitized request
-activate Router
-
-Router -> Service: Forward GET /api/products/202
-activate Service
-Service --> Router: 200 OK [Product Data]
-deactivate Service
-
-Router --> Filter: 200 OK [Product Data]
-deactivate Router
-
-Filter --> GoodClient: 200 OK (Kèm Header Exposed: X-Request-Id)
-deactivate Filter
+note right of Filter #FFF2CC
+  Code hiện tại chưa chặn tổng quát x-actor-*.
+  Service không được tin cậy các header actor do client gửi.
+end note
 
 @enduml

@@ -4,52 +4,27 @@ skinparam conditionStyle insidediamond
 skinparam defaultFontName Arial
 skinparam defaultFontSize 11
 
-|Khách hàng / Order Service|
+title CATALOG SERVICE - TÍNH GIÁ HIỆU LỰC
+
 start
-:Gửi yêu cầu tra cứu giá hiệu lực hoặc lấy Order Snapshot cho Product ID;
-
-|Catalog Service (Controller)|
-:Tiếp nhận request và chuyển cho PromotionalPricingService;
-
-|PromotionalPricingService & DB|
-:Tìm kiếm Product trong CSDL theo Product ID;
-
-if (Sản phẩm có tồn tại trong hệ thống?) then (tồn tại)
-    if (Sản phẩm đang được mở bán (active == true)?) then (đang bán)
-        :Đọc giá gốc ban đầu (basePrice);
-        :Truy vấn các Campaign có hiệu lực tại thời điểm hiện tại\n(active == true && startDate <= Now <= endDate);
-        
-        if (Có chiến dịch khuyến mãi nào phù hợp?) then (có chiến dịch)
-            :Đọc loại giảm giá (DiscountType);
-            if (DiscountType == PERCENTAGE?) then (phần trăm)
-                :Mức giảm = basePrice * (discountValue / 100);
-            else (số tiền cố định)
-                :Mức giảm = discountValue;
-            endif
-            :Tính effectivePrice = max(0, basePrice - Mức giảm);
-        else (không có khuyến mãi)
-            :effectivePrice = basePrice;
-        endif
-
-        :Đóng gói kết quả thành OrderProductSnapshotResponse\n(productId, tenantId, name, unitPrice = effectivePrice, active);
-        |Khách hàng / Order Service|
-        :Nhận snapshot sản phẩm kèm giá chuẩn authoritative;
-        stop
-
-    else (ngưng kinh doanh)
-        |PromotionalPricingService & DB|
-        :Đánh dấu sản phẩm không khả dụng (active = false);
-        :Báo lỗi 409 Conflict / Inactive Product;
-        |Khách hàng / Order Service|
-        :Từ chối giao dịch do sản phẩm ngưng bán;
-        stop
-    endif
-else (không tìm thấy)
-    |PromotionalPricingService & DB|
-    :Báo lỗi 404 ProductNotFoundException;
-    |Khách hàng / Order Service|
-    :Báo lỗi sản phẩm không tồn tại;
-    stop
+:Nhận tenantId và productId;
+:Tải Product trong tenant;
+if (Product tồn tại?) then (không)
+  :Trả 404;
+  stop
 endif
+:Tìm campaign active trong khoảng thời gian hiện tại;
+if (Có campaign phù hợp?) then (không)
+  :effectivePrice = defaultPrice;
+else (có)
+  if (PERCENTAGE?) then (có)
+    :Trừ phần trăm giảm giá;
+  else (FIXED_AMOUNT)
+    :Trừ số tiền cố định;
+  endif
+  :Không cho giá nhỏ hơn 0;
+endif
+:Trả EffectivePriceResponse;
+stop
 
 @enduml

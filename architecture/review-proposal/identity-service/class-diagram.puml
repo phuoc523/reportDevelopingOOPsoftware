@@ -1,0 +1,137 @@
+@startuml proposed-identity-class-diagram
+!theme plain
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+
+title IDENTITY SERVICE - AS-IS DOMAIN AND APPLICATION API
+
+package "entity / rbac" {
+  class User <<Entity>> {
+    - Long id
+    - String username
+    - String email
+    - String password
+    - String fullName
+    - Role role
+    - boolean active
+    - boolean locked
+    - Long tenantId
+    - long tokenVersion
+    - Set<Role> roles
+    - Set<Permission> permissionGrants
+    - Set<Long> locationIds
+    - Set<Long> machineIds
+    + revokeSessions(): void
+  }
+  enum Role
+  enum Permission
+  class AccountPrincipal <<record>> {
+    + id(): Long
+    + username(): String
+    + tenantId(): Long
+    + roles(): Set<Role>
+    + grants(): Set<Permission>
+    + locationIds(): Set<Long>
+    + machineIds(): Set<Long>
+  }
+  class AccessPolicy <<Component>> {
+    + current(): AccountPrincipal
+    + has(name: String): boolean
+    + has(permission: Permission): boolean
+    + platform(): boolean
+    + tenant(requestedTenantId: Long): boolean
+    + scope(tenantId: Long, locationId: Long, machineId: Long): boolean
+  }
+}
+
+package "tenant / audit" {
+  class Tenant <<Entity>> {
+    - Long id
+    - String code
+    - String name
+    - String logoUrl
+    - String description
+    - String contactEmail
+    - String contactPhone
+    - String kioskContent
+    - Status status
+  }
+  enum "Tenant.Status" as TenantStatus {
+    ACTIVE
+    SUSPENDED
+  }
+  class TenantProfile <<record>>
+  class AuditEvent <<Entity>>
+}
+
+package "DTO" {
+  class AuthResponse <<record>> {
+    + token(): String
+    + tokenType(): String
+    + userId(): Long
+    + username(): String
+    + role(): String
+  }
+  class RegisterRequest <<record>> {
+    + username(): String
+    + email(): String
+    + password(): String
+    + fullName(): String
+  }
+  class LoginRequest <<record>>
+}
+
+package "service / controller" {
+  class AuthService <<Service>> {
+    + register(request: RegisterRequest): AuthResponse
+    + login(request: LoginRequest): AuthResponse
+    + logout(): void
+  }
+  class JwtService <<Service>> {
+    + generateToken(user: User): String
+    + extractUsername(token: String): String
+    + extractRole(token: String): String
+    + extractTokenVersion(token: String): long
+  }
+  class TenantService <<Service>> {
+    + require(id: Long): Tenant
+    + requireActive(id: Long): void
+    + all(): List<Tenant>
+    + create(request: CreateTenantRequest): Tenant
+    + platformUpdate(id: Long, request: UpdateTenantRequest): Tenant
+    + brandUpdate(request: UpdateTenantRequest): Tenant
+    + status(id: Long, status: Status): Tenant
+  }
+  class AuditService <<Service>> {
+    + record(...): void
+    + authAttempt(...): void
+    + recent(tenantId: Long): List<AuditEvent>
+  }
+  class InternalIntrospectionController <<Controller>> {
+    - AccessPolicy access
+    - String serviceKey
+    + introspect(serviceKey: String): AccountPrincipal
+  }
+}
+
+User --> Role
+User --> Permission
+User ..> Tenant : tenantId
+AccountPrincipal ..> User : from(user)
+AccessPolicy ..> AccountPrincipal
+Tenant --> TenantStatus
+Tenant ..> TenantProfile : request/response DTO
+AuthService --> JwtService
+AuthService --> AuditService
+AuthService --> User
+InternalIntrospectionController --> AccessPolicy : POST /internal/auth/introspect
+
+note bottom of InternalIntrospectionController
+  JWT authentication filter validates token and tokenVersion first.
+  This controller verifies the service key and returns access.current().
+end note
+
+@enduml

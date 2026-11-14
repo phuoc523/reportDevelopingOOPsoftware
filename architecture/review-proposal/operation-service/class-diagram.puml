@@ -1,0 +1,154 @@
+@startuml proposed-operation-class-diagram
+!theme plain
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+
+title OPERATION SERVICE - AS-IS DOMAIN AND APPLICATION API
+
+package "inventory domain" {
+  class InventoryBatch <<Entity>>
+  class Bottle <<Entity>> {
+    - Long id
+    - Long tenantId
+    - Long productId
+    - Long batchId
+    - String bottleCode
+    - BigDecimal initialQuantity
+    - BigDecimal currentQuantity
+    - BottleStatus status
+  }
+  class BottleInstallation <<Entity>> {
+    - Long id
+    - Long tenantId
+    - Long bottleId
+    - Long machineId
+    - Long slotId
+    - boolean active
+    - LocalDateTime installedAt
+    - LocalDateTime removedAt
+  }
+  class BottleMovement <<Entity>> {
+    - Long tenantId
+    - Long bottleId
+    - BottleMovementType movementType
+    - Long machineId
+    - Long slotId
+    - BigDecimal quantityBefore
+    - BigDecimal quantityAfter
+    - Long actorId
+    - String reason
+    - String referenceId
+    - LocalDateTime createdAt
+  }
+  enum BottleStatus {
+    AVAILABLE
+    INSTALLED
+    NEARLY_EMPTY
+    EMPTY
+    DAMAGED
+    EXPIRED
+  }
+  enum BottleMovementType {
+    INSTALL
+    REMOVE
+    REPLACE
+    REFILL
+    CUSTOMER_CONSUMPTION
+    DIAGNOSTIC_CONSUMPTION
+    DISPOSE
+    ADJUSTMENT
+  }
+}
+
+package "maintenance domain" {
+  class MaintenanceTicket <<Entity>>
+  class MaintenanceChecklistItem <<Entity>>
+  class MaintenanceRepairLog <<Entity>>
+  class PostMaintenanceTest <<Entity>>
+  enum MaintenanceStatus {
+    OPEN
+    ASSIGNED
+    IN_PROGRESS
+    WAITING_FOR_PARTS
+    READY_FOR_TEST
+    COMPLETED
+    CANCELLED
+  }
+  enum PostMaintenanceTestStatus {
+    REQUESTED
+    RUNNING
+    PASSED
+    FAILED
+  }
+  enum MaintenanceSeverity {
+    MINOR
+    MODERATE
+    MAJOR
+    CRITICAL
+  }
+}
+
+package "application" {
+  class BottleInstallationService <<Service>> {
+    + installBottle(request): BottleInstallationResponse
+    + removeBottle(request): BottleInstallationResponse
+    + replaceBottle(request): BottleInstallationResponse
+  }
+  class MaintenanceTicketService <<Service>> {
+    + createTicket(request): MaintenanceTicketResponse
+    + getTicketById(tenantId: Long, ticketId: Long): MaintenanceTicketResponse
+    + getTickets(tenantId: Long): List<MaintenanceTicketResponse>
+    + getTicketsByStatus(tenantId: Long, status): List<MaintenanceTicketResponse>
+    + updateTicket(tenantId: Long, ticketId: Long, request): MaintenanceTicketResponse
+    + closeTicket(ticketId: Long, request): MaintenanceTicketResponse
+    + reopenTicket(ticketId: Long, request): MaintenanceTicketResponse
+  }
+  interface MachineSlotClient {
+    + getSlot(tenantId: Long, machineId: Long, slotId: Long): MachineSlotInfo
+  }
+  class LocalMachineSlotClient <<local/test/docker-local stub>>
+  class InventoryBatchService
+  class BottleService
+  class BottleMovementService
+  class RefillService
+  class DispenseConsumptionService
+  class SensorReconciliationService
+  class InventoryAdjustmentService
+  class RemainingSprayService
+  class InventoryAuditService
+  class MaintenanceAssignmentService
+  class MaintenanceChecklistService
+  class MaintenanceRepairLogService
+  class PostMaintenanceTestService
+}
+
+Bottle ..> InventoryBatch : batchId
+BottleInstallation ..> Bottle : bottleId
+BottleMovement ..> Bottle : bottleId
+Bottle --> BottleStatus
+BottleMovement --> BottleMovementType
+MaintenanceChecklistItem ..> MaintenanceTicket : ticketId
+MaintenanceRepairLog ..> MaintenanceTicket : ticketId
+PostMaintenanceTest ..> MaintenanceTicket : ticketId
+MaintenanceTicket --> MaintenanceStatus
+PostMaintenanceTest --> PostMaintenanceTestStatus
+BottleInstallationService --> MachineSlotClient
+BottleInstallationService --> BottleInstallation
+LocalMachineSlotClient ..|> MachineSlotClient
+
+note bottom of LocalMachineSlotClient #FFF2CC
+  Returns an in-memory available slot snapshot.
+  It does not update Machine Service and has no production HTTP adapter.
+end note
+
+note bottom of MaintenanceTicketService
+  closeTicket requires:
+  - no incomplete required checklist
+  - at least one repair log
+  - latest post-maintenance test PASSED
+end note
+
+@enduml

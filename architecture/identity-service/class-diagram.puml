@@ -1,237 +1,102 @@
 @startuml identity-class-diagram
 !theme plain
+left to right direction
 skinparam classAttributeIconSize 0
+skinparam linetype ortho
 skinparam defaultFontName Arial
-skinparam defaultFontSize 11
+skinparam defaultFontSize 10
 
-title CLASS DIAGRAM - IDENTITY SERVICE DOMAIN & ARCHITECTURE
+title IDENTITY SERVICE - DOMAIN VÀ APPLICATION API
 
-package "com.scentstation.identity.entity" {
-    class User <<Entity>> {
-        - Long id
-        - String username
-        - String email
-        - String password
-        - String fullName
-        - Role role
-        - boolean active
-        - boolean locked
-        - Long tenantId
-        - long tokenVersion
-        - Set<Role> roles
-        - Set<Permission> permissionGrants
-        - Set<Long> locationIds
-        + getPassword(): String
-        + getRoles(): Set<Role>
-        + getPermissionGrants(): Set<Permission>
-    }
-
-    enum Role <<Enumeration>> {
-        PLATFORM_SUPER_ADMIN
-        BRAND_ADMIN
-        OPERATIONS_MANAGER
-        TECHNICIAN
-        INVENTORY_STAFF
-        VIEWER
-        CUSTOMER
-        ADMIN
-        STAFF
-    }
+package "Domain / RBAC" {
+  class User <<Entity>> {
+    - id: Long
+    - username: String
+    - email: String
+    - password: String
+    - role: Role
+    - active: boolean
+    - locked: boolean
+    - tenantId: Long
+    - tokenVersion: long
+    - roles: Set<Role>
+    - permissionGrants: Set<Permission>
+    - locationIds: Set<Long>
+    - machineIds: Set<Long>
+    + revokeSessions(): void
+  }
+  class Tenant <<Entity>> {
+    - id: Long
+    - code: String
+    - name: String
+    - status: Status
+  }
+  enum Role
+  enum Permission
+  enum "Tenant.Status" as TenantStatus {
+    ACTIVE
+    SUSPENDED
+  }
+  class AccountPrincipal <<record>> {
+    + id(): Long
+    + username(): String
+    + tenantId(): Long
+    + roles(): Set<Role>
+    + grants(): Set<Permission>
+    + locationIds(): Set<Long>
+    + machineIds(): Set<Long>
+  }
 }
 
-package "com.scentstation.identity.rbac" {
-    enum Permission <<Enumeration>> {
-        TENANT_MANAGE
-        PLATFORM_CONFIG_MANAGE
-        PLATFORM_ROLE_MANAGE
-        PLATFORM_AUDIT_READ
-        PLATFORM_REPORT_READ
-        DEVICE_ACCESS_REVOKE
-        BRAND_PROFILE_READ
-        BRAND_PROFILE_EDIT
-        BRAND_USER_MANAGE
-        BRAND_ROLE_MANAGE
-        CATALOG_READ
-        CATALOG_MANAGE
-        CAMPAIGN_MANAGE
-        LOCATION_READ
-        LOCATION_MANAGE
-        MACHINE_READ
-        MACHINE_CONTROL
-        MACHINE_CONFIGURE
-        ORDER_READ
-        ORDER_REVIEW
-        REFUND_REQUEST
-        REFUND_APPROVE
-        INVENTORY_READ
-        INVENTORY_MANAGE
-        INVENTORY_ADJUST
-        MAINTENANCE_READ
-        MAINTENANCE_MANAGE
-        DIAGNOSTIC_SPRAY
-        ALERT_READ
-        ALERT_MANAGE
-        REPORT_READ
-        REPORT_EXPORT
-        AUDIT_READ
-        NOTIFICATION_READ
-        NOTIFICATION_CONFIGURE
-        KIOSK_BROWSE
-        KIOSK_ORDER
-    }
-
-    class AccountPrincipal <<ValueObject>> {
-        - Long id
-        - String username
-        - Long tenantId
-        - List<String> roles
-        - List<String> grants
-        + id(): Long
-        + tenantId(): Long
-        + grants(): List<String>
-    }
-
-    class AccessPolicy <<Component>> {
-        + current(): AccountPrincipal
-        + require(permission: Permission): AccountPrincipal
-        + requireTenant(tenantId: Long): AccountPrincipal
-    }
+package "Application" {
+  class AuthService <<Service>> {
+    + register(request): AuthResponse
+    + login(request): AuthResponse
+    + logout(): void
+  }
+  class JwtService <<Service>> {
+    + generateToken(user: User): String
+    + extractUsername(token: String): String
+    + extractRole(token: String): String
+    + extractTokenVersion(token: String): long
+  }
+  class AccessPolicy <<Component>> {
+    + current(): AccountPrincipal
+    + has(permission: Permission): boolean
+    + platform(): boolean
+    + tenant(tenantId: Long): boolean
+    + scope(tenantId: Long, locationId: Long, machineId: Long): boolean
+  }
+  class TenantService <<Service>> {
+    + all(): List<Tenant>
+    + create(request): Tenant
+    + platformUpdate(id: Long, request): Tenant
+    + brandUpdate(request): Tenant
+    + status(id: Long, status: Status): Tenant
+  }
+  class AuditService <<Service>> {
+    + record(...): void
+    + authAttempt(...): void
+    + recent(tenantId: Long): List<AuditEvent>
+  }
+  class InternalIntrospectionController <<Controller>> {
+    + introspect(serviceKey: String): AccountPrincipal
+  }
 }
 
-package "com.scentstation.identity.tenant" {
-    class Tenant <<Entity>> {
-        - Long id
-        - String code
-        - String name
-        - String logoUrl
-        - String description
-        - String contactEmail
-        - String contactPhone
-        - String kioskContent
-        - Status status
-        + getId(): Long
-        + getCode(): String
-        + getStatus(): Status
-    }
+User --> Role
+User --> Permission
+User ..> Tenant : tenantId reference
+Tenant --> TenantStatus
+AuthService --> User
+AuthService --> JwtService
+AuthService --> AuditService
+AccessPolicy ..> AccountPrincipal
+InternalIntrospectionController --> AccessPolicy
 
-    enum "Tenant.Status" as TenantStatus <<Enumeration>> {
-        ACTIVE
-        SUSPENDED
-    }
-
-    class TenantProfile <<DTO Record>> {
-        + logoUrl(): String
-        + description(): String
-        + contactEmail(): String
-        + contactPhone(): String
-        + kioskContent(): String
-    }
-}
-
-package "com.scentstation.identity.audit" {
-    class AuditEvent <<Entity>> {
-        - Long id
-        - Instant occurredAt
-        - Long actorId
-        - Long tenantId
-        - String action
-        - String targetType
-        - String targetId
-        - String outcome
-        - String beforeState
-        - String afterState
-    }
-}
-
-package "com.scentstation.identity.dto" {
-    class AuthResponse <<DTO Record>> {
-        + token(): String
-        + principal(): AccountPrincipal
-    }
-
-    class LoginRequest <<DTO Record>> {
-        + username(): String
-        + password(): String
-    }
-
-    class RegisterRequest <<DTO Record>> {
-        + username(): String
-        + email(): String
-        + password(): String
-        + fullName(): String
-        + tenantId(): Long
-    }
-}
-
-package "com.scentstation.identity.service" {
-    class AuthService <<Service>> {
-        - UserRepository users
-        - JwtService jwtService
-        - AuditService auditService
-        + register(request: RegisterRequest): AuthResponse
-        + login(request: LoginRequest): AuthResponse
-        + logout(): void
-    }
-
-    class JwtService <<Service>> {
-        - String secretKey
-        - Duration tokenValidity
-        + generate(user: User): String
-        + parse(token: String): AccountPrincipal
-    }
-
-    class TenantService <<Service>> {
-        - TenantRepository tenantRepo
-        + createTenant(req: CreateTenantRequest): Tenant
-        + updateProfile(id: Long, req: UpdateTenantRequest): TenantProfile
-    }
-
-    class AuditService <<Service>> {
-        - AuditRepository auditRepo
-        + record(actorId: Long, tenantId: Long, action: String, targetType: String, targetId: String, outcome: String): void
-    }
-}
-
-package "com.scentstation.identity.controller" {
-    class AuthController <<Controller>> {
-        - AuthService auth
-        - AccessPolicy access
-        + register(r: RegisterRequest): AuthResponse
-        + login(r: LoginRequest): AuthResponse
-        + logout(): void
-        + me(): AccountPrincipal
-    }
-
-    class InternalIntrospectionController <<Controller>> {
-        - JwtService jwtService
-        + introspect(bearer: String): AccountPrincipal
-    }
-
-    class TenantController <<Controller>> {
-        - TenantService tenantService
-        + create(req: CreateTenantRequest): Tenant
-    }
-}
-
-' ================= QUAN HỆ UML VÀ BẢN SỐ =================
-Tenant --> TenantStatus : "trạng thái hoạt động"
-Tenant "1" ..> "0..1" TenantProfile : "cập nhật qua DTO record"
-Tenant "1" o-- "0..*" User : "quản lý tài khoản thuộc tenant (Aggregation)"
-User --> Role : "vai trò mặc định"
-User "0..*" o-- "0..*" Role : "tập hợp roles gán thêm"
-User "0..*" o-- "0..*" Permission : "tập hợp permissionGrants chi tiết"
-User "1" ..> "0..*" AuditEvent : "đối tượng phát sinh nhật ký kiểm toán"
-
-AuthService --> JwtService : "tạo và ký JWT"
-AuthService --> AuditService : "ghi nhận sự kiện login/register"
-AuthService ..> User : "xác thực mật khẩu BCrypt"
-
-AuthController --> AuthService : "xử lý nghiệp vụ xác thực"
-AuthController --> AccessPolicy : "soát actor hiện tại"
-InternalIntrospectionController --> JwtService : "giải mã token nội bộ"
-TenantController --> TenantService : "điều phối nghiệp vụ tenant"
-
-AccessPolicy ..> AccountPrincipal : "quản lý ngữ cảnh actor"
-AuthResponse *-- AccountPrincipal : "chứa thông tin principal"
+note bottom
+  Chỉ liệt kê field và method quyết định hành vi.
+  Getter/setter, repository và DTO phụ được lược bỏ để sơ đồ dễ đọc.
+end note
 
 @enduml

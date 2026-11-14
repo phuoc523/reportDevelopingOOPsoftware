@@ -1,0 +1,113 @@
+@startuml proposed-catalog-class-diagram
+!theme plain
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam defaultFontSize 10
+
+title CATALOG SERVICE - AS-IS DOMAIN AND APPLICATION API
+
+package "domain" {
+  class Product <<Entity>> {
+    - Long id
+    - Long tenantId
+    - String name
+    - String description
+    - String fragranceNotes
+    - String imageUrl
+    - BigDecimal defaultPrice
+    - Boolean available
+    - LocalDateTime createdAt
+    - LocalDateTime updatedAt
+  }
+  class Campaign <<Entity>> {
+    - Long id
+    - Long tenantId
+    - Long productId
+    - String name
+    - DiscountType discountType
+    - BigDecimal discountValue
+    - LocalDateTime startAt
+    - LocalDateTime endAt
+    - Boolean active
+  }
+  enum DiscountType {
+    PERCENTAGE
+    FIXED_AMOUNT
+  }
+}
+
+package "DTO" {
+  class ProductResponse <<Lombok DTO>>
+  class EffectivePriceResponse <<Lombok DTO>> {
+    - Long tenantId
+    - Long productId
+    - BigDecimal defaultPrice
+    - BigDecimal effectivePrice
+    - Long campaignId
+    - String campaignName
+    - DiscountType discountType
+    - BigDecimal discountValue
+    - Boolean promotionApplied
+  }
+  class OrderProductSnapshotResponse <<record>> {
+    + productId(): Long
+    + tenantId(): Long
+    + name(): String
+    + available(): Boolean
+    + unitPrice(): BigDecimal
+    + campaignId(): Long
+  }
+}
+
+package "application" {
+  class ProductService <<Service>> {
+    + createProduct(request): ProductResponse
+    + getProducts(): List<ProductResponse>
+    + getProductById(id: Long): ProductResponse
+    + changeAvailability(id: Long, request): ProductResponse
+    + updatePrice(id: Long, request): ProductResponse
+    + searchProducts(criteria): List<ProductResponse>
+  }
+  class CampaignService <<Service>> {
+    + createCampaign(request): CampaignResponse
+    + getCampaigns(tenantId: Long): List<CampaignResponse>
+    + getCampaignById(tenantId: Long, id: Long): CampaignResponse
+    + getCampaignsByProduct(tenantId: Long, productId: Long): List<CampaignResponse>
+    + updateCampaign(tenantId: Long, id: Long, request): CampaignResponse
+  }
+  class PromotionalPricingService <<Service>> {
+    + getEffectivePrice(tenantId: Long, productId: Long): EffectivePriceResponse
+    + getInternalEffectivePrice(product: Product): EffectivePriceResponse
+  }
+  class ProductMachineAvailabilityService <<Service>> {
+    + getAvailability(tenantId: Long, machineId: Long, productId: Long): ProductMachineAvailabilityResponse
+  }
+  interface MachineAvailabilityClient {
+    + getProductAvailability(tenantId: Long, machineId: Long, productId: Long): MachineAvailabilityInfo
+  }
+  class LocalMachineAvailabilityClient <<local/test stub>>
+  class InternalOrderProductController <<Controller>> {
+    + get(productId: Long, tenantId: Long, key: String): OrderProductSnapshotResponse
+  }
+}
+
+Campaign --> DiscountType
+Campaign ..> Product : productId
+ProductService --> Product
+CampaignService --> Campaign
+PromotionalPricingService --> Product
+PromotionalPricingService --> Campaign
+PromotionalPricingService ..> EffectivePriceResponse
+InternalOrderProductController --> PromotionalPricingService
+InternalOrderProductController ..> OrderProductSnapshotResponse
+ProductMachineAvailabilityService --> MachineAvailabilityClient
+LocalMachineAvailabilityClient ..|> MachineAvailabilityClient
+
+note bottom of LocalMachineAvailabilityClient #FFF2CC
+  Current source contains only a local/test fail-closed adapter.
+  No production Machine HTTP adapter is present.
+end note
+
+@enduml

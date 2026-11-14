@@ -1,0 +1,36 @@
+@startuml proposed-gateway-trust-boundary
+!theme plain
+autonumber
+skinparam responseMessageBelowArrow true
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title API GATEWAY - CURRENT TRUST BOUNDARY BEHAVIOUR
+
+actor Client
+participant "GatewayTrustBoundaryFilter" as Filter
+participant "Gateway route chain" as Chain
+participant "Downstream service" as Service
+
+Client -> Filter : request(path, headers)
+
+alt any path segment equals "internal" (case-insensitive)
+  Filter --> Client : 403 Forbidden
+else public path
+  Filter -> Filter : generate a new UUID requestId
+  Filter -> Filter : remove exact RESERVED headers\nand prefixes x-verified-, x-internal-, x-authenticated-
+  Filter -> Filter : set X-Request-Id to new UUID
+  Filter -> Chain : sanitized request
+  Chain -> Service : routed request
+  Service --> Chain : response
+  Chain --> Filter : response
+  Filter --> Client : response + X-Request-Id
+end
+
+note right of Filter #FFF2CC
+  Current code does NOT remove arbitrary x-actor-* headers.
+  Downstream services must continue to ignore them, or Gateway
+  should add x-actor-* to the blocked prefixes.
+end note
+
+@enduml

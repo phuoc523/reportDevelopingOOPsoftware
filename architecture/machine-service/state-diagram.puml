@@ -1,0 +1,32 @@
+@startuml machine-command-state-diagram
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title MACHINE SERVICE - MACHINE COMMAND STATE
+
+[*] --> ACCEPTED : create command
+ACCEPTED --> PROCESSING : execution starts
+ACCEPTED --> ACKNOWLEDGED : acknowledge(at)
+PROCESSING --> ACKNOWLEDGED : acknowledge(at)
+ACKNOWLEDGED --> DISPENSED : complete(success=true)
+ACKNOWLEDGED --> FAILED : complete(success=false)
+PROCESSING --> DISPENSED : complete(success=true)
+PROCESSING --> FAILED : complete(success=false)
+ACCEPTED --> EXPIRED : expiry job
+PROCESSING --> EXPIRED : expiry job
+ACKNOWLEDGED --> EXPIRED : expiry job
+ACCEPTED --> UNKNOWN : uncertain outcome
+PROCESSING --> UNKNOWN : uncertain outcome
+
+DISPENSED --> [*]
+FAILED --> [*]
+EXPIRED --> [*]
+UNKNOWN --> [*]
+
+note right of ACKNOWLEDGED
+  Các transition acknowledge/complete có trong entity.
+  Inbound device adapter gọi chúng chưa được triển khai.
+end note
+
+@enduml

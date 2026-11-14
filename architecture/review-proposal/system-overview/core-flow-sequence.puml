@@ -1,0 +1,70 @@
+@startuml proposed-as-is-core-flow
+!theme plain
+autonumber
+skinparam responseMessageBelowArrow true
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title AS-IS CORE FLOW - ORDER, PAYMENT, COMMAND ACCEPTANCE AND POLLING
+
+actor Customer
+participant "API Gateway" as Gateway
+participant "Order Service" as Order
+participant "Identity Service" as Identity
+participant "Machine Service" as Machine
+participant "Catalog Service" as Catalog
+database "order_db" as DB
+participant "Payment Provider" as Provider
+participant "Device adapter\n<<not implemented>>" as Device #F8CECC
+
+== Create authoritative order ==
+Customer -> Gateway : POST /api/v1/orders\nAuthorization: Bearer token
+Gateway -> Order : sanitized request
+Order -> Identity : POST /internal/auth/introspect\nBearer + X-Internal-Service-Key
+Identity --> Order : AccountPrincipal
+Order -> Machine : GET /internal/machines/10/slots/2?tenantId=1
+Machine --> Order : MachineSlotSnapshot
+Order -> Catalog : GET /internal/catalog/order-products/202?tenantId=1
+Catalog --> Order : CatalogProductSnapshot
+Order -> Order : verify actor, tenant, customer, slot, product and price
+Order -> DB : save Order(PENDING) + OrderItem
+Order --> Customer : 201 OrderResponse
+
+== Create payment QR ==
+Customer -> Gateway : POST /api/v1/orders/9001/payments/qr
+Gateway -> Order : forward
+Order -> DB : save/find Payment(PENDING)
+Order --> Customer : PaymentResponse(reference, qrPayload)
+
+== Payment callback and command submission ==
+Provider -> Gateway : POST /api/v1/payments/callback\nX-Payment-Callback-Token
+Gateway -> Order : forward callback
+Order -> Order : verify token + eventId idempotency\nvalidate reference/order/amount/currency
+Order -> DB : Payment=PAID, Order=CONFIRMED\nstore PaymentCallbackEvent
+Order -> DB : save DispensingCommand(REQUESTED)
+Order -> Machine : POST /api/machines/dispense-commands\nX-Internal-Service-Key
+Machine -> Machine : verify machine/slot availability\nidempotency by commandId
+Machine --> Order : 202 MachineCommand(status=ACCEPTED)
+Order -> DB : DispensingCommand=ACCEPTED
+Order --> Provider : 200 PaymentResponse
+
+== Result lookup currently available ==
+Customer -> Gateway : GET /api/v1/orders/9001/dispensing
+Gateway -> Order : forward
+Order -> Machine : GET /api/machines/dispense-commands/{commandId}
+Machine --> Order : current command status
+
+alt terminal status is DISPENSED or FAILED
+  Order -> DB : update command and Order status
+  Order --> Customer : terminal DispensingResponse
+else status remains ACCEPTED/PROCESSING/ACKNOWLEDGED
+  Order --> Customer : non-terminal DispensingResponse
+end
+
+note over Machine, Device
+  No inbound controller or MQTT/serial adapter currently calls
+  MachineCommand.acknowledge() / complete().
+  The physical completion path is therefore a known implementation gap.
+end note
+
+@enduml

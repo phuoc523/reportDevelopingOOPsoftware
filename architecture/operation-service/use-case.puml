@@ -3,62 +3,44 @@
 left to right direction
 skinparam packageStyle rectangle
 skinparam defaultFontName Arial
-skinparam defaultFontSize 12
+skinparam defaultFontSize 11
 
-actor "Nhân viên Kho" as InventoryClerk #FCF3CF
-actor "Kỹ thuật viên Hiện trường" as Technician #FADBD8
-actor "Machine Service (Nội bộ)" as MachineSvc #E8EAED
+title OPERATION SERVICE - USE CASE
 
-rectangle "Phân hệ Hậu cần Kho & Bảo trì Kỹ thuật (Operation Service)" {
+actor "Nhân viên kho" as InventoryStaff
+actor "Kỹ thuật viên" as Technician
+actor "Quản lý vận hành" as Manager
+actor "Machine Service" as Machine
+actor "Machine slot adapter\n<<future extension>>" as SlotAdapter
 
-    package "Hậu cần Kho & Quản lý Chai hương (Inventory Module)" {
-        usecase "UC_OP01. Nhập Lô Hàng Mới (Batch Inbound)" as UC_InboundBatch
-        usecase "UC_OP02. Khởi tạo & Dán Mã Chai hương (Register Bottle)" as UC_RegisterBottle
-        usecase "UC_OP03. Lắp đặt Chai vào Khay Máy Kiosk (Install Bottle into Slot)" as UC_InstallBottle
-        usecase "UC_OP04. Tháo dỡ hoặc Thay thế Chai Rỗng (Remove / Replace Bottle)" as UC_RemoveBottle
-        usecase "UC_OP05. Ghi nhận Di chuyển Chai (Log Bottle Movement)" as UC_LogMovement
-        usecase "UC_OP06. Ghi nhận Tiêu hao Tia xịt (Dispense Consumption)" as UC_LogConsumption
-        usecase "UC_OP07. Đối soát Mức hương với Cảm biến (Sensor Reconciliation)" as UC_ReconcileSensor
-    }
-
-    package "Quy trình Bảo dưỡng & Sửa chữa (Maintenance Module)" {
-        usecase "UC_OP08. Tiếp nhận Cảnh báo Khẩn & Tự tạo Ticket (Critical Alert Ingestion)" as UC_IngestAlert
-        usecase "UC_OP09. Phân công Kỹ thuật viên (Assign Ticket)" as UC_AssignTicket
-        usecase "UC_OP10. Thực hiện Danh mục Kiểm tra (Checklist Execution)" as UC_Checklist
-        usecase "UC_OP11. Ghi Nhật ký Sửa chữa & Thay thế Linh kiện (Repair Log)" as UC_RepairLog
-        usecase "UC_OP12. Thực hiện Bài kiểm tra Sau Bảo trì (Post-Maintenance Test)" as UC_PostTest
-        usecase "UC_OP13. Đóng Phiếu Bảo trì (Close Maintenance Ticket)" as UC_CloseTicket
-        usecase "UC_OP14. Khôi phục Trạng thái Máy sang OPERATIONAL" as UC_RestoreMachine
-    }
+rectangle "Operation Service" {
+  usecase "Quản lý batch và bottle" as Inventory
+  usecase "Install / remove / replace bottle" as Installation
+  usecase "Refill / adjustment / consumption" as Movement
+  usecase "Reconcile sensor và ước tính sprays" as Reconcile
+  usecase "Xem inventory audit" as Audit
+  usecase "Quản lý maintenance ticket" as Ticket
+  usecase "Assignment / checklist / repair log" as Work
+  usecase "Post-maintenance test" as Test
+  usecase "Đóng / mở lại ticket" as Close
+  usecase "Nhận critical alert" as CriticalAlert
 }
 
-' Liên kết Actor
-InventoryClerk -- UC_InboundBatch
-InventoryClerk -- UC_RegisterBottle
-InventoryClerk -- UC_LogMovement
+InventoryStaff --> Inventory
+InventoryStaff --> Installation
+InventoryStaff --> Movement
+InventoryStaff --> Reconcile
+Manager --> Audit
+Manager --> Ticket
+Technician --> Work
+Technician --> Test
+Manager --> Close
+Machine --> CriticalAlert
+SlotAdapter --> Installation
 
-Technician -- UC_InstallBottle
-Technician -- UC_RemoveBottle
-Technician -- UC_ReconcileSensor
-Technician -- UC_AssignTicket
-Technician -- UC_Checklist
-Technician -- UC_RepairLog
-Technician -- UC_PostTest
-Technician -- UC_CloseTicket
-
-MachineSvc -- UC_LogConsumption
-MachineSvc -- UC_IngestAlert
-
-' Quan hệ Include / Extend
-UC_InboundBatch ..> UC_RegisterBottle : <<include>>
-UC_InstallBottle ..> UC_LogMovement : <<include>>
-UC_RemoveBottle ..> UC_LogMovement : <<include>>
-
-UC_CloseTicket ..> UC_Checklist : <<include>>
-UC_CloseTicket ..> UC_RepairLog : <<include>>
-UC_CloseTicket ..> UC_PostTest : <<include>>
-UC_CloseTicket ..> UC_RestoreMachine : <<include>>
-
-UC_IngestAlert ..> UC_AssignTicket : <<extend>>\n(Tự động điều phối theo khu vực)
+note bottom of SlotAdapter
+  Source hiện dùng LocalMachineSlotClient cho local/test/docker-local.
+  Chưa có production HTTP adapter và chưa update slot ngược sang Machine.
+end note
 
 @enduml

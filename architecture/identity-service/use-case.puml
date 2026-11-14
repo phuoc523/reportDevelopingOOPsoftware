@@ -3,72 +3,42 @@
 left to right direction
 skinparam packageStyle rectangle
 skinparam defaultFontName Arial
-skinparam defaultFontSize 12
+skinparam defaultFontSize 11
 
-actor "Người dùng / Nhân viên" as User #EAEDED
-actor "Quản trị Nền tảng\n(Super Admin)" as SuperAdmin #D5F5E3
-actor "Quản trị Thương hiệu\n(Brand Admin)" as BrandAdmin #FEF9E7
-actor "Dịch vụ Vệ tinh Nội bộ\n(Internal Microservice)" as InternalService #FADBD8
+title IDENTITY SERVICE - USE CASE
 
-User <|-- SuperAdmin
-User <|-- BrandAdmin
+actor "Người dùng" as User
+actor "Platform Admin" as PlatformAdmin
+actor "Brand Admin" as BrandAdmin
+actor "Service nội bộ" as Service
 
-rectangle "Phân hệ Identity & Multi-tenancy Service" {
-
-    package "Xác thực & Phiên làm việc (Authentication)" {
-        usecase "UC_ID01. Đăng ký tài khoản (Register)" as UC_Register
-        usecase "UC_ID02. Đăng nhập hệ thống (Login)" as UC_Login
-        usecase "UC_ID03. Đăng xuất (Logout)" as UC_Logout
-        usecase "UC_ID04. Xem thông tin cá nhân (/me)" as UC_Me
-        usecase "UC_ID05. Phát hành JWT Token" as UC_IssueJWT
-    }
-
-    package "Nội bộ: Soát quyền (Token Introspection)" {
-        usecase "UC_ID06. Giải mã & Soát quyền Token\n(/internal/v1/identity/introspect)" as UC_Introspect
-        usecase "UC_ID07. Xác thực Chữ ký Service Key" as UC_VerifyKey
-    }
-
-    package "Quản trị Đối tác (Multi-tenancy)" {
-        usecase "UC_ID08. Tạo mới Tenant" as UC_CreateTenant
-        usecase "UC_ID09. Cập nhật Hồ sơ Tenant (TenantProfile)" as UC_UpdateProfile
-        usecase "UC_ID10. Khóa / Kích hoạt Tenant" as UC_ToggleTenant
-    }
-
-    package "Quản lý Người dùng & RBAC" {
-        usecase "UC_ID11. Tạo tài khoản nhân viên (Admin Create User)" as UC_CreateStaff
-        usecase "UC_ID12. Gán Vai trò (Assign Role)" as UC_AssignRole
-        usecase "UC_ID13. Phân quyền chi tiết (Permissions)" as UC_AssignPerm
-    }
-
-    package "Kiểm toán & Giám sát (Audit)" {
-        usecase "UC_ID14. Ghi nhận Sự kiện Kiểm toán (Log Audit)" as UC_LogAudit
-        usecase "UC_ID15. Tra cứu Lịch sử Kiểm toán (Query Audit)" as UC_QueryAudit
-    }
+rectangle "Identity Service" {
+  usecase "Đăng ký" as Register
+  usecase "Đăng nhập / đăng xuất" as Login
+  usecase "Xem principal hiện tại" as Me
+  usecase "Quản lý tenant" as Tenant
+  usecase "Quản lý tài khoản" as Account
+  usecase "Gán role, grant và scope" as Authorization
+  usecase "Xem audit gần đây" as Audit
+  usecase "Introspect JWT" as Introspect
 }
 
-' Liên kết Actor
-User -- UC_Register
-User -- UC_Login
-User -- UC_Logout
-User -- UC_Me
+User --> Register
+User --> Login
+User --> Me
+PlatformAdmin --> Tenant
+PlatformAdmin --> Account
+PlatformAdmin --> Authorization
+PlatformAdmin --> Audit
+BrandAdmin --> Account
+BrandAdmin --> Authorization
+BrandAdmin --> Tenant : own tenant
+BrandAdmin --> Audit
+Service --> Introspect
 
-InternalService -- UC_Introspect
-
-SuperAdmin -- UC_CreateTenant
-SuperAdmin -- UC_ToggleTenant
-SuperAdmin -- UC_CreateStaff
-SuperAdmin -- UC_AssignRole
-SuperAdmin -- UC_AssignPerm
-SuperAdmin -- UC_QueryAudit
-
-BrandAdmin -- UC_UpdateProfile
-
-' Quan hệ Include / Extend
-UC_Login ..> UC_IssueJWT : <<include>>
-UC_Login ..> UC_LogAudit : <<include>>
-UC_Introspect ..> UC_VerifyKey : <<include>>
-UC_CreateTenant ..> UC_UpdateProfile : <<include>>
-UC_CreateStaff ..> UC_AssignRole : <<include>>
-UC_AssignRole ..> UC_AssignPerm : <<include>>
+note bottom of Introspect
+  API nội bộ: POST /internal/auth/introspect.
+  Bắt buộc Bearer token và X-Internal-Service-Key.
+end note
 
 @enduml

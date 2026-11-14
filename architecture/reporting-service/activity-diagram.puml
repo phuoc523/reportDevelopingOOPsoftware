@@ -4,47 +4,27 @@ skinparam conditionStyle insidediamond
 skinparam defaultFontName Arial
 skinparam defaultFontSize 11
 
-|Order Service / Caller|
+title REPORTING SERVICE - IDEMPOTENT TRANSACTION SYNC
+
 start
-:Gửi bản ghi giao dịch (TransactionSyncRequest) sang Reporting Service;
-
-|Reporting Service (Sync Controller)|
-:Kiểm tra Internal Service Key;
-if (Khóa bảo mật hợp lệ?) then (hợp lệ)
-    :Chuyển cho TransactionSyncValidator kiểm tra tính toàn vẹn dữ liệu;
-    if (Trường dữ liệu hợp lệ và amount > 0?) then (hợp lệ)
-        |Reporting Service (TransactionService)|
-        :Kiểm tra Idempotency theo transactionId trong reporting_db;
-        if (Giao dịch đã tồn tại?) then (đã có)
-            :Cập nhật trạng thái mới nhất (ví dụ: DISPENSED / REFUNDED);
-        else (giao dịch mới)
-            :Lưu mới bản ghi Transaction vào bảng transactions;
-        endif
-        |Order Service / Caller|
-        :Trả về 200 OK (Giao dịch đã đồng bộ thành công);
-    else (dữ liệu sai lệch)
-        :Báo lỗi 400 Bad Request;
-        |Order Service / Caller|
-        :Ghi log lỗi đồng bộ;
-        stop
-    endif
-else (sai khóa)
-    :Báo lỗi 401 Unauthorized;
-    stop
+:Nhận TransactionSyncRequest và internal API key;
+if (API key hợp lệ?) then (không)
+  :Trả 401;
+  stop
 endif
-
-|Brand Admin / Quản trị viên|
-:Yêu cầu tải báo cáo doanh thu & vận hành định dạng Excel;
-
-|Reporting Service (ExcelExportService)|
-:Kiểm tra quyền actor (REPORT_READ) từ Identity Token;
-:Truy vấn danh sách giao dịch theo khoảng ngày (from - to);
-:Xây dựng Workbook Apache POI (.xlsx);
-:Ghi dữ liệu từng dòng, công thức tính tổng doanh thu và tỷ lệ xịt thành công;
-:Đóng gói luồng byte và đặt Header Content-Disposition attachment;
-
-|Brand Admin / Quản trị viên|
-:Trình duyệt tải về file Excel báo cáo hoàn chỉnh;
+:Validate reference, amount, currency, status và timestamps;
+if (Payload hợp lệ?) then (không)
+  :Trả validation error;
+  stop
+endif
+:Lock/find transaction theo reference;
+if (Đã tồn tại?) then (có)
+  :Cập nhật snapshot fields cho phép;
+else (không)
+  :Tạo Transaction mới;
+endif
+:Lưu transaction;
+:Trả TransactionResponse;
 stop
 
 @enduml

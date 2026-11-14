@@ -5,73 +5,48 @@ skinparam responseMessageBelowArrow true
 skinparam defaultFontName Arial
 skinparam defaultFontSize 11
 
-title OPERATION SERVICE - LẮP ĐẶT CHAI HƯƠNG VÀ ĐÓNG PHIẾU BẢO TRÌ
+title OPERATION SERVICE - INSTALL BOTTLE VÀ CLOSE MAINTENANCE TICKET
 
-actor "Kỹ thuật viên" as Tech
-participant "BottleInstallationController" as BottleCtrl
-participant "BottleInstallationService" as InstallSvc
-participant "MachineSlotClient" as MachineClient
-database "scentstation_operation" as DB
-participant "MaintenanceTicketController" as TicketCtrl
-participant "MaintenanceTicketService" as TicketSvc
+actor "Inventory staff" as Staff
+participant BottleInstallationController as InstallController
+participant BottleInstallationService as InstallService
+participant MachineSlotClient as SlotPort
+database operation_db as DB
 
-== PHẦN 1: LẮP ĐẶT CHAI HƯƠNG MỚI VÀO MÁY KIOSK ==
-Tech -> BottleCtrl: POST /api/inventory/installations/install\n{tenantId: "1", bottleId: 501, machineId: 10, slotId: 2}
-activate BottleCtrl
-
-BottleCtrl -> InstallSvc: installBottle(request)
-activate InstallSvc
-
-InstallSvc -> DB: SELECT * FROM bottles WHERE id = 501 AND tenant_id = 1
-activate DB
-DB --> InstallSvc: Bottle Entity {status: AVAILABLE, productId: 202, bottleCode: "BTL-202-001"}
-deactivate DB
-
-InstallSvc -> MachineClient: getSlot(tenantId: "1", machineId: 10, slotId: 2)\n[GET http://machine-service:8084/internal/machines/10/slots/2]
-activate MachineClient
-MachineClient --> InstallSvc: MachineSlotInfo {slotStatus: EMPTY, configuredProductId: "202"}
-deactivate MachineClient
-
-InstallSvc -> InstallSvc: Đối soát: Bottle.productId == Slot.configuredProductId
-InstallSvc -> DB: INSERT INTO bottle_installations (bottle_id: 501, machine_id: 10, slot_id: 2)\nUPDATE bottles SET status = 'INSTALLED'\nINSERT INTO bottle_movements (movement_type: 'INSTALL')
-
-InstallSvc -> MachineClient: updateSlotStatus(tenantId: "1", machineId: 10, slotId: 2, bottleId: "501")
-activate MachineClient
-MachineClient --> InstallSvc: 200 OK (Slot updated to AVAILABLE)
-deactivate MachineClient
-
-InstallSvc --> BottleCtrl: BottleInstallationResponse {id: 88, status: "SUCCESS"}
-deactivate InstallSvc
-BottleCtrl --> Tech: 200 OK {message: "Bottle installed and slot activated"}
-deactivate BottleCtrl
-
-== PHẦN 2: HOÀN TẤT VÀ ĐÓNG PHIẾU BẢO TRÌ (CLOSE TICKET) ==
-Tech -> TicketCtrl: POST /api/maintenance/tickets/701/close\n{tenantId: 1, closedByActorId: 99}
-activate TicketCtrl
-
-TicketCtrl -> TicketSvc: closeTicket(701, request)
-activate TicketSvc
-
-TicketSvc -> DB: SELECT * FROM maintenance_tickets WHERE id = 701
-activate DB
-DB --> TicketSvc: MaintenanceTicket Entity {status: IN_PROGRESS}
-deactivate DB
-
-TicketSvc -> DB: SELECT * FROM maintenance_checklist_items WHERE ticket_id = 701
-TicketSvc -> DB: SELECT * FROM maintenance_repair_logs WHERE ticket_id = 701
-TicketSvc -> DB: SELECT * FROM post_maintenance_tests WHERE ticket_id = 701 ORDER BY id DESC LIMIT 1
-
-TicketSvc -> TicketSvc: validateClose():\n1. Tất cả Checklist item đều completed = true?\n2. Có ít nhất 1 bản ghi RepairLog?\n3. Bài kiểm thử PostTest mới nhất có status == PASSED?
-
-alt Điều kiện kiểm định chưa đạt chuẩn
-    TicketSvc --> TicketCtrl: Throw InvalidMaintenanceTicketException("Checklist or Post-test incomplete")
-    TicketCtrl --> Tech: 400 Bad Request
-else Đạt đầy đủ tiêu chuẩn an toàn
-    TicketSvc -> DB: UPDATE maintenance_tickets SET status = 'COMPLETED', closed_at = NOW()
-    TicketSvc --> TicketCtrl: MaintenanceTicketResponse {status: 'COMPLETED'}
-    TicketCtrl --> Tech: 200 OK {message: "Ticket closed successfully, ready to restore machine"}
+== Install bottle as-is ==
+Staff -> InstallController : POST /api/inventory/installations/install
+InstallController -> InstallService : installBottle(request)
+InstallService -> DB : load bottle / active installation
+InstallService -> SlotPort : getSlot(tenantId, machineId, slotId)
+SlotPort --> InstallService : local stub snapshot in current profiles
+alt invalid bottle/slot or occupied installation
+  InstallService --> Staff : business error
+else valid
+  InstallService -> DB : save installation + bottle status + movement
+  InstallService --> Staff : BottleInstallationResponse
 end
-deactivate TicketSvc
-deactivate TicketCtrl
+
+note right of SlotPort
+  Không có updateSlotStatus/updateCurrentBottle trong port hiện tại.
+end note
+
+== Close maintenance ticket ==
+actor "Technician / manager" as Tech
+participant MaintenanceTicketController as TicketController
+participant MaintenanceTicketService as TicketService
+
+Tech -> TicketController : POST /api/maintenance/tickets/{id}/close
+TicketController -> TicketService : closeTicket(id, request)
+TicketService -> DB : load ticket + checklist + repair logs + latest test
+alt required checklist chưa hoàn tất
+  TicketService --> Tech : reject
+else không có repair log
+  TicketService --> Tech : reject
+else latest post-test chưa PASSED
+  TicketService --> Tech : reject
+else đủ điều kiện
+  TicketService -> DB : status=COMPLETED + audit event
+  TicketService --> Tech : MaintenanceTicketResponse
+end
 
 @enduml

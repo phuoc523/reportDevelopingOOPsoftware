@@ -1,104 +1,71 @@
 @startuml system-architecture
 !theme plain
+top to bottom direction
 skinparam componentStyle uml2
 skinparam linetype ortho
-skinparam packageBackgroundColor #FAFAFA
-skinparam packageBorderColor #708090
 skinparam defaultFontName Arial
-skinparam defaultFontSize 12
+skinparam defaultFontSize 11
 
-title KIẾN TRÚC TỔNG THỂ HỆ THỐNG MICROSERVICES SCENTSTATION
+title SCENTSTATION - KIẾN TRÚC MICROSERVICE HIỆN TẠI VÀ ĐIỂM MỞ RỘNG
 
-' ================= ACTORS & CLIENTS =================
-package "Khách hàng & Người dùng (Clients)" {
-    actor "Khách hàng Kiosk\n(Màn hình cảm ứng)" as ActorCustomer #E8F8F5
-    actor "Quản trị Thương hiệu\n(Brand Admin Web)" as ActorBrandAdmin #FEF9E7
-    actor "Kỹ thuật viên\n(Technician Mobile Web)" as ActorTech #FADBD8
-    actor "Quản trị Nền tảng\n(Super Admin)" as ActorSuperAdmin #D5F5E3
+actor "API consumer\nFrontend/Kiosk tương lai" as Client
+actor "Payment Provider" as Provider
+
+package "Edge" {
+  component "API Gateway :8080\nTrust Boundary Filter" as Gateway
 }
 
-cloud "Hệ thống Thanh toán Đối tác\n(VietQR / Webhook)" as ExtPayment #EBF5FB
+package "Database-per-service bounded contexts" {
+  component "Identity :8081\nDB: scentstation_identity" as Identity
+  component "Catalog :8082\nDB: scentstation_catalog" as Catalog
+  component "Order :8083\nDB: order_db" as Order
+  component "Machine :8084\nDB: scentstation_machine" as Machine
+  component "Operation :8085\nDB: scentstation_operation" as Operation
+  component "Reporting :8086\nDB: scentstation_reporting" as Reporting
 
-' ================= EDGE LAYER =================
-package "Lớp Cửa ngõ (Edge Layer)" {
-    component [API Gateway\n(Spring Cloud Gateway :8080)] as APIGW #D5F5E3
-    note right of APIGW
-        - GatewayTrustBoundaryFilter:
-          Bóc tách, loại bỏ header giả mạo
-          (X-Internal-Service-Key, X-Actor-*)
-        - GlobalCorsFilter
-        - Reverse Proxy Routing theo URL prefix
-    end note
+  Identity -[hidden]right- Catalog
+  Catalog -[hidden]right- Order
+  Order -[hidden]right- Machine
+  Machine -[hidden]right- Operation
+  Operation -[hidden]right- Reporting
 }
 
-' ================= BUSINESS SERVICES LAYER =================
-package "Lớp Dịch vụ Nghiệp vụ (Business Microservices Layer)" {
-    component [Identity Service\n:8081] as IdentitySvc #E8EAED
-    component [Catalog Service\n:8082] as CatalogSvc #E8EAED
-    component [Order Service\n:8083] as OrderSvc #FCF3CF
-    component [Machine Service\n:8084] as MachineSvc #E8EAED
-    component [Operation Service\n:8085] as OperationSvc #E8EAED
-    component [Reporting Service\n:8086] as ReportingSvc #E8EAED
+package "Replaceable integration ports" #F7FBFF {
+  component "Catalog MachineAvailabilityClient\ncurrent: local/test stub" as CatalogPort
+  component "Machine DeviceResultPort\nnot implemented" as DevicePort
+  component "Operation MachineSlotClient\ncurrent: local/test stub" as OperationPort
+  CatalogPort -[hidden]right- DevicePort
+  DevicePort -[hidden]right- OperationPort
 }
 
-' ================= HARDWARE LAYER =================
-package "Thiết bị Ngoại vi (IoT Hardware Layer)" {
-    node "Trạm Kiosk ScentStation\n(ESP32 / MCU Controller)" as HardwareKiosk #EDBB99
-}
+Client --> Gateway : public HTTP API
+Provider --> Gateway : payment callback
+Gateway --> Identity
+Gateway --> Catalog
+Gateway --> Order
+Gateway --> Machine
+Gateway --> Operation
+Gateway --> Reporting
 
-' ================= DATABASE PER SERVICE LAYER =================
-package "Lớp Dữ liệu Độc lập (Database-per-Service - MySQL 8.4)" {
-    database "scentstation_identity" as DBIdentity #AED6F1
-    database "scentstation_catalog" as DBCatalog #AED6F1
-    database "order_db" as DBOrder #F9E79F
-    database "scentstation_machine" as DBMachine #AED6F1
-    database "scentstation_operation" as DBOperation #AED6F1
-    database "scentstation_reporting" as DBReporting #AED6F1
-}
+Order ..> Catalog : product/price snapshot
+Order ..> Machine : slot snapshot + command
+Order ..> Reporting : transaction sync
+Reporting ..> Machine : machine/alert snapshots
+Reporting ..> Operation : inventory/maintenance snapshots
+Machine ..> Operation : optional critical-alert handoff
 
-' ================= CLIENTS TO GATEWAY =================
-ActorCustomer --> APIGW : "[1] Đặt hàng & Tra cứu QR\n(HTTP /api/v1/orders, /api/v1/payments)"
-ActorBrandAdmin --> APIGW : "[2] Quản lý SP & Khuyến mãi\n(HTTP /api/catalog/**, /api/campaigns/**)"
-ActorTech --> APIGW : "[3] Lắp chai & Bảo trì\n(HTTP /api/inventory/**, /api/maintenance/**)"
-ActorSuperAdmin --> APIGW : "[4] Quản trị Tenant & Users\n(HTTP /api/auth/**, /api/admin/**)"
-ExtPayment --> APIGW : "[5] Webhook IPN Callback\n(HTTP /api/v1/payments/callback)"
+Catalog --> CatalogPort
+Machine --> DevicePort
+Operation --> OperationPort
 
-' ================= GATEWAY ROUTING =================
-APIGW --> IdentitySvc : "Path: /api/auth/**, /api/admin/**"
-APIGW --> CatalogSvc : "Path: /api/products/**, /api/campaigns/**, /api/catalog/**"
-APIGW --> OrderSvc : "Path: /api/v1/orders/**, /api/v1/payments/**"
-APIGW --> MachineSvc : "Path: /api/machines/**, /api/alerts/**, /api/locations/**"
-APIGW --> OperationSvc : "Path: /api/inventory/**, /api/maintenance/**"
-APIGW --> ReportingSvc : "Path: /api/reporting/**"
+note bottom of Identity
+  Các service xác thực request bằng JWT và
+  POST /internal/auth/introspect khi cần principal mới.
+end note
 
-' ================= DATABASE ISOLATION =================
-IdentitySvc -- DBIdentity : "Ownership (Isolated)"
-CatalogSvc -- DBCatalog : "Ownership (Isolated)"
-OrderSvc -- DBOrder : "Ownership (Isolated)"
-MachineSvc -- DBMachine : "Ownership (Isolated)"
-OperationSvc -- DBOperation : "Ownership (Isolated)"
-ReportingSvc -- DBReporting : "Ownership (Isolated)"
-
-' ================= INTER-SERVICE SYNCHRONOUS HTTP CALLS =================
-CatalogSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
-OrderSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
-MachineSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
-OperationSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
-ReportingSvc ..> IdentitySvc : "Introspect Bearer Token\n(/internal/v1/identity/introspect)"
-
-OrderSvc ..> MachineSvc : "[Authoritative Check]\nValidate Slot Readiness\n(/internal/machines/{mId}/slots/{sId})"
-OrderSvc ..> CatalogSvc : "[Authoritative Check]\nFetch Pricing & Snapshot\n(/internal/catalog/order-products/{pId})"
-OrderSvc ..> MachineSvc : "[Dispense Dispatch]\nTrigger Physical Spray\n(/api/machines/dispense-commands)"
-
-OperationSvc ..> MachineSvc : "[Slot Sync]\nUpdate Slot & Bottle Binding\n(/internal/machines/{mId}/slots/{sId})"
-MachineSvc ..> OperationSvc : "[Alert Handoff Outbox]\nAuto-create Maintenance Ticket\n(/internal/v1/maintenance/tickets)"
-
-OrderSvc ..> ReportingSvc : "[Sync Transaction]\nPOST /api/reporting/internal/transactions/sync"
-ReportingSvc ..> OrderSvc : "[Snapshot Client] Pull Orders"
-ReportingSvc ..> MachineSvc : "[Snapshot Client] Pull Metrics"
-ReportingSvc ..> OperationSvc : "[Snapshot Client] Pull Inventory"
-
-' ================= HARDWARE PROTOCOL =================
-MachineSvc ..|> HardwareKiosk : "Machine Command Serial/MQTT\n(Relay Pulse / Flow Sensor Telemetry)"
+note bottom of OperationPort
+  Integration ports cố ý không quy định transport tương lai.
+  Cross-service data chỉ là API snapshot hoặc logical ID; không có shared database.
+end note
 
 @enduml

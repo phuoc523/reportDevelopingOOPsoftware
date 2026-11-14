@@ -1,0 +1,29 @@
+@startuml maintenance-ticket-state-diagram
+!theme plain
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+title OPERATION SERVICE - MAINTENANCE TICKET STATE
+
+[*] --> OPEN : create ticket / critical alert
+OPEN --> ASSIGNED : assign technician
+ASSIGNED --> IN_PROGRESS : acknowledge/start work
+IN_PROGRESS --> WAITING_FOR_PARTS : update ticket
+WAITING_FOR_PARTS --> IN_PROGRESS : parts available
+IN_PROGRESS --> READY_FOR_TEST : repair work complete
+READY_FOR_TEST --> IN_PROGRESS : post-test failed
+READY_FOR_TEST --> COMPLETED : checklist complete\nrepair log exists\nlatest test PASSED
+OPEN --> CANCELLED : cancel
+ASSIGNED --> CANCELLED : cancel
+IN_PROGRESS --> CANCELLED : cancel
+COMPLETED --> OPEN : reopenTicket()
+
+COMPLETED --> [*]
+CANCELLED --> [*]
+
+note bottom
+  Điều kiện đóng ticket là invariant hiện tại.
+  Integration phục hồi trạng thái Machine không được giả định ở đây.
+end note
+
+@enduml

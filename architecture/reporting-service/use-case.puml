@@ -3,50 +3,41 @@
 left to right direction
 skinparam packageStyle rectangle
 skinparam defaultFontName Arial
-skinparam defaultFontSize 12
+skinparam defaultFontSize 11
 
-actor "Quản trị Thương hiệu\n(Brand Admin)" as BrandAdmin #FEF9E7
-actor "Quản lý Vận hành\n(Ops Manager)" as OpsManager #FCF3CF
-actor "Order Service (Nội bộ)" as OrderSvc #FCF3CF
+title REPORTING SERVICE - USE CASE
 
-rectangle "Phân hệ Báo cáo & Phân tích (Reporting Service)" {
+actor "Brand/Platform viewer" as Viewer
+actor "Order Service" as Order
+actor "Internal operator" as Internal
+actor "Machine Service" as Machine
+actor "Operation Service" as Operation
 
-    package "Đồng bộ Dữ liệu Giao dịch (Transaction Ingestion & Sync)" {
-        usecase "UC_REP01. Đồng bộ Giao dịch Đơn hàng từ Order Service\n(/internal/v1/reporting/sync/transactions)" as UC_SyncTransaction
-        usecase "UC_REP02. Xác thực Dữ liệu Giao dịch Đồng bộ (Validate Sync Payload)" as UC_ValidateSync
-        usecase "UC_REP03. Kéo Snapshot từ Machine & Operation Service" as UC_PullSnapshots
-    }
-
-    package "Tổng hợp Dashboard (Dashboard Aggregation)" {
-        usecase "UC_REP04. Xem Tổng quan Doanh thu & Lượng xịt (Revenue & Sprays Dashboard)" as UC_ViewDashboard
-        usecase "UC_REP05. Xem Tỷ lệ Trạng thái Giao dịch (Thành công, Thất bại, Hoàn tiền)" as UC_ViewTxnStatus
-        usecase "UC_REP06. Lọc Thống kê theo Khoảng Thời gian (Report Period: DAY, MONTH)" as UC_FilterPeriod
-    }
-
-    package "Báo cáo Chuyên sâu & Xuất dữ liệu (Advanced Analytics & Export)" {
-        usecase "UC_REP07. Báo cáo Chi tiết Doanh thu theo Máy và Điểm đặt" as UC_RevenueByMachine
-        usecase "UC_REP08. Báo cáo Mức tiêu hao Hương & Hiệu suất Vận hành" as UC_OperationReport
-        usecase "UC_REP09. Xuất Báo cáo Tài chính ra file Excel (.xlsx)" as UC_ExportExcel
-    }
+rectangle "Reporting Service" {
+  usecase "Tìm kiếm giao dịch" as Search
+  usecase "Xem transaction/revenue/refund summary" as Summary
+  usecase "Xem dashboard" as Dashboard
+  usecase "Xuất transactions Excel" as ExportTx
+  usecase "Xuất revenue Excel" as ExportRevenue
+  usecase "Sync transaction" as Sync
+  usecase "Sync payment từ Order" as Pull
+  usecase "Lấy machine/alert snapshot" as MachineSnapshot
+  usecase "Lấy inventory/maintenance snapshot" as OperationSnapshot
 }
 
-' Liên kết Actor
-OrderSvc -- UC_SyncTransaction
+Viewer --> Search
+Viewer --> Summary
+Viewer --> Dashboard
+Viewer --> ExportTx
+Viewer --> ExportRevenue
+Order --> Sync
+Internal --> Pull
+Machine --> MachineSnapshot
+Operation --> OperationSnapshot
 
-BrandAdmin -- UC_ViewDashboard
-BrandAdmin -- UC_ViewTxnStatus
-BrandAdmin -- UC_FilterPeriod
-BrandAdmin -- UC_RevenueByMachine
-BrandAdmin -- UC_ExportExcel
-
-OpsManager -- UC_OperationReport
-OpsManager -- UC_ViewDashboard
-
-' Quan hệ Include / Extend
-UC_SyncTransaction ..> UC_ValidateSync : <<include>>
-UC_SyncTransaction ..> UC_PullSnapshots : <<extend>>\n(Bổ sung metadata vị trí máy)
-
-UC_ViewDashboard ..> UC_FilterPeriod : <<include>>
-UC_ExportExcel ..> UC_RevenueByMachine : <<include>>
+note bottom of Dashboard
+  Dashboard tổng hợp local transactions và snapshot upstream.
+  Upstream lỗi được phản ánh trong phần trạng thái, không sở hữu dữ liệu chéo.
+end note
 
 @enduml
