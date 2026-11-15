@@ -4,6 +4,7 @@ import com.scentstation.notification.dto.request.CreateNotificationRequest;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -46,6 +47,7 @@ public class IdentityAuthorizationClient {
         try {
             RestClient.RequestBodySpec request = restClient.post()
                 .uri(path)
+                .contentType(MediaType.APPLICATION_JSON)
                 .header("X-Internal-Service-Key", internalServiceKey);
             if (userCall) {
                 request.header("Authorization", authorization);
@@ -87,6 +89,7 @@ public class IdentityAuthorizationClient {
         try {
             NotificationAuthorizationResponse response = restClient.post()
                 .uri("/internal/notifications/resolve-recipients")
+                .contentType(MediaType.APPLICATION_JSON)
                 .header("X-Internal-Service-Key", internalServiceKey)
                 .header("X-Service-Principal-Id", "notification-service")
                 .header("X-Service-Principal-Credential", internalServiceKey)

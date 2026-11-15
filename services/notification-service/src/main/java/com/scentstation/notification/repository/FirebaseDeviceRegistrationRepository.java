@@ -19,7 +19,7 @@ public interface FirebaseDeviceRegistrationRepository extends JpaRepository<Fire
     List<FirebaseDeviceRegistration> findAllByTenantIdAndUserIdInAndActiveTrue(
         String tenantId, Collection<String> userIds);
 
-    @Modifying
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("""
         update FirebaseDeviceRegistration registration
            set registration.active = false, registration.updatedAt = :updatedAt
