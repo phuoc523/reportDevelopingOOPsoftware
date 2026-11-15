@@ -1,0 +1,13 @@
+services:
+  notification-service:
+    environment:
+      NOTIFICATION_FIREBASE_ENABLED: "true"
+      NOTIFICATION_FIREBASE_PROJECT_ID: "${NOTIFICATION_FIREBASE_PROJECT_ID:?Set NOTIFICATION_FIREBASE_PROJECT_ID}"
+      NOTIFICATION_FIREBASE_CREDENTIALS_PATH: "/run/secrets/firebase-service-account.json"
+    volumes:
+      - type: bind
+        source: "${NOTIFICATION_FIREBASE_CREDENTIALS_FILE:?Set NOTIFICATION_FIREBASE_CREDENTIALS_FILE}"
+        target: /run/secrets/firebase-service-account.json
+        read_only: true
+        bind:
+          create_host_path: false
