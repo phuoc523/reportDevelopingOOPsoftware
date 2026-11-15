@@ -29,7 +29,7 @@ services:
       DB_USERNAME: "identity_app"
       DB_PASSWORD: "identity_local_password"
       JWT_SECRET: "${JWT_SECRET:-U2NlbnRTdGF0aW9uRGV2ZWxvcG1lbnRLZXlGb3JKV1QyMDI2IQ==}"
-      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
     depends_on:
       identity-db:
         condition: service_healthy
@@ -46,7 +46,7 @@ services:
       CATALOG_DB_PASSWORD: "catalog_local_password"
       SPRING_PROFILES_ACTIVE: "local"
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
-      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
     depends_on:
       catalog-db:
         condition: service_healthy
@@ -68,7 +68,7 @@ services:
       REPORTING_SYNC_ENABLED: "true"
       REPORTING_SYNC_API_KEY: "${REPORTING_SYNC_API_KEY:-local-reporting-sync-key}"
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
-      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
     depends_on:
       order-db:
         condition: service_healthy
@@ -84,7 +84,7 @@ services:
       MACHINE_DB_USERNAME: "machine_app"
       MACHINE_DB_PASSWORD: "machine_local_password"
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
-      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
       MACHINE_NOTIFICATION_KAFKA_ENABLED: "true"
       MACHINE_NOTIFICATION_KAFKA_TOPIC: "machine-alert.v1"
@@ -107,7 +107,7 @@ services:
       NOTIFICATION_DB_USERNAME: "notification_app"
       NOTIFICATION_DB_PASSWORD: "notification_local_password"
       NOTIFICATION_IDENTITY_URL: "http://identity-service:8081"
-      NOTIFICATION_IDENTITY_INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+      NOTIFICATION_IDENTITY_INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
       NOTIFICATION_KAFKA_ENABLED: "true"
       NOTIFICATION_KAFKA_MACHINE_ALERT_TOPIC: "machine-alert.v1"
@@ -143,7 +143,7 @@ services:
       OPERATION_DB_USERNAME: "operation_app"
       OPERATION_DB_PASSWORD: "operation_local_password"
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
-      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
       SPRING_PROFILES_ACTIVE: "docker-local"
     depends_on:
       operation-db:
