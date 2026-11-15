@@ -1,6 +1,7 @@
 package com.scentstation.notification.exception;
 
 import com.scentstation.notification.dto.command.CreateNotificationCommand;
+import com.scentstation.notification.security.NotificationAuthorizationUnavailableException;
 import jakarta.validation.Valid;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,12 +60,24 @@ class NotificationExceptionHandlerTests {
             .andExpect(jsonPath("$.stackTrace").doesNotExist());
     }
 
+    @Test
+    void mapsUnavailableIdentityAuthorizationToServiceUnavailable() throws Exception {
+        mockMvc.perform(get("/test/authorization-unavailable"))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.message").value("Caller authorization is temporarily unavailable"));
+    }
+
     @RestController
     public static class TestController {
 
         @GetMapping("/test/not-found")
         Map<String, String> notFound() {
             throw new NotificationNotFoundException();
+        }
+
+        @GetMapping("/test/authorization-unavailable")
+        Map<String, String> authorizationUnavailable() {
+            throw new NotificationAuthorizationUnavailableException();
         }
 
         @PostMapping("/test/validate")

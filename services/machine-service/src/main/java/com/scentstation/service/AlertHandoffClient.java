@@ -18,15 +18,18 @@ public class AlertHandoffClient {
     private final String maintenanceUrl;
     private final String serviceKey;
     private final AlertHandoffOutboxCleanupService outboxCleanup;
+    private final MachineAlertKafkaPublisher kafkaPublisher;
 
     public AlertHandoffClient(@Value("${machine.integration.notification-service-url:}") String notificationUrl,
                               @Value("${machine.integration.maintenance-service-url:}") String maintenanceUrl,
                               @Value("${machine.integration.shared-secret:}") String serviceKey,
-                              AlertHandoffOutboxCleanupService outboxCleanup) {
+                              AlertHandoffOutboxCleanupService outboxCleanup,
+                              MachineAlertKafkaPublisher kafkaPublisher) {
         this.notificationUrl = notificationUrl;
         this.maintenanceUrl = maintenanceUrl;
         this.serviceKey = serviceKey;
         this.outboxCleanup = outboxCleanup;
+        this.kafkaPublisher = kafkaPublisher;
         this.restClient = RestClient.builder().build();
     }
 
@@ -35,7 +38,14 @@ public class AlertHandoffClient {
         if (!"CRITICAL".equals(event.getSeverity()) && !"ESCALATED".equals(event.getStatus())) {
             return;
         }
-        if (!notificationUrl.isBlank()) {
+        if (kafkaPublisher.isEnabled()) {
+            try {
+                kafkaPublisher.publish(event);
+                outboxCleanup.removeDelivered(event.getEventId(), "notification");
+            } catch (RuntimeException exception) {
+                logger.warn("Kafka handoff for alert {} failed; persistent outbox will retry", event.getAlertId());
+            }
+        } else if (!notificationUrl.isBlank()) {
             post(notificationUrl, event, "notification", "notification service");
         }
         if (!maintenanceUrl.isBlank()) {

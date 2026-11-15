@@ -17,6 +17,22 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: com.scentstation.notification.event
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.scentstation.notification.event.MachineAlertEvent
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
 management:
   endpoints:
@@ -31,3 +47,10 @@ notification:
   identity:
     url: ${NOTIFICATION_IDENTITY_URL:http://localhost:8081}
     internal-service-key: ${NOTIFICATION_IDENTITY_INTERNAL_SERVICE_KEY:}
+  kafka:
+    enabled: ${NOTIFICATION_KAFKA_ENABLED:false}
+    machine-alert-topic: ${NOTIFICATION_KAFKA_MACHINE_ALERT_TOPIC:machine-alert.v1}
+    group-id: ${NOTIFICATION_KAFKA_GROUP_ID:notification-service-v1}
+    retry-attempts: ${NOTIFICATION_KAFKA_RETRY_ATTEMPTS:3}
+    retry-backoff-ms: ${NOTIFICATION_KAFKA_RETRY_BACKOFF_MS:1000}
+    dead-letter-topic: ${NOTIFICATION_KAFKA_DEAD_LETTER_TOPIC:machine-alert.v1.DLT}

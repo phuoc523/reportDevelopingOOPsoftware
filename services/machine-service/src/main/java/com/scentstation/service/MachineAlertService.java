@@ -44,12 +44,14 @@ public class MachineAlertService {
     private final AlertHandoffOutboxRepository handoffOutbox;
     private final String notificationUrl;
     private final String maintenanceUrl;
+    private final boolean notificationKafkaEnabled;
 
     public MachineAlertService(MachineAlertRepository alerts, MachineRepository machines,
                                MachineSlotRepository slots, ApplicationEventPublisher events,
                                AlertHandoffOutboxRepository handoffOutbox,
                                @Value("${machine.integration.notification-service-url:}") String notificationUrl,
-                               @Value("${machine.integration.maintenance-service-url:}") String maintenanceUrl) {
+                               @Value("${machine.integration.maintenance-service-url:}") String maintenanceUrl,
+                               @Value("${machine.notification.kafka.enabled:false}") boolean notificationKafkaEnabled) {
         this.alerts = alerts;
         this.machines = machines;
         this.slots = slots;
@@ -57,6 +59,7 @@ public class MachineAlertService {
         this.handoffOutbox = handoffOutbox;
         this.notificationUrl = notificationUrl;
         this.maintenanceUrl = maintenanceUrl;
+        this.notificationKafkaEnabled = notificationKafkaEnabled;
     }
 
     @Transactional
@@ -238,8 +241,12 @@ public class MachineAlertService {
             throw new IllegalStateException("Alert events must be published within a transaction");
         }
         if ("CRITICAL".equals(alert.getSeverity().name()) || "ESCALATED".equals(alert.getStatus().name())) {
-            enqueueHandoff("notification", notificationUrl, alert, event);
-            enqueueHandoff("maintenance", maintenanceUrl, alert, event);
+            if (notificationKafkaEnabled || (notificationUrl != null && !notificationUrl.isBlank())) {
+                enqueueHandoff("notification", alert, event);
+            }
+            if (maintenanceUrl != null && !maintenanceUrl.isBlank()) {
+                enqueueHandoff("maintenance", alert, event);
+            }
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
@@ -249,13 +256,10 @@ public class MachineAlertService {
         });
     }
 
-    private void enqueueHandoff(String target, String url, MachineAlert alert,
-                                MachineAlertChangedEvent event) {
-        if (url != null && !url.isBlank()) {
-            handoffOutbox.save(new AlertHandoffOutbox(target, event.getEventId(), alert.getId(),
-                alert.getTenantId(), alert.getMachineId(), alert.getLocationId(), alert.getType().name(),
-                alert.getSeverity().name(), alert.getStatus().name(), event.getOccurredAt()));
-        }
+    private void enqueueHandoff(String target, MachineAlert alert, MachineAlertChangedEvent event) {
+        handoffOutbox.save(new AlertHandoffOutbox(target, event.getEventId(), alert.getId(),
+            alert.getTenantId(), alert.getMachineId(), alert.getLocationId(), alert.getType().name(),
+            alert.getSeverity().name(), alert.getStatus().name(), event.getOccurredAt()));
     }
 
     private String requireTenantId(String tenantId) {

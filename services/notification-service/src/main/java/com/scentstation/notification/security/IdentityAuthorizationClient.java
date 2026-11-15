@@ -79,4 +79,28 @@ public class IdentityAuthorizationClient {
             throw new NotificationAuthorizationUnavailableException();
         }
     }
+
+    public List<String> resolveNotificationRecipients(String tenantId) {
+        if (internalServiceKey == null || internalServiceKey.isBlank()) {
+            throw new NotificationAuthorizationUnavailableException();
+        }
+        try {
+            NotificationAuthorizationResponse response = restClient.post()
+                .uri("/internal/notifications/resolve-recipients")
+                .header("X-Internal-Service-Key", internalServiceKey)
+                .header("X-Service-Principal-Id", "notification-service")
+                .header("X-Service-Principal-Credential", internalServiceKey)
+                .body(new NotificationAuthorizationRequest(
+                    tenantId, "NOTIFICATION_READ", List.of()))
+                .retrieve()
+                .body(NotificationAuthorizationResponse.class);
+            if (response == null || !"SERVICE".equals(response.callerType())
+                    || !tenantId.equals(response.tenantId())) {
+                throw new NotificationAuthorizationUnavailableException();
+            }
+            return response.validatedRecipientIds();
+        } catch (RestClientResponseException | ResourceAccessException exception) {
+            throw new NotificationAuthorizationUnavailableException();
+        }
+    }
 }
