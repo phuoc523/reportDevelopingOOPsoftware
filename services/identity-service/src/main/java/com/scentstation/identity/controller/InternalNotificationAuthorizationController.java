@@ -105,6 +105,7 @@ public class InternalNotificationAuthorizationController {
                 return RolePermissions.allowed(principal.roles(), principal.grants(), permission);
             })
             .map(User::getId)
+            .sorted()
             .map(String::valueOf)
             .toList();
         return new AuthorizationResponse("SERVICE", null, tenantId.toString(), recipientIds);

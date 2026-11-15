@@ -1,43 +1,28 @@
 package com.scentstation.notification.event;
 
-import com.scentstation.notification.dto.command.CreateNotificationCommand;
 import com.scentstation.notification.exception.DuplicateNotificationEventException;
-import com.scentstation.notification.security.IdentityAuthorizationClient;
 import com.scentstation.notification.service.NotificationService;
-import java.util.List;
 import org.springframework.stereotype.Service;
 
 @Service
 public class MachineAlertEventProcessor {
     private final NotificationService notifications;
-    private final IdentityAuthorizationClient identity;
+    private final MachineAlertNotificationMapper mapper;
+    private final MachineAlertRecipientResolver recipients;
 
     public MachineAlertEventProcessor(
             NotificationService notifications,
-            IdentityAuthorizationClient identity
+            MachineAlertNotificationMapper mapper,
+            MachineAlertRecipientResolver recipients
     ) {
         this.notifications = notifications;
-        this.identity = identity;
+        this.mapper = mapper;
+        this.recipients = recipients;
     }
 
     public boolean process(MachineAlertEvent event) {
-        List<String> recipientIds = identity.resolveNotificationRecipients(event.tenantId());
-        if (recipientIds.isEmpty()) {
-            throw new IllegalStateException("No notification recipients are configured for tenant");
-        }
         try {
-            notifications.create(new CreateNotificationCommand(
-                event.tenantId(),
-                "Machine alert: " + event.alertType().replace('_', ' '),
-                "Machine %d at location %s reported %s with severity %s (status %s)"
-                    .formatted(event.machineId(), event.locationId(), event.alertType(),
-                        event.severity(), event.status()),
-                "MACHINE_ALERT",
-                event.severity(),
-                event.source(),
-                event.eventId(),
-                recipientIds
-            ));
+            notifications.create(mapper.map(event, recipients.resolve(event.tenantId())));
             return true;
         } catch (DuplicateNotificationEventException exception) {
             return false;
