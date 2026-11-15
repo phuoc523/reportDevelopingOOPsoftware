@@ -77,6 +77,10 @@ class ApiGatewayApplicationTest {
                 "IDENTITY_SERVICE_URL",
                 () -> "http://127.0.0.1:" + backend.getAddress().getPort()
         );
+        registry.add(
+                "NOTIFICATION_SERVICE_URL",
+                () -> "http://127.0.0.1:" + backend.getAddress().getPort()
+        );
     }
 
     @AfterAll
@@ -117,6 +121,39 @@ class ApiGatewayApplicationTest {
                 .contains("/api/admin/**")
                 .contains("/api/staff/**")
                 .contains("/api/customer/**");
+    }
+
+    @Test
+    void notificationRouteUsesConfiguredUriAndApiPath() {
+        List<RouteDefinition> routes =
+                routeDefinitionLocator.getRouteDefinitions().collectList().block();
+
+        assertThat(routes).isNotNull();
+
+        RouteDefinition notificationRoute = routes.stream()
+                .filter(route -> "notification-service".equals(route.getId()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(notificationRoute.getUri().toString())
+                .startsWith("http://127.0.0.1:");
+        assertThat(notificationRoute.getPredicates().toString())
+                .contains("/api/notifications/**");
+    }
+
+    @Test
+    void forwardsNotificationPathAndAuthorizationHeader() {
+        webTestClient.get()
+                .uri("/api/notifications?tenantId=7")
+                .header("Authorization", "Bearer notification-test-token")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> {
+                    assertThat(body).contains("path=/api/notifications");
+                    assertThat(body)
+                            .contains("authorization=Bearer notification-test-token");
+                });
     }
 
     @Test

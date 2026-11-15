@@ -16,6 +16,7 @@ services:
       MACHINE_SERVICE_URL: http://machine-service:8084
       OPERATION_SERVICE_URL: http://operation-service:8085
       REPORTING_SERVICE_URL: http://reporting-service:8086
+      NOTIFICATION_SERVICE_URL: http://notification-service:8087
 
   identity-service:
     build:
