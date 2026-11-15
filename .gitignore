@@ -5,9 +5,36 @@
 .idea/
 .vscode/
 *.iml
-
 # Logs
 *.log
-
 # Environment secrets
 .env
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+.mvn/wrapper/maven-wrapper.jar
+# Node / React
+node_modules/
+dist/
+build/
+.next/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+# IDE
+# Environment files
+.env.*
+!.env.example
+# OS
+.DS_Store
+Thumbs.db
+logs/
+**/node_modules/
+**/.env
+**/.env.*
+!**/.env.example

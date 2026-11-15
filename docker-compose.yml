@@ -1,0 +1,15 @@
+# ScentStation Docker Compose skeleton.
+# TODO: Add services only after the team finalizes images, ports, networks,
+# environment variables, volumes, and health checks.
+#
+# Planned infrastructure:
+# - MySQL
+# - Redis
+# - Mosquitto
+# - Apache NiFi
+# - API Gateway
+# - Backend microservices
+# - Frontend applications
+#
+# No runnable service configuration is defined in this initialization step.
+services: {}
