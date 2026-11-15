@@ -69,4 +69,12 @@ public class FirebaseDeviceRegistrationService {
         return registrations.findAllByTenantIdAndUserIdInAndActiveTrue(tenantId.trim(), userIds)
             .stream().map(FirebaseDeviceRegistration::getFirebaseToken).toList();
     }
+
+    @Transactional
+    public int deactivateTokens(Collection<String> tokens) {
+        if (tokens == null || tokens.isEmpty()) {
+            return 0;
+        }
+        return registrations.deactivateActiveTokens(tokens, Instant.now());
+    }
 }

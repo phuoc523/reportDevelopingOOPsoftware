@@ -5,6 +5,7 @@ import com.scentstation.notification.dto.response.NotificationResponse;
 import com.scentstation.notification.entity.Notification;
 import com.scentstation.notification.exception.DuplicateNotificationEventException;
 import com.scentstation.notification.exception.NotificationNotFoundException;
+import com.scentstation.notification.firebase.NotificationCreatedEvent;
 import com.scentstation.notification.repository.NotificationRepository;
 import com.scentstation.notification.repository.NotificationRecipientRepository;
 import jakarta.validation.Valid;
@@ -19,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
@@ -35,13 +37,16 @@ public class NotificationService {
 
     private final NotificationRepository notifications;
     private final NotificationRecipientRepository recipients;
+    private final ApplicationEventPublisher events;
 
     public NotificationService(
             NotificationRepository notifications,
-            NotificationRecipientRepository recipients
+            NotificationRecipientRepository recipients,
+            ApplicationEventPublisher events
     ) {
         this.notifications = notifications;
         this.recipients = recipients;
+        this.events = events;
     }
 
     @Transactional
@@ -72,7 +77,13 @@ public class NotificationService {
         recipientIds.forEach(notification::addRecipient);
 
         try {
-            return NotificationResponse.from(notifications.saveAndFlush(notification));
+            NotificationResponse response = NotificationResponse.from(notifications.saveAndFlush(notification));
+            events.publishEvent(new NotificationCreatedEvent(
+                response.id(), response.tenantId(), response.title(), response.content(),
+                response.notificationType(), response.priority(), response.source(),
+                response.sourceEventId(), response.recipients().stream()
+                    .map(NotificationResponse.RecipientState::recipientId).toList()));
+            return response;
         } catch (DataIntegrityViolationException exception) {
             if (isSourceEventDuplicate(exception)) {
                 throw new DuplicateNotificationEventException();

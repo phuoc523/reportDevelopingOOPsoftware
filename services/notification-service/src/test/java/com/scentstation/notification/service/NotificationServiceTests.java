@@ -11,6 +11,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
+import com.scentstation.notification.firebase.NotificationCreatedEvent;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -22,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
+@RecordApplicationEvents
 class NotificationServiceTests {
 
     @Autowired
@@ -29,6 +33,20 @@ class NotificationServiceTests {
 
     @Autowired
     private NotificationRecipientRepository recipients;
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
+
+    @Test
+    void publishesCreatedEventForFirebaseDeliveryAfterPersistence() {
+        var created = notificationService.create(command(
+            "tenant-a", "event-firebase", List.of("user-1", "user-2")));
+
+        var event = applicationEvents.stream(NotificationCreatedEvent.class).findFirst().orElseThrow();
+        assertEquals(created.id(), event.notificationId());
+        assertEquals("tenant-a", event.tenantId());
+        assertEquals(List.of("user-1", "user-2"), event.recipientIds());
+    }
 
     @Test
     void createsNotificationWithIndependentUnreadRecipientRows() {

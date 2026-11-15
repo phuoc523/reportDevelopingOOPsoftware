@@ -104,6 +104,13 @@ class FirebaseDeviceRegistrationServiceTests {
         assertThat(service.findActiveTokens("7", List.of("42"))).containsExactly("token");
     }
 
+    @Test
+    void deactivatesInvalidTokensReportedByFirebase() {
+        when(repository.deactivateActiveTokens(eq(List.of("invalid-token")), any())).thenReturn(1);
+        assertThat(service.deactivateTokens(List.of("invalid-token"))).isEqualTo(1);
+        verify(repository).deactivateActiveTokens(eq(List.of("invalid-token")), any());
+    }
+
     private FirebaseDeviceRegistration registration(String token, boolean active) {
         FirebaseDeviceRegistration registration = new FirebaseDeviceRegistration(
             "7", "42", "phone", token, DevicePlatform.ANDROID, Instant.now());
