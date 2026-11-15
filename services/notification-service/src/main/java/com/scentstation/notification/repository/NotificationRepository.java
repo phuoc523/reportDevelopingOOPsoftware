@@ -30,5 +30,9 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
         Pageable pageable
     );
 
-    boolean existsBySourceAndSourceEventId(String source, String sourceEventId);
+    boolean existsByTenantIdAndSourceAndSourceEventId(
+        String tenantId,
+        String source,
+        String sourceEventId
+    );
 }

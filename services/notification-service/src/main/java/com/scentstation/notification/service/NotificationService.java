@@ -50,7 +50,8 @@ public class NotificationService {
         String source = command.source().trim();
         String sourceEventId = normalizeOptional(command.sourceEventId());
 
-        if (sourceEventId != null && notifications.existsBySourceAndSourceEventId(source, sourceEventId)) {
+        if (sourceEventId != null
+                && notifications.existsByTenantIdAndSourceAndSourceEventId(tenantId, source, sourceEventId)) {
             throw new DuplicateNotificationEventException();
         }
 
@@ -81,8 +82,13 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
-    public boolean existsForSourceEvent(@NotBlank String source, @NotBlank String sourceEventId) {
-        return notifications.existsBySourceAndSourceEventId(source.trim(), sourceEventId.trim());
+    public boolean existsForSourceEvent(
+            @NotBlank String tenantId,
+            @NotBlank String source,
+            @NotBlank String sourceEventId
+    ) {
+        return notifications.existsByTenantIdAndSourceAndSourceEventId(
+            tenantId.trim(), source.trim(), sourceEventId.trim());
     }
 
     @Transactional(readOnly = true)

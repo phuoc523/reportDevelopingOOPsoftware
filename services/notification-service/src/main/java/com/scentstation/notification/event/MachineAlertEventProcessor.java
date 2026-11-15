@@ -21,7 +21,7 @@ public class MachineAlertEventProcessor {
     }
 
     public boolean process(MachineAlertEvent event) {
-        if (notifications.existsForSourceEvent(event.source(), event.eventId())) {
+        if (notifications.existsForSourceEvent(event.tenantId(), event.source(), event.eventId())) {
             return false;
         }
         try {

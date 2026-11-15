@@ -20,7 +20,7 @@ class MachineAlertEventProcessorTest {
     @Test
     void acknowledgesKnownDuplicateWithoutCallingIdentityOrMapper() {
         MachineAlertEvent event = event();
-        when(notifications.existsForSourceEvent("machine-service", "event-1")).thenReturn(true);
+        when(notifications.existsForSourceEvent("7", "machine-service", "event-1")).thenReturn(true);
 
         assertFalse(processor.process(event));
 

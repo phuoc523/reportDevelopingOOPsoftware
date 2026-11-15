@@ -80,6 +80,16 @@ class NotificationServiceTests {
     }
 
     @Test
+    void scopesSourceEventIdempotencyToTenant() {
+        notificationService.create(command("tenant-a", "shared-event", List.of("user-1")));
+
+        var otherTenant = notificationService.create(
+            command("tenant-b", "shared-event", List.of("user-2")));
+
+        assertEquals("tenant-b", otherTenant.tenantId());
+    }
+
+    @Test
     void scopesNotificationLookupToTenant() {
         var created = notificationService.create(command("tenant-a", null, List.of("user-1")));
 

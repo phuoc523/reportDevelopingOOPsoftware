@@ -23,7 +23,10 @@ import java.util.List;
     name = "notifications",
     uniqueConstraints = {
         @UniqueConstraint(name = "uk_notifications_tenant_id", columnNames = {"tenant_id", "id"}),
-        @UniqueConstraint(name = "uk_notifications_source_event", columnNames = {"source", "source_event_id"})
+        @UniqueConstraint(
+            name = "uk_notifications_source_event",
+            columnNames = {"tenant_id", "source", "source_event_id"}
+        )
     },
     indexes = {
         @Index(name = "idx_notifications_tenant_created", columnList = "tenant_id, created_at, id")
