@@ -31,8 +31,11 @@ spring:
         spring.json.use.type.headers: false
         spring.json.value.default.type: com.scentstation.notification.event.MachineAlertEvent
     producer:
+      acks: all
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
 
 management:
   endpoints:
