@@ -21,7 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class AccountAdminService {
     private static final Set<Role> BRAND_ASSIGNABLE = EnumSet.of(
-        Role.OPERATIONS_MANAGER, Role.TECHNICIAN, Role.INVENTORY_STAFF, Role.VIEWER);
+        Role.OPERATIONS_MANAGER, Role.TECHNICIAN, Role.INVENTORY_STAFF);
 
     private final UserRepository users;
     private final PasswordEncoder encoder;

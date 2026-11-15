@@ -216,6 +216,27 @@ class MachineSecurityIntegrationTest extends MachineServiceIntegrationTestBase {
         assertEquals(HttpStatus.FORBIDDEN, get("/api/machines?tenantId=2", "tenant-1").getStatusCode());
     }
 
+    @Test
+    void platformListRequiresExplicitTenantAndReturnsOnlyThatTenant() {
+        Long tenantOneMachine = createMachine("1");
+        Long otherTenantMachine = createMachine("1");
+        var storedOtherTenantMachine = machineRepository.findById(otherTenantMachine).orElseThrow();
+        storedOtherTenantMachine.setTenantId("2");
+        machineRepository.saveAndFlush(storedOtherTenantMachine);
+        stub("platform-read", new IdentityPrincipal(303L, "platform", null,
+            Set.of("PLATFORM_SUPER_ADMIN"), Set.of("MACHINE_READ"), Set.of(), Set.of()));
+
+        assertEquals(HttpStatus.FORBIDDEN, get("/api/machines", "platform-read").getStatusCode());
+
+        ResponseEntity<List<Map<String, Object>>> response = rest.exchange("/api/machines?tenantId=1",
+            HttpMethod.GET, new HttpEntity<>(bearer("platform-read")), new ParameterizedTypeReference<>() {});
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(1, requireListBody(response).size());
+        assertEquals(tenantOneMachine.longValue(),
+            ((Number) requireListBody(response).getFirst().get("id")).longValue());
+        assertEquals("1", requireListBody(response).getFirst().get("tenantId"));
+    }
+
     private MachineAlert alert() {
         Long machineId = createMachine("1");
         return alertRepository.save(new MachineAlert("security-" + machineId,

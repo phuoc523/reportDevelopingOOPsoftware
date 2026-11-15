@@ -50,12 +50,6 @@ public final class RolePermissions {
             Permission.INVENTORY_READ, Permission.INVENTORY_MANAGE,
             Permission.ALERT_READ, Permission.NOTIFICATION_READ,
             Permission.REPORT_READ));
-        MATRIX.put(Role.VIEWER, EnumSet.of(
-            Permission.BRAND_PROFILE_READ, Permission.CATALOG_READ,
-            Permission.LOCATION_READ, Permission.MACHINE_READ,
-            Permission.ORDER_READ, Permission.INVENTORY_READ,
-            Permission.MAINTENANCE_READ, Permission.ALERT_READ,
-            Permission.REPORT_READ, Permission.NOTIFICATION_READ));
         MATRIX.put(Role.CUSTOMER, EnumSet.of(Permission.KIOSK_BROWSE, Permission.KIOSK_ORDER));
         MATRIX.put(Role.ADMIN, EnumSet.noneOf(Permission.class));
         MATRIX.put(Role.STAFF, EnumSet.noneOf(Permission.class));
@@ -69,8 +63,6 @@ public final class RolePermissions {
     }
 
     public static boolean allowed(Set<Role> roles, Set<Permission> explicitGrants, Permission requested) {
-        // A VIEWER account never gains write permissions, even with stale or mixed-role grants.
-        if (roles.contains(Role.VIEWER)) return MATRIX.get(Role.VIEWER).contains(requested);
         if (roles.contains(Role.PLATFORM_SUPER_ADMIN)) return true;
         if (PLATFORM_ONLY.contains(requested)) return false;
         if (explicitGrants != null && explicitGrants.contains(requested)) return true;

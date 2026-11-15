@@ -24,7 +24,6 @@ Reviewed against branch `test-2026-11-07-latest`, commit `1779c95`. The installa
 | OPERATIONS_MANAGER | Machine read/control, review transactions, request refund, alerts, tickets | Refund approval and machine reconfiguration |
 | TECHNICIAN | Assigned machines, maintenance, alerts | DIAGNOSTIC_SPRAY |
 | INVENTORY_STAFF | Catalog, inventory/refill, alerts | INVENTORY_ADJUST |
-| VIEWER | Scoped read-only data | Any mutation |
 | CUSTOMER | Kiosk browse/order permissions | Management APIs |
 | ADMIN / STAFF | Legacy-only endpoints; **no automatic tenant/platform privilege** | Migration required |
 

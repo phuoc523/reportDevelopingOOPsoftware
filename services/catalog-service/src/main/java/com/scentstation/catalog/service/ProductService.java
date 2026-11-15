@@ -39,12 +39,12 @@ public class ProductService {
         return productMapper.toResponse(savedProduct);
     }
 
-    // Chỉ liệt kê sản phẩm thuộc tenant hiện tại.
+    // Chỉ liệt kê sản phẩm thuộc tenant hiện tại, hoặc tenant đích tường minh của platform.
     @Transactional(readOnly = true)
-    public List<ProductResponse> getProducts() {
+    public List<ProductResponse> getProducts(Long requestedTenantId) {
         currentActorContext.requirePermission(CatalogPermissions.READ);
         return productRepository.findAllByTenantId(
-                        currentActorContext.requireTenant(null)
+                        currentActorContext.requireTenant(requestedTenantId)
                 )
                 .stream()
                 .map(productMapper::toResponse)

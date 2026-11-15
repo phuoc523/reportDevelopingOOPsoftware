@@ -33,10 +33,12 @@ public class ProductController {
                 .body(response);
     }
 
-    // Trả về danh sách tất cả sản phẩm trong catalog.
+    // Liệt kê sản phẩm theo tenant đã xác minh; platform phải truyền tenant đích rõ ràng.
     @GetMapping
-    public ResponseEntity<List<ProductResponse>> getProducts() {
-        return ResponseEntity.ok(productService.getProducts());
+    public ResponseEntity<List<ProductResponse>> getProducts(
+            @RequestParam(required = false) Long tenantId
+    ) {
+        return ResponseEntity.ok(productService.getProducts(tenantId));
     }
 
     // Tìm và trả về một sản phẩm theo mã định danh.

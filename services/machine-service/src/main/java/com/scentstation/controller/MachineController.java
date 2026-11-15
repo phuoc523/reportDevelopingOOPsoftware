@@ -46,7 +46,7 @@ public class MachineController {
     public List<MachineResponse> list(@RequestParam(required = false) String tenantId) {
         IdentityPrincipal actor = actors.principal();
         if (tenantId != null) authorization.requireTenant(actor, tenantId);
-        return authorization.listMachines(actor, MachineAuthorization.MACHINE_READ).stream()
+        return authorization.listMachines(actor, MachineAuthorization.MACHINE_READ, tenantId).stream()
             .map(MachineResponse::from).toList();
     }
 

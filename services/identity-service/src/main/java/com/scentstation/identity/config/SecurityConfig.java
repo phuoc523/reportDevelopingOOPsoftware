@@ -36,7 +36,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/audit/recent").authenticated()
                 .requestMatchers("/api/platform/**").hasRole("PLATFORM_SUPER_ADMIN")
-                .requestMatchers("/api/brand/**").hasRole("BRAND_ADMIN")
+                // Brand controllers enforce fine-grained permissions with @PreAuthorize/service checks.
+                .requestMatchers("/api/brand/**").authenticated()
                 .requestMatchers("/api/admin/**").hasAnyRole("PLATFORM_SUPER_ADMIN", "BRAND_ADMIN")
                 .requestMatchers("/api/staff/**").hasAnyRole("PLATFORM_SUPER_ADMIN", "BRAND_ADMIN",
                     "OPERATIONS_MANAGER", "TECHNICIAN", "INVENTORY_STAFF")

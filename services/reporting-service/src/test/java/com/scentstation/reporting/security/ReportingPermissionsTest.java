@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class ReportingPermissionsTest {
     @ParameterizedTest
     @CsvSource({"BRAND_ADMIN,true,true,false", "OPERATIONS_MANAGER,true,false,false", "INVENTORY_STAFF,true,false,false",
-            "VIEWER,true,false,false", "TECHNICIAN,false,false,false", "CUSTOMER,false,false,false",
+            "TECHNICIAN,false,false,false", "CUSTOMER,false,false,false",
             "ADMIN,false,false,false", "STAFF,false,false,false", "PLATFORM_SUPER_ADMIN,true,true,true"})
     void roleProjectionMatchesIdentitySource(String role, boolean read, boolean export, boolean platform) {
         var actor = new IdentityActor(1L, "user", 12L, Set.of(role), Set.of(), Set.of(), Set.of());

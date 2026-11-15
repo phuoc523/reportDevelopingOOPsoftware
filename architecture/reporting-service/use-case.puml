@@ -7,7 +7,7 @@ skinparam defaultFontSize 11
 
 title REPORTING SERVICE - USE CASE
 
-actor "Brand/Platform viewer" as Viewer
+actor "Người dùng báo cáo" as ReportReader
 actor "Order Service" as Order
 actor "Internal operator" as Internal
 actor "Machine Service" as Machine
@@ -25,11 +25,11 @@ rectangle "Reporting Service" {
   usecase "Lấy inventory/maintenance snapshot" as OperationSnapshot
 }
 
-Viewer --> Search
-Viewer --> Summary
-Viewer --> Dashboard
-Viewer --> ExportTx
-Viewer --> ExportRevenue
+ReportReader --> Search
+ReportReader --> Summary
+ReportReader --> Dashboard
+ReportReader --> ExportTx
+ReportReader --> ExportRevenue
 Order --> Sync
 Internal --> Pull
 Machine --> MachineSnapshot

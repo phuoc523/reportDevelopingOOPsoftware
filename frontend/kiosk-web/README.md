@@ -1,75 +1,66 @@
-# React + TypeScript + Vite
+# ScentStation Kiosk Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Kiosk Web dùng API thật qua API Gateway. Không có dữ liệu sản phẩm, đơn hàng,
+thanh toán hoặc kết quả xịt giả lập trong giao diện.
 
-Currently, two official plugins are available:
+## Chạy local
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Từ thư mục gốc repository:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```powershell
+docker compose up -d
+powershell -ExecutionPolicy Bypass -File .\infra\demo-data\seed-demo.ps1
+cd frontend\kiosk-web
+npm.cmd install
+npm.cmd run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+Mở `http://127.0.0.1:7515`. Vite proxy `/api` đến Gateway tại
+`http://127.0.0.1:8080`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Tài khoản local cho máy `9101`:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- Tên đăng nhập: `kiosk.customer`
+- Mật khẩu: `Demo@2026!`
 
+Không dùng tài khoản hoặc mật khẩu demo trong staging/production.
+
+## Cấu hình
+
+Sao chép `.env.example` thành `.env.local` nếu cần đổi máy hoặc Gateway:
+
+```dotenv
+VITE_API_BASE_URL=
+VITE_KIOSK_MACHINE_ID=9101
 ```
+
+Khi để trống `VITE_API_BASE_URL`, trình duyệt gọi cùng origin và Vite proxy xử lý
+trong môi trường phát triển. Với bản build tĩnh, đặt biến này thành URL Gateway
+được phép CORS hoặc cấu hình reverse proxy cùng origin.
+
+## Luồng API
+
+1. Identity: đăng nhập và lấy principal/JWT.
+2. Machine + Catalog: tải máy, slot, sản phẩm và giá khuyến mại hiệu lực.
+3. Order: tạo đơn `PENDING`; backend kiểm tra tenant, khách hàng, giá, máy và slot.
+4. Payment: tạo/lấy QR và thăm dò trạng thái theo reference.
+5. Dispensing: sau callback `PAID`, Order Service tự gửi lệnh xịt; Kiosk chỉ đọc kết quả.
+
+Kiosk cố ý không gọi endpoint `/simulate` và không gọi trực tiếp endpoint nội bộ
+tạo dispense command.
+
+Mỗi lượt thử dùng đúng liều đã hiệu chuẩn trong slot (`doseMl`, dữ liệu demo hiện tại là
+`0.12 ml`). Khách có thể chọn **Mua chai** sau khi thử, nhưng giao diện chỉ hiển thị trạng
+thái chờ tích hợp và không tạo đơn giả khi backend chưa có nghiệp vụ bán chai.
+
+## Giới hạn backend hiện tại
+
+- Payload QR đang là URI `scentstation://...`, chưa phải tích hợp cổng thanh toán thật.
+- Chưa có endpoint browse chuyên biệt dùng quyền `KIOSK_BROWSE`; tài khoản demo cần
+  thêm quyền đọc Catalog/Machine với scope máy `9101`.
+- Đăng ký công khai tạo `CUSTOMER` không có tenant, nên tài khoản đó chưa thể tạo đơn.
+- Tạo Order chưa nhận idempotency key; UI khóa thao tác lặp nhưng backend chưa bảo vệ
+  hoàn toàn trước retry mạng tạo hai đơn khác nhau.
+- Backend chưa có loại đơn mua chai, dung tích bán lẻ, địa chỉ nhận hàng hoặc luồng
+  fulfillment. Không dùng Order xịt hiện tại để thay thế vì thanh toán thành công sẽ kích
+  hoạt lệnh xịt tại kiosk.

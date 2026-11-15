@@ -10,9 +10,9 @@ Members owning Catalog, Order/Payment, Machine/IoT, Inventory and Reporting own 
 
 ## Roles and permission names
 
-`PLATFORM_SUPER_ADMIN`, `BRAND_ADMIN`, `OPERATIONS_MANAGER`, `TECHNICIAN`, `INVENTORY_STAFF`, `VIEWER`, `CUSTOMER`; `ADMIN` and `STAFF` are legacy names and do not confer platform privileges.
+`PLATFORM_SUPER_ADMIN`, `BRAND_ADMIN`, `OPERATIONS_MANAGER`, `TECHNICIAN`, `INVENTORY_STAFF`, `CUSTOMER`; `ADMIN` and `STAFF` are legacy names and do not confer platform privileges.
 
-Permission names are defined in `services/identity-service/src/main/java/com/scentstation/identity/rbac/Permission.java`. The default role matrix is `RolePermissions.java`. High-risk permissions (`REFUND_APPROVE`, `INVENTORY_ADJUST`, `DIAGNOSTIC_SPRAY`, `MACHINE_CONFIGURE`) must be explicitly granted by Platform Super Admin. An account bearing VIEWER remains read-only even if a grant or another role was stored.
+Permission names are defined in `services/identity-service/src/main/java/com/scentstation/identity/rbac/Permission.java`. The default role matrix is `RolePermissions.java`. High-risk permissions (`REFUND_APPROVE`, `INVENTORY_ADJUST`, `DIAGNOSTIC_SPRAY`, `MACHINE_CONFIGURE`) must be explicitly granted by Platform Super Admin.
 
 ## Administrative API via Identity (:8081) / Gateway (:8080)
 

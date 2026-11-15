@@ -18,5 +18,9 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
     },
+    rules: {
+      // Data loading is intentionally initiated by route/tenant effects.
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])

@@ -1,457 +1,200 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
+import './App.css'
+import { ApiError, authToken, kioskApi } from './services/api'
+import type { DispensingResponse, KioskItem, Machine, OrderResponse, PaymentResponse, Principal, Product, Slot } from './types/api'
 
-import { useMemo, useState } from "react";
-import "./App.css";
+type Screen = 'catalog' | 'confirm' | 'payment' | 'dispensing' | 'result' | 'purchase'
+const configuredMachineId = Number(import.meta.env.VITE_KIOSK_MACHINE_ID || '9101')
+const money = (value: number, currency = 'VND') => new Intl.NumberFormat('vi-VN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value)
+const readableError = (error: unknown) => error instanceof Error ? error.message : 'Không thể hoàn thành yêu cầu. Vui lòng thử lại.'
 
-type Product = {
-  id: number;
-  brand: string;
-  name: string;
-  category: string;
-  notes: string;
-  price: number;
-  samplePrice: number;
-  volume: number;
-  remainingVolume: number;
-  stock: number;
-  image: string;
-  color: string;
-};
-
-const initialProducts: Product[] = [
-  {
-    id: 1,
-    brand: "MAISON LUMIÈRE",
-    name: "Santal No. 04",
-    category: "Woody",
-    notes: "Gỗ đàn hương · Hổ phách · Xạ hương",
-    price: 3200000,
-    samplePrice: 25000,
-    volume: 100,
-    remainingVolume: 68,
-    stock: 5,
-    image: "https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=900&q=85",
-    color: "#e7dfd2",
-  },
-  {
-    id: 2,
-    brand: "ATELIER BOTANIQUE",
-    name: "Rose Éternelle",
-    category: "Floral",
-    notes: "Hoa hồng · Hoa nhài · Xạ hương trắng",
-    price: 2850000,
-    samplePrice: 20000,
-    volume: 75,
-    remainingVolume: 12,
-    stock: 3,
-    image: "https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=900&q=85",
-    color: "#ead9d7",
-  },
-  {
-    id: 3,
-    brand: "NOIR STUDIO",
-    name: "Midnight Oud",
-    category: "Oriental",
-    notes: "Trầm hương · Nghệ tây · Da thuộc",
-    price: 4100000,
-    samplePrice: 30000,
-    volume: 100,
-    remainingVolume: 0,
-    stock: 5,
-    image: "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=900&q=85",
-    color: "#d9d0c6",
-  },
-  {
-    id: 4,
-    brand: "ATELIER BOTANIQUE",
-    name: "Vanille Douce",
-    category: "Gourmand",
-    notes: "Vani · Hạnh nhân · Đậu tonka",
-    price: 2950000,
-    samplePrice: 20000,
-    volume: 100,
-    remainingVolume: 31,
-    stock: 2,
-    image: "https://images.unsplash.com/photo-1595425970377-c9703cf48b6d?auto=format&fit=crop&w=900&q=85",
-    color: "#e8d9c5",
-  },
-];
-
-const formatPrice = (price: number) =>
-  new Intl.NumberFormat("vi-VN").format(price) + " ₫";
-
-function App() {
-  const [products] = useState(initialProducts);
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
-  const [availability, setAvailability] = useState("All");
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [action, setAction] = useState<"try" | "buy" | null>(null);
-  const [notice, setNotice] = useState("");
-
-  const categories = ["All", "Woody", "Floral", "Oriental", "Fresh", "Gourmand"];
-
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const query = search.toLowerCase();
-      const matchesSearch =
-        product.name.toLowerCase().includes(query) ||
-        product.brand.toLowerCase().includes(query) ||
-        product.notes.toLowerCase().includes(query);
-
-      const matchesCategory =
-        category === "All" || product.category === category;
-
-      const matchesAvailability =
-        availability === "All" ||
-        (availability === "Available" && product.stock > 0) ||
-        (availability === "Unavailable" && product.stock === 0);
-
-      return matchesSearch && matchesCategory && matchesAvailability;
-    });
-  }, [products, search, category, availability]);
-
-  function openAction(product: Product, selectedAction: "try" | "buy") {
-    setNotice("");
-    setSelectedProduct(product);
-    setAction(selectedAction);
-  }
-
-  function closeDialog() {
-    setSelectedProduct(null);
-    setAction(null);
-    setNotice("");
-  }
-
-  function continueAction() {
-  if (!selectedProduct || !action) return;
-
-  if (selectedProduct.stock === 0) {
-    setNotice(
-      "Sản phẩm hiện đã hết hàng. Vui lòng chọn mùi hương khác.",
-    );
-    return;
-  }
-
-    setNotice(
-      action === "try"
-        ? "Đã xác nhận lựa chọn thử mùi trong bản demo. Bước tiếp theo sẽ kết nối API tạo đơn và thanh toán."
-        : "Đã xác nhận lựa chọn mua hàng trong bản demo. Bước tiếp theo sẽ kết nối API tạo đơn và thanh toán.",
-    );
-  }
-
-  return (
-    <main className="store">
-      <header className="topbar">
-        <a className="wordmark" href="#" aria-label="ScentStation trang chủ">
-          <span className="brand-symbol">S.</span>
-          <span>SCENTSTATION</span>
-        </a>
-
-        <nav className="topnav">
-          <a href="#collection">Bộ sưu tập</a>
-          <a href="#how-it-works">Cách sử dụng</a>
-        </nav>
-
-        <div className="topbar-right">
-          <span className="status-dot" />
-          <span>Trải nghiệm hương thơm</span>
-        </div>
-      </header>
-
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">YOUR SCENT, YOUR STORY</p>
-          <h1>
-            Tìm thấy
-            <br />
-            <em>hương thơm</em> của bạn.
-          </h1>
-          <p className="hero-description">
-            Khám phá những mùi hương được tuyển chọn. Thử trước khi quyết định,
-            hoặc chọn mua hương thơm yêu thích của bạn.
-          </p>
-          <a className="primary-button" href="#collection">
-            Khám phá bộ sưu tập <span>↗</span>
-          </a>
-          <div className="hero-caption">
-            <span>01 — DISCOVER</span>
-            <span>02 — EXPERIENCE</span>
-            <span>03 — CHOOSE</span>
-          </div>
-        </div>
-
-        <div className="hero-art">
-          <div className="hero-circle" />
-          <img
-            className="hero-image"
-            src="https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=1000&q=90"
-            alt="Chai nước hoa trong không gian tối giản"
-          />
-          <div className="hero-note">
-            <span>THE ART OF</span>
-            <strong>Fragrance</strong>
-            <span>DISCOVER YOUR SIGNATURE</span>
-          </div>
-          <span className="hero-index">COLLECTION N° 01</span>
-        </div>
-      </section>
-
-      <section className="collection" id="collection">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">THE COLLECTION</p>
-            <h2>Hương thơm dành cho bạn.</h2>
-            <p className="section-description">
-              Chọn một mùi hương, trải nghiệm theo cách của riêng bạn.
-            </p>
-          </div>
-          <span className="product-count">
-            {filteredProducts.length.toString().padStart(2, "0")} SẢN PHẨM
-          </span>
-        </div>
-
-        <div className="filters">
-          <label className="search-box">
-            <span aria-hidden="true">⌕</span>
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Tìm nước hoa, thương hiệu..."
-              aria-label="Tìm sản phẩm"
-            />
-          </label>
-
-          <div className="category-filters" aria-label="Lọc nhóm hương">
-            {categories.map((item) => (
-              <button
-                className={category === item ? "filter active" : "filter"}
-                key={item}
-                onClick={() => setCategory(item)}
-              >
-                {item === "All" ? "Tất cả" : item}
-              </button>
-            ))}
-          </div>
-
-          <select
-            className="availability-filter"
-            value={availability}
-            onChange={(event) => setAvailability(event.target.value)}
-            aria-label="Lọc tình trạng tồn kho"
-          >
-            <option value="All">Mọi trạng thái</option>
-            <option value="Available">Còn hàng</option>
-            <option value="Unavailable">Hết hàng</option>
-          </select>
-        </div>
-
-        <div className="product-grid">
-          {filteredProducts.map((product, index) => {
-            const outOfStock = product.stock === 0;
-            const lowStock = product.stock > 0 && product.stock <= 2;
-
-            return (
-              <article className="product-card" key={product.id}>
-                <div
-                  className="product-visual"
-                  style={{ backgroundColor: product.color }}
-                >
-                  <img src={product.image} alt={product.name} loading="lazy" />
-                  <span className="product-index">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <span
-                    className={
-                      outOfStock
-                        ? "stock-badge unavailable"
-                        : lowStock
-                          ? "stock-badge low"
-                          : "stock-badge"
-                    }
-                  >
-                    <span className="stock-dot" />
-                    {outOfStock
-                      ? "Hết hàng"
-                      : lowStock
-                        ? "Sắp hết hàng"
-                        : "Còn hàng"}
-                  </span>
-                  <button
-                    className="quick-view"
-                    onClick={() => openAction(product, "try")}
-                    aria-label={`Khám phá ${product.name}`}
-                    disabled={outOfStock}
-                  >
-                    ↗
-                  </button>
-                </div>
-
-                <div className="product-info">
-                  <p className="product-brand">{product.brand}</p>
-                  <h3>{product.name}</h3>
-                  <p className="product-notes">{product.notes}</p>
-
-                  
-                  <div className="product-meta">
-                    <span className="volume-label">Dung tích chai</span>
-                    <strong className="volume-value">{product.volume} ml</strong>
-                  </div>
-         
-                  <div className="price-row">
-                    <div className="sample-price">
-                      <span className="price-label">Phí thử</span>
-                      <strong>{formatPrice(product.samplePrice)}</strong>
-                    </div>
-                    <div>
-                      <span className="price-label">Giá mua</span>
-                      <strong>{formatPrice(product.price)}</strong>
-                    </div>
-                  </div>
-
-
-                  <div className="product-actions">
-                    <button
-                      className="try-button"
-                      disabled={outOfStock}
-                      onClick={() => openAction(product, "try")}
-                    >
-                      Thử có phí
-                    </button>
-                    <button
-                      className="buy-button"
-                      disabled={outOfStock}
-                      onClick={() => openAction(product, "buy")}
-                    >
-                      Mua ngay <span>↗</span>
-                    </button>
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-
-        {filteredProducts.length === 0 && (
-          <div className="empty-state">
-            <h3>Chưa tìm thấy mùi hương phù hợp</h3>
-            <p>Thử từ khóa khác hoặc thay đổi bộ lọc sản phẩm.</p>
-            <button
-              className="try-button"
-              onClick={() => {
-                setSearch("");
-                setCategory("All");
-                setAvailability("All");
-              }}
-            >
-              Xóa bộ lọc
-            </button>
-          </div>
-        )}
-      </section>
-
-      <section className="how-it-works" id="how-it-works">
-        <p className="eyebrow">A SIMPLE RITUAL</p>
-        <h2>Ba bước. Một dấu ấn riêng.</h2>
-        <div className="steps-grid">
-          <div className="step">
-            <span>01</span>
-            <h3>Khám phá</h3>
-            <p>Tìm hiểu nhóm hương, ghi chú và câu chuyện của từng sản phẩm.</p>
-          </div>
-          <div className="step">
-            <span>02</span>
-            <h3>Trải nghiệm</h3>
-            <p>Chọn thử có phí hoặc mua trực tiếp theo nhu cầu của bạn.</p>
-          </div>
-          <div className="step">
-            <span>03</span>
-            <h3>Khẳng định</h3>
-            <p>Tìm ra mùi hương phản ánh phong cách riêng của bạn.</p>
-          </div>
-        </div>
-      </section>
-
-      <footer className="footer">
-        <a className="wordmark" href="#">
-          <span className="brand-symbol">S.</span>
-          <span>SCENTSTATION</span>
-        </a>
-        <p>Discover a scent that feels like you.</p>
-        <span>© 2026 SCENTSTATION</span>
-      </footer>
-
-      {selectedProduct && action && (
-        <div
-          className="modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeDialog();
-          }}
-        >
-          <section
-            className="action-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="modal-title"
-          >
-            <button
-              className="modal-close"
-              onClick={closeDialog}
-              aria-label="Đóng"
-            >
-              ×
-            </button>
-
-            <p className="eyebrow">
-              {action === "try" ? "DISCOVER YOUR SCENT" : "MAKE IT YOURS"}
-            </p>
-            <h2 id="modal-title">
-              {action === "try" ? "Thử mùi hương" : "Mua nước hoa"}
-            </h2>
-            <p className="modal-product">
-              {selectedProduct.brand} · {selectedProduct.name}
-            </p>
-
-            <div className="modal-summary">
-              <span>
-                {action === "try" ? "Phí thử dự kiến" : "Giá sản phẩm"}
-              </span>
-              <strong>
-                {formatPrice(
-                  action === "try"
-                    ? selectedProduct.samplePrice
-                    : selectedProduct.price,
-                )}
-              </strong>
-              <span>
-                {action === "try"
-                  ? "Phí thử cho một lượt trải nghiệm."
-                  : `Dung tích chai: ${selectedProduct.volume} ml.`}
-              </span>
-            </div>
-
-            <p className="modal-stock">
-              {selectedProduct.stock > 0
-                ? `Tình trạng: Còn hàng · ${selectedProduct.remainingVolume} ml ước tính còn lại`
-                : "Tình trạng: Hết hàng"}
-            </p>
-
-            {notice && <p className="modal-notice">{notice}</p>}
-
-            <button
-              className="buy-button modal-confirm"
-              onClick={continueAction}
-              disabled={selectedProduct.stock === 0}
-            >
-              Tiếp tục <span>↗</span>
-            </button>
-            <p className="modal-disclaimer">
-              Bản demo: chưa tạo đơn, chưa thanh toán và chưa trừ tồn kho thật.
-            </p>
-          </section>
-        </div>
-      )}
-    </main>
-  );
+const availabilityText = (slot: Slot, machineReady: boolean, product: Product) => {
+  if (!machineReady) return 'Máy đang ngoại tuyến hoặc chưa sẵn sàng'
+  if (!product.available) return 'Sản phẩm đang tạm ngừng phục vụ'
+  if (!slot.enabled || slot.status === 'DISABLED') return 'Đầu phun đang bị khóa'
+  if (slot.status === 'EMPTY') return 'Đã hết nước hoa'
+  if (slot.status === 'ERROR') return 'Đầu phun đang gặp lỗi'
+  return slot.availabilityReason || 'Đầu phun chưa sẵn sàng'
 }
 
-export default App;
+function App() {
+  const [principal, setPrincipal] = useState<Principal | null>(null)
+  const [machine, setMachine] = useState<Machine | null>(null)
+  const [items, setItems] = useState<KioskItem[]>([])
+  const [selected, setSelected] = useState<KioskItem | null>(null)
+  const [screen, setScreen] = useState<Screen>('catalog')
+  const [order, setOrder] = useState<OrderResponse | null>(null)
+  const [payment, setPayment] = useState<PaymentResponse | null>(null)
+  const [dispensing, setDispensing] = useState<DispensingResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const creatingRef = useRef(false)
+
+  const machineReady = machine?.deviceRegistrationStatus === 'ACTIVE'
+    && machine.operationalStatus === 'ONLINE'
+    && machine.maintenanceChecklistComplete
+    && machine.postMaintenanceTestPassed
+
+  const loadCatalog = useCallback(async (actor: Principal) => {
+    if (!Number.isInteger(configuredMachineId) || configuredMachineId <= 0) throw new Error('VITE_KIOSK_MACHINE_ID phải là mã máy hợp lệ.')
+    if (!actor.tenantId) throw new Error('Tài khoản khách chưa được gán thương hiệu (tenant).')
+    if (!actor.grants.includes('KIOSK_ORDER')) throw new Error('Tài khoản chưa có quyền tạo đơn tại Kiosk.')
+    const [machineData, slotData, productData] = await Promise.all([
+      kioskApi.machine(configuredMachineId), kioskApi.slots(configuredMachineId), kioskApi.products(actor.tenantId),
+    ])
+    if (Number(machineData.tenantId) !== actor.tenantId) throw new Error('Máy Kiosk không thuộc thương hiệu của tài khoản đang đăng nhập.')
+    const products = new Map(productData.map((product) => [String(product.id), product]))
+    const linked = slotData.flatMap((slot) => {
+      const product = slot.productId ? products.get(slot.productId) : undefined
+      return product ? [{ slot, product }] : []
+    })
+    const kioskItems = await Promise.all(linked.map(async ({ slot, product }) => ({
+      slot, product, pricing: await kioskApi.pricing(actor.tenantId as number, product.id),
+    })))
+    setMachine(machineData); setItems(kioskItems)
+    setSelected((current) => kioskItems.find((item) => item.slot.id === current?.slot.id) || null)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    async function restore() {
+      if (!authToken.get()) { setLoading(false); return }
+      try {
+        const actor = await kioskApi.me()
+        if (!active) return
+        setPrincipal(actor); await loadCatalog(actor)
+      } catch (reason) {
+        if (reason instanceof ApiError && (reason.status === 401 || reason.status === 403)) authToken.clear()
+        if (active) setError(readableError(reason))
+      } finally { if (active) setLoading(false) }
+    }
+    void restore()
+    return () => { active = false }
+  }, [loadCatalog])
+
+  useEffect(() => {
+    if (screen !== 'payment' || !payment || payment.status !== 'PENDING') return
+    let active = true
+    const poll = async () => {
+      try {
+        const current = await kioskApi.payment(payment.reference)
+        if (!active) return
+        setPayment(current)
+        if (current.status === 'PAID') { setError(''); setScreen('dispensing') }
+        else if (current.status === 'FAILED') { setError('Thanh toán thất bại. Hệ thống không gửi lệnh xịt.'); setScreen('result') }
+        else if (current.status === 'EXPIRED') { setError('Giao dịch đã hết hạn. Hệ thống không gửi lệnh xịt.'); setScreen('result') }
+      } catch (reason) { if (active) setError(`Mất kết nối khi kiểm tra thanh toán: ${readableError(reason)}`) }
+    }
+    void poll()
+    const timer = window.setInterval(() => void poll(), 3000)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [payment, screen])
+
+  useEffect(() => {
+    if (screen !== 'dispensing' || !order) return
+    let active = true
+    let attempts = 0
+    const poll = async () => {
+      attempts += 1
+      try {
+        const current = await kioskApi.dispensing(order.id)
+        if (!active) return
+        setDispensing(current); setError('')
+        if (['DISPENSED', 'FAILED', 'UNKNOWN'].includes(current.status)) setScreen('result')
+      } catch (reason) {
+        if (!active) return
+        if (reason instanceof ApiError && reason.status === 404 && attempts < 5) return
+        setError(`Không thể nhận kết quả xịt: ${readableError(reason)}`)
+        if (attempts >= 10) setScreen('result')
+      }
+    }
+    void poll()
+    const timer = window.setInterval(() => void poll(), 2500)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [order, screen])
+
+  const availableCount = useMemo(() => items.filter(({ slot, product }) => machineReady && product.available && slot.available && slot.enabled && slot.status === 'AVAILABLE').length, [items, machineReady])
+  const resumablePayment = Boolean(payment?.status === 'PENDING' && order && selected && String(order.slotId) === String(selected.slot.id))
+
+  async function submitLogin(event: FormEvent) {
+    event.preventDefault(); setBusy(true); setError('')
+    try {
+      await kioskApi.login(username.trim(), password)
+      const actor = await kioskApi.me()
+      setPrincipal(actor); await loadCatalog(actor); setPassword('')
+    } catch (reason) {
+      authToken.clear(); setPrincipal(null); setError(readableError(reason))
+    } finally { setBusy(false); setLoading(false) }
+  }
+
+  async function refresh() {
+    if (!principal) return
+    setBusy(true); setError('')
+    try { await loadCatalog(principal) } catch (reason) { setError(readableError(reason)) } finally { setBusy(false) }
+  }
+
+  async function startPayment() {
+    if (!principal || !selected || creatingRef.current) return
+    if (resumablePayment) {
+      setError('')
+      setScreen('payment')
+      return
+    }
+    creatingRef.current = true; setBusy(true); setError('')
+    try {
+      const created = await kioskApi.createOrder({
+        customerId: principal.id, tenantId: String(principal.tenantId), machineId: String(selected.slot.machineId), slotId: String(selected.slot.id),
+        items: [{ productId: selected.product.id, productName: selected.product.name, unitPrice: selected.pricing.effectivePrice, quantity: 1 }],
+      })
+      setOrder(created)
+      const qr = await kioskApi.createPayment(created.id)
+      setPayment(qr); setScreen('payment')
+    } catch (reason) {
+      setError(readableError(reason)); await refresh()
+    } finally { creatingRef.current = false; setBusy(false) }
+  }
+
+  function resetTransaction() {
+    setSelected(null); setOrder(null); setPayment(null); setDispensing(null); setError(''); setScreen('catalog')
+    if (principal) void refresh()
+  }
+
+  async function logout() {
+    setBusy(true)
+    try { await kioskApi.logout() } catch { authToken.clear() }
+    setPrincipal(null); setMachine(null); setItems([]); setSelected(null); setOrder(null); setPayment(null); setDispensing(null); setError(''); setScreen('catalog'); setBusy(false)
+  }
+
+  if (loading) return <main className="center-screen"><div className="spinner"/><p>Đang kết nối ScentStation…</p></main>
+
+  if (!principal) return <main className="login-screen"><section className="login-card">
+    <div className="brand-emblem">S</div><p className="eyebrow">SCENTSTATION · KIOSK</p><h1>Bắt đầu trải nghiệm hương thơm</h1><p>Đăng nhập tài khoản khách được cấp cho máy này để tiếp tục.</p>
+    <form onSubmit={submitLogin}><label>Tên đăng nhập<input autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required /></label><label>Mật khẩu<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>{error && <div className="error-box" role="alert">{error}</div>}<button className="primary" disabled={busy}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button></form><small>Máy cấu hình: #{configuredMachineId}</small>
+  </section></main>
+
+  return <main className="kiosk-shell">
+    <header className="topbar"><div className="brand-lockup"><span>S</span><div><strong>SCENTSTATION</strong><small>HƯƠNG THƠM CỦA RIÊNG BẠN</small></div></div><div className={`machine-pill ${machineReady ? 'online' : 'offline'}`}><i />{machine?.name || `Máy #${configuredMachineId}`} · {machineReady ? 'Sẵn sàng' : 'Ngoại tuyến'}</div><button className="text-button" onClick={() => void logout()} disabled={busy}>Đăng xuất</button></header>
+
+    {screen === 'catalog' && <><section className="hero"><div><p className="eyebrow">BỘ SƯU TẬP TẠI MÁY #{configuredMachineId}</p><h1>Chọn mùi hương bạn muốn trải nghiệm</h1><p>Mỗi lựa chọn tương ứng với một đầu phun thật đang được hệ thống kiểm tra.</p></div><button className="secondary" onClick={() => void refresh()} disabled={busy}>{busy ? 'Đang tải…' : 'Làm mới'}</button></section>
+      {error && <div className="error-banner" role="alert">{error}</div>}{!machineReady && <div className="warning-banner">Máy hiện không sẵn sàng. Không thể tạo đơn hoặc thanh toán cho đến khi máy trực tuyến và hoàn tất kiểm tra kỹ thuật.</div>}<div className="catalog-meta"><strong>{items.length} đầu phun</strong><span>{availableCount} mùi đang sẵn sàng</span></div>
+      <section className="product-grid">{items.map((item, index) => { const ready = Boolean(machineReady && item.product.available && item.slot.available && item.slot.enabled && item.slot.status === 'AVAILABLE'); return <article className={`product-card ${ready ? '' : 'unavailable'}`} key={item.slot.id}><div className="product-image">{item.product.imageUrl ? <img src={item.product.imageUrl} alt={item.product.name} /> : <div className="bottle-art">S.</div>}<span className="slot-number">Đầu phun {index + 1}</span><span className="dose-badge">1 lượt · {item.slot.doseMl ?? 0.12} ml</span></div><div className="product-copy"><p className="eyebrow">{item.slot.slotCode}</p><h2>{item.product.name}</h2><p>{item.product.fragranceNotes || item.product.description || 'Thông tin hương thơm đang được cập nhật.'}</p>{item.pricing.promotionApplied && <div className="promotion">{item.pricing.campaignName || 'Ưu đãi đang áp dụng'}</div>}<div className="card-footer"><div><small>Phí trải nghiệm</small><strong>{money(item.pricing.effectivePrice)}</strong>{item.pricing.promotionApplied && <del>{money(item.pricing.defaultPrice)}</del>}</div><div className="card-buttons"><button className="primary" disabled={!ready} onClick={() => { setSelected(item); setError(''); setScreen('confirm') }}>{ready ? 'Thử mùi' : 'Không khả dụng'}</button><button className="secondary compact" onClick={() => { setSelected(item); setError(''); setScreen('purchase') }}>Mua chai</button></div></div>{!ready && <div className="availability-note">{availabilityText(item.slot, Boolean(machineReady), item.product)}</div>}</div></article> })}{!items.length && <div className="empty-state"><h2>Chưa có sản phẩm tại máy này</h2><p>Backend không trả về slot nào có sản phẩm hợp lệ. Kiosk không dùng dữ liệu thay thế.</p></div>}</section>
+    </>}
+
+    {screen === 'confirm' && selected && <section className="flow-card"><p className="step">BƯỚC 1 / 3 · XÁC NHẬN LƯỢNG THỬ</p><h1>{selected.product.name}</h1><div className="sample-dose"><span className="sample-icon">✦</span><div><small>Lượng thử đã hiệu chuẩn</small><strong>1 lượt xịt · {selected.slot.doseMl ?? 0.12} ml</strong><p>Đây là lượng cố định an toàn được cấu hình trực tiếp tại đầu phun.</p></div><span className="selected-mark">Đã chọn</span></div><div className="summary-grid"><div><span>Máy</span><strong>{machine?.name}</strong></div><div><span>Đầu phun</span><strong>{selected.slot.slotCode}</strong></div><div><span>Thời lượng hiệu chuẩn</span><strong>{selected.slot.doseMl ? 'Theo cấu hình đầu phun' : 'Theo cấu hình máy'}</strong></div><div><span>Phí trải nghiệm</span><strong>{money(selected.pricing.effectivePrice)}</strong></div></div><p className="flow-note">Giá, tenant, trạng thái máy, đầu phun và lượng xịt đều được backend kiểm tra lại. Kiosk không tự thay đổi liều lượng.</p>{resumablePayment && <div className="pending-payment-note">Mã QR đã được tạo và vẫn còn hiệu lực. Tiếp tục để mở lại đúng giao dịch, không tạo thêm đơn mới.</div>}{error && <div className="error-box">{error}</div>}<div className="flow-actions"><button className="secondary" onClick={() => setScreen('catalog')} disabled={busy}>Quay lại</button><button className="primary large" onClick={() => void startPayment()} disabled={busy}>{busy ? 'Đang tạo đơn…' : resumablePayment ? 'Tiếp tục thanh toán' : 'Thanh toán lượt thử'}</button></div></section>}
+
+    {screen === 'payment' && payment && <section className="flow-card payment-card"><p className="step">BƯỚC 2 / 3 · THANH TOÁN</p><h1>Quét mã để thanh toán</h1><div className="qr-wrap"><QRCodeSVG value={payment.qrPayload} size={260} level="M"/><span className="pulse-dot"/></div><strong className="payment-amount">{money(payment.amount, payment.currency)}</strong><p>Mã giao dịch: <code>{payment.reference}</code></p><p>Hết hạn lúc {new Date(payment.expiresAt).toLocaleTimeString('vi-VN')}</p><div className="waiting"><div className="spinner"/>Đang chờ backend xác nhận thanh toán…</div>{error && <div className="error-box">{error}</div>}<div className="flow-actions payment-actions"><button className="secondary large" onClick={() => { setError(''); setScreen('confirm') }}>← Quay lại xác nhận</button></div><small className="payment-hint">Mã QR vẫn có hiệu lực đến thời gian hết hạn. Khi quay lại, Kiosk sẽ dừng kiểm tra tạm thời và không tạo thêm đơn mới.</small></section>}
+
+    {screen === 'dispensing' && <section className="flow-card dispensing-card"><p className="step">BƯỚC 3 / 3 · XỊT NƯỚC HOA</p><div className="spray-animation">✦</div><h1>Thanh toán đã được xác nhận</h1><p>Backend đang gửi lệnh hợp lệ đến {selected?.slot.slotCode}. Vui lòng đưa cổ tay đến vị trí đầu phun.</p><div className="waiting"><div className="spinner"/>{dispensing ? `Trạng thái: ${dispensing.status}` : 'Đang chờ máy nhận lệnh…'}</div>{error && <div className="error-box">{error}</div>}</section>}
+
+    {screen === 'result' && <section className={`flow-card result-card ${dispensing?.status === 'DISPENSED' ? 'success' : 'failure'}`}><div className="result-icon">{dispensing?.status === 'DISPENSED' ? '✓' : '!'}</div><p className="step">KẾT QUẢ GIAO DỊCH</p><h1>{dispensing?.status === 'DISPENSED' ? 'Bạn có thích mùi hương này?' : payment?.status === 'FAILED' ? 'Thanh toán thất bại' : payment?.status === 'EXPIRED' ? 'Giao dịch đã hết hạn' : 'Chưa thể hoàn tất lượt xịt'}</h1><p>{dispensing?.manualReviewReason || error || (dispensing?.status === 'DISPENSED' ? 'Lượt thử đã hoàn tất. Bạn có thể chọn mua chai hoặc tiếp tục khám phá mùi khác.' : dispensing?.status === 'FAILED' ? 'Máy báo lỗi khi thực hiện lệnh xịt.' : 'Vui lòng liên hệ nhân viên hỗ trợ nếu tiền đã được trừ.')}</p>{order && <div className="receipt"><span>Đơn hàng #{order.id}</span><span>{payment?.reference}</span><strong>{money(order.totalAmount, order.currency)}</strong></div>}<div className="flow-actions">{dispensing?.status === 'DISPENSED' && <button className="secondary large" onClick={() => setScreen('purchase')}>Tôi muốn mua chai</button>}<button className="primary large" onClick={resetTransaction}>{dispensing?.status === 'DISPENSED' ? 'Khám phá mùi khác' : 'Bắt đầu lượt mới'}</button></div></section>}
+
+    {screen === 'purchase' && selected && <section className="flow-card purchase-card"><p className="step">MUA SẢN PHẨM</p><div className="purchase-art">{selected.product.imageUrl ? <img src={selected.product.imageUrl} alt={selected.product.name} /> : <span>S.</span>}</div><h1>{selected.product.name}</h1><p>{selected.product.description}</p><div className="warning-banner purchase-warning"><strong>Backend mua chai chưa sẵn sàng</strong><span>Hệ thống hiện chưa có DTO cho dung tích chai, giá bán lẻ, địa chỉ nhận hàng và fulfillment. Kiosk không tạo giao dịch giả hoặc dùng đơn xịt để thay thế đơn mua sản phẩm.</span></div><div className="flow-actions"><button className="secondary" onClick={() => setScreen(dispensing?.status === 'DISPENSED' ? 'result' : 'catalog')}>Quay lại</button><button className="primary" disabled>Chờ tích hợp Order mua chai</button></div></section>}
+  </main>
+}
+
+export default App

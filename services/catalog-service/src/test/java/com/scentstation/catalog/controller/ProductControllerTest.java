@@ -213,10 +213,10 @@ class ProductControllerTest {
                 .available(true)
                 .build();
 
-        when(productService.getProducts())
+        when(productService.getProducts(1L))
                 .thenReturn(List.of(response));
 
-        mockMvc.perform(get("/api/products"))
+        mockMvc.perform(get("/api/products").param("tenantId", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(1))
                 .andExpect(jsonPath("$[0].name").value("Scent Sample"));

@@ -95,7 +95,7 @@ class ReportingSecurityTest {
     @Test
     void assignedScopeCannotReadWholeTenantAggregates() throws Exception {
         when(identity.verify("unit-token")).thenReturn(new IdentityActor(1L, "scoped", 12L,
-                Set.of("VIEWER"), Set.of(), Set.of(1L), Set.of()));
+                Set.of("OPERATIONS_MANAGER"), Set.of(), Set.of(1L), Set.of()));
         mvc.perform(get("/api/reporting/dashboard").header("Authorization", "Bearer unit-token"))
                 .andExpect(status().isForbidden());
         verifyNoInteractions(dashboard);
@@ -104,7 +104,7 @@ class ReportingSecurityTest {
     @Test
     void encodedDashboardPathCannotBypassAssignedScopeCheck() throws Exception {
         when(identity.verify("unit-token")).thenReturn(new IdentityActor(1L, "scoped", 12L,
-                Set.of("VIEWER"), Set.of(), Set.of(1L), Set.of()));
+                Set.of("OPERATIONS_MANAGER"), Set.of(), Set.of(1L), Set.of()));
         mvc.perform(get(java.net.URI.create("/api/reporting/%64ashboard"))
                         .header("Authorization", "Bearer unit-token"))
                 .andExpect(status().isForbidden());
@@ -118,17 +118,6 @@ class ReportingSecurityTest {
                 .andExpect(status().isOk());
         mvc.perform(get("/api/reporting/export/transactions").header("Authorization", "Bearer unit-token"))
                 .andExpect(status().isOk());
-    }
-
-    @Test
-    void viewerPrecedenceMatchesIdentityEvenWithMixedPlatformRoleAndExportGrant() throws Exception {
-        when(identity.verify("unit-token")).thenReturn(new IdentityActor(1L, "viewer", 12L,
-                Set.of("VIEWER", "PLATFORM_SUPER_ADMIN"), Set.of("REPORT_EXPORT"), Set.of(), Set.of()));
-        mvc.perform(get("/api/reporting/export/transactions").header("Authorization", "Bearer unit-token"))
-                .andExpect(status().isForbidden());
-        mvc.perform(get("/api/reporting/dashboard").header("Authorization", "Bearer unit-token"))
-                .andExpect(status().isOk());
-        verify(dashboard).getDashboard("12", ReportPeriod.MONTH, false);
     }
 
     @Test

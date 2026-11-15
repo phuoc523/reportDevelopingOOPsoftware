@@ -7,7 +7,6 @@ public enum Role {
     OPERATIONS_MANAGER,
     TECHNICIAN,
     INVENTORY_STAFF,
-    VIEWER,
     CUSTOMER,
     /** Legacy roles: not granted brand/platform privileges by default. */
     ADMIN,

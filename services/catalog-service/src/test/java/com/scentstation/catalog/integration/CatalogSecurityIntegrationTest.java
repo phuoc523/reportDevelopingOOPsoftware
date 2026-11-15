@@ -70,7 +70,7 @@ class CatalogSecurityIntegrationTest extends CatalogApiIntegrationTestSupport {
 
     @Test
     void catalogManagePermissionIsRequired() throws Exception {
-        actor("read-only", Set.of("CATALOG_READ"), 1L, Set.of("VIEWER"));
+        actor("read-only", Set.of("CATALOG_READ"), 1L, Set.of("INVENTORY_STAFF"));
         mockMvc.perform(patch("/api/products/{id}/price", product.getId())
                         .header(HttpHeaders.AUTHORIZATION, "Bearer read-only")
                         .contentType(MediaType.APPLICATION_JSON)

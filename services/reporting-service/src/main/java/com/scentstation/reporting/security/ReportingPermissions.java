@@ -11,7 +11,6 @@ public final class ReportingPermissions {
     private ReportingPermissions() {}
 
     public static boolean has(IdentityActor actor, String permission) {
-        if (actor.roles().contains("VIEWER")) { return READ.equals(permission); }
         if (actor.roles().contains("PLATFORM_SUPER_ADMIN")) { return true; }
         if (PLATFORM.equals(permission)) { return false; }
         if (actor.grants().contains(permission)) { return true; }

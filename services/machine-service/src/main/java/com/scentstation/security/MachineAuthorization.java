@@ -31,7 +31,7 @@ public class MachineAuthorization {
         if (!actor.grants().contains(permission)) {
             throw forbidden("Permission required: " + permission);
         }
-        tenant(actor);
+        if (!platform(actor)) tenant(actor);
         return actor;
     }
 
@@ -44,7 +44,7 @@ public class MachineAuthorization {
 
     public void requireTenant(IdentityPrincipal actor, String tenantId) {
         long requestedTenant = MachineIdentifiers.requestTenant(tenantId);
-        if (actor.tenantId() == null || actor.tenantId() != requestedTenant) {
+        if (!platform(actor) && (actor.tenantId() == null || actor.tenantId() != requestedTenant)) {
             throw forbidden("Tenant access is not allowed");
         }
     }
@@ -93,9 +93,19 @@ public class MachineAuthorization {
         return machine;
     }
 
-    public List<Machine> listMachines(IdentityPrincipal actor, String permission) {
+    public List<Machine> listMachines(IdentityPrincipal actor, String permission, String requestedTenantId) {
         require(actor, permission);
-        return machines.findAllByTenantIdOrderByIdAsc(tenant(actor)).stream()
+        String targetTenant;
+        if (platform(actor)) {
+            if (requestedTenantId == null || requestedTenantId.isBlank()) {
+                throw forbidden("Platform actor must provide an explicit target tenant");
+            }
+            targetTenant = Long.toString(MachineIdentifiers.requestTenant(requestedTenantId));
+        } else {
+            targetTenant = tenant(actor);
+            if (requestedTenantId != null) requireTenant(actor, requestedTenantId);
+        }
+        return machines.findAllByTenantIdOrderByIdAsc(targetTenant).stream()
             .filter(machine -> allowed(actor, machine)).toList();
     }
 
@@ -134,9 +144,13 @@ public class MachineAuthorization {
         return actor.roles().contains("TECHNICIAN");
     }
 
+    private boolean platform(IdentityPrincipal actor) {
+        return actor.roles().contains("PLATFORM_SUPER_ADMIN");
+    }
+
     private void requirePersistedTenant(IdentityPrincipal actor, String tenantId) {
         long storedTenant = MachineIdentifiers.storedTenant(tenantId);
-        if (actor.tenantId() == null || actor.tenantId() != storedTenant) {
+        if (!platform(actor) && (actor.tenantId() == null || actor.tenantId() != storedTenant)) {
             throw forbidden("Tenant access is not allowed");
         }
     }

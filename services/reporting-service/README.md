@@ -84,8 +84,8 @@ Compose change was made in this phase.
 - GET health stays public. Internal synchronization still requires its existing
   `X-Internal-Api-Key`; it does not depend on Identity or Bearer authentication.
 - Reporting projects only REPORT_READ, REPORT_EXPORT and PLATFORM_REPORT_READ
-  from Identity's current RolePermissions source. VIEWER precedence and explicit
-  grants follow that source. A non-platform grant cannot manufacture platform access.
+  from Identity's current RolePermissions source. Explicit grants follow that source;
+  a non-platform grant cannot manufacture platform access.
 - The dashboard requires REPORT_READ. Non-platform users use their Identity tenant;
   an explicit different tenant or multiple tenant parameters returns 403. Accounts
   with location/machine allowlists cannot read whole-tenant aggregates until those
