@@ -1,0 +1,27 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: identity-service
+  datasource:
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3307/scentstation_identity?createDatabaseIfNotExist=true}
+    username: ${DB_USERNAME:scentstation_app}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  login:
+    max-failed-attempts: ${LOGIN_MAX_FAILED_ATTEMPTS:5}
+    lock-duration: ${LOGIN_LOCK_DURATION:15m}
+demo:
+  accounts:
+    enabled: ${DEMO_ACCOUNTS_ENABLED:false}

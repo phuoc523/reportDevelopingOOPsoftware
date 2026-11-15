@@ -1,3 +1,14 @@
+﻿# Maven build output
+**/target/
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+# Logs
+*.log
+# Environment secrets
+.env
 # Java / Maven
 target/
 *.class
@@ -5,7 +16,6 @@ target/
 *.war
 *.ear
 .mvn/wrapper/maven-wrapper.jar
-
 # Node / React
 node_modules/
 dist/
@@ -16,21 +26,15 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-
 # IDE
-.idea/
-*.iml
-.vscode/
-
 # Environment files
-.env
 .env.*
 !.env.example
-
 # OS
 .DS_Store
 Thumbs.db
-
-# Logs
-*.log
 logs/
+**/node_modules/
+**/.env
+**/.env.*
+!**/.env.example
