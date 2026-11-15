@@ -28,6 +28,18 @@ public class NotificationExceptionHandler {
         return response(HttpStatus.NOT_FOUND, exception.getMessage(), request, Map.of());
     }
 
+    @ExceptionHandler(DeviceRegistrationNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleDeviceNotFound(
+            DeviceRegistrationNotFoundException exception, HttpServletRequest request) {
+        return response(HttpStatus.NOT_FOUND, exception.getMessage(), request, Map.of());
+    }
+
+    @ExceptionHandler(DeviceTokenConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleDeviceTokenConflict(
+            DeviceTokenConflictException exception, HttpServletRequest request) {
+        return response(HttpStatus.CONFLICT, exception.getMessage(), request, Map.of());
+    }
+
     @ExceptionHandler(DuplicateNotificationEventException.class)
     public ResponseEntity<ApiErrorResponse> handleDuplicateEvent(
             DuplicateNotificationEventException exception,
