@@ -21,6 +21,9 @@ public class MachineAlertEventProcessor {
     }
 
     public boolean process(MachineAlertEvent event) {
+        if (notifications.existsForSourceEvent(event.source(), event.eventId())) {
+            return false;
+        }
         try {
             notifications.create(mapper.map(event, recipients.resolve(event.tenantId())));
             return true;

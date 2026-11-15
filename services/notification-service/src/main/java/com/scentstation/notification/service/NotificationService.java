@@ -81,6 +81,11 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
+    public boolean existsForSourceEvent(@NotBlank String source, @NotBlank String sourceEventId) {
+        return notifications.existsBySourceAndSourceEventId(source.trim(), sourceEventId.trim());
+    }
+
+    @Transactional(readOnly = true)
     public NotificationResponse getById(
             @NotNull Long notificationId,
             @NotBlank String tenantId

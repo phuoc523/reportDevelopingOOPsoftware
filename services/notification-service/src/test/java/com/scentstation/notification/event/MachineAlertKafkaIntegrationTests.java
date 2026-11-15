@@ -65,7 +65,7 @@ class MachineAlertKafkaIntegrationTests {
         kafka.send("machine-alert.test.v1", "7", event).get();
 
         await(() -> notifications.count() == 1);
-        verify(identity, atLeast(2)).resolveNotificationRecipients("7");
+        verify(identity, times(1)).resolveNotificationRecipients("7");
     }
 
     @Test
