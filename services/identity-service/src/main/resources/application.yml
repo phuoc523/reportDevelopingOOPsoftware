@@ -10,13 +10,18 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
 security:
   jwt:
-    # Replace this development key with a strong secret from an environment variable in real deployments.
-    secret: ${JWT_SECRET:U2NlbnRTdGF0aW9uRGV2ZWxvcG1lbnRLZXlGb3JKV1QyMDI2IQ==}
+    secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  login:
+    max-failed-attempts: ${LOGIN_MAX_FAILED_ATTEMPTS:5}
+    lock-duration: ${LOGIN_LOCK_DURATION:15m}
+demo:
+  accounts:
+    enabled: ${DEMO_ACCOUNTS_ENABLED:false}

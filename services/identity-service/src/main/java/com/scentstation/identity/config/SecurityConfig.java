@@ -1,7 +1,9 @@
 package com.scentstation.identity.config;
 
+import java.time.Clock;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -21,9 +23,21 @@ public class SecurityConfig {
     }
 
     @Bean
+    Clock systemClock() {
+        return Clock.systemUTC();
+    }
+
+    @Bean
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthenticationFilter jwtFilter) throws Exception {
+
+        String platform = "PLATFORM_SUPER_ADMIN";
+        String brandAdmin = "BRAND_ADMIN";
+        String operations = "OPERATIONS_MANAGER";
+        String technician = "TECHNICIAN";
+        String inventory = "INVENTORY_STAFF";
+        String viewer = "VIEWER";
 
         http
             .csrf(csrf -> csrf.disable())
@@ -35,11 +49,54 @@ public class SecurityConfig {
                     new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/error").permitAll()
-                .requestMatchers("/api/tenants/**").hasRole("PLATFORM_SUPER_ADMIN")
-                .requestMatchers("/api/admin/users/**").hasRole("PLATFORM_SUPER_ADMIN")
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/api/staff/**").hasAnyRole("ADMIN", "STAFF")
-                .requestMatchers("/api/customer/**").hasAnyRole("ADMIN", "CUSTOMER")
+                .requestMatchers("/api/tenants/**").hasRole(platform)
+                .requestMatchers("/api/admin/users/**").hasRole(platform)
+                .requestMatchers("/api/admin/staff-users/**")
+                    .hasAnyRole(platform, brandAdmin)
+                .requestMatchers("/api/admin/**").hasAnyRole(platform, "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/staff/operations/**")
+                    .hasAnyRole(platform, brandAdmin, operations, viewer)
+                .requestMatchers(HttpMethod.HEAD, "/api/staff/operations/**")
+                    .hasAnyRole(platform, brandAdmin, operations, viewer)
+                .requestMatchers(HttpMethod.GET, "/api/staff/maintenance/**")
+                    .hasAnyRole(platform, brandAdmin, operations, technician, viewer)
+                .requestMatchers(HttpMethod.HEAD, "/api/staff/maintenance/**")
+                    .hasAnyRole(platform, brandAdmin, operations, technician, viewer)
+                .requestMatchers(HttpMethod.GET, "/api/staff/inventory/**")
+                    .hasAnyRole(platform, brandAdmin, operations, inventory, viewer)
+                .requestMatchers(HttpMethod.HEAD, "/api/staff/inventory/**")
+                    .hasAnyRole(platform, brandAdmin, operations, inventory, viewer)
+                .requestMatchers(HttpMethod.GET, "/api/staff/reports/**")
+                    .hasAnyRole(platform, brandAdmin, operations, viewer)
+                .requestMatchers(HttpMethod.HEAD, "/api/staff/reports/**")
+                    .hasAnyRole(platform, brandAdmin, operations, viewer)
+                .requestMatchers(HttpMethod.DELETE, "/api/staff/operations/**")
+                    .hasRole(platform)
+                .requestMatchers(HttpMethod.DELETE, "/api/staff/maintenance/**")
+                    .hasRole(platform)
+                .requestMatchers(HttpMethod.DELETE, "/api/staff/inventory/**")
+                    .hasRole(platform)
+                .requestMatchers(HttpMethod.POST, "/api/staff/operations/**")
+                    .hasAnyRole(platform, brandAdmin, operations)
+                .requestMatchers(HttpMethod.PUT, "/api/staff/operations/**")
+                    .hasAnyRole(platform, brandAdmin, operations)
+                .requestMatchers(HttpMethod.PATCH, "/api/staff/operations/**")
+                    .hasAnyRole(platform, brandAdmin, operations)
+                .requestMatchers(HttpMethod.POST, "/api/staff/maintenance/**")
+                    .hasAnyRole(platform, brandAdmin, operations, technician)
+                .requestMatchers(HttpMethod.PUT, "/api/staff/maintenance/**")
+                    .hasAnyRole(platform, brandAdmin, operations, technician)
+                .requestMatchers(HttpMethod.PATCH, "/api/staff/maintenance/**")
+                    .hasAnyRole(platform, brandAdmin, operations, technician)
+                .requestMatchers(HttpMethod.POST, "/api/staff/inventory/**")
+                    .hasAnyRole(platform, brandAdmin, operations, inventory)
+                .requestMatchers(HttpMethod.PUT, "/api/staff/inventory/**")
+                    .hasAnyRole(platform, brandAdmin, operations, inventory)
+                .requestMatchers(HttpMethod.PATCH, "/api/staff/inventory/**")
+                    .hasAnyRole(platform, brandAdmin, operations, inventory)
+                .requestMatchers("/api/staff/reports/**").hasRole(platform)
+                .requestMatchers("/api/staff/**").hasAnyRole(platform, "ADMIN", "STAFF")
+                .requestMatchers("/api/customer/**").hasAnyRole(platform, "ADMIN", "CUSTOMER")
                 .anyRequest().authenticated())
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 

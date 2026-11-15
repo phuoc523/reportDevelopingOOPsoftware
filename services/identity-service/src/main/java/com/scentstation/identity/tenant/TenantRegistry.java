@@ -1,11 +1,8 @@
 package com.scentstation.identity.tenant;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scentstation.identity.repository.TenantRepository;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,27 +11,20 @@ import org.springframework.transaction.annotation.Transactional;
 public class TenantRegistry {
 
     private final TenantRepository repository;
-    private final ObjectMapper objectMapper;
 
-    public TenantRegistry(TenantRepository repository, ObjectMapper objectMapper) {
+    public TenantRegistry(TenantRepository repository) {
         this.repository = repository;
-        this.objectMapper = objectMapper;
     }
 
     @Transactional
-    public Tenant create(
-            String tenantCode, String name, String brandName, String configurationJson) {
-        validateConfiguration(configurationJson);
-
-        if (repository.existsByTenantCode(tenantCode)) {
+    public Tenant create(String tenantCode) {
+        String normalizedCode = requireCode(tenantCode);
+        if (repository.existsByTenantCode(normalizedCode)) {
             throw new IllegalArgumentException("Tenant code already exists");
         }
 
-        Tenant tenant = new Tenant(tenantCode, name, brandName);
-        tenant.updateDetails(name, brandName, configurationJson);
-
         try {
-            return repository.saveAndFlush(tenant);
+            return repository.saveAndFlush(new Tenant(normalizedCode));
         } catch (DataIntegrityViolationException exception) {
             throw new IllegalArgumentException("Tenant code already exists", exception);
         }
@@ -42,42 +32,38 @@ public class TenantRegistry {
 
     @Transactional(readOnly = true)
     public List<Tenant> findAll() {
-        return repository.findAllByOrderByNameAsc();
+        return repository.findAllByOrderByTenantCodeAsc();
     }
 
     @Transactional(readOnly = true)
-    public Tenant findById(UUID id) {
+    public Tenant findById(String id) {
         return repository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Tenant not found: " + id));
     }
 
     @Transactional
-    public Tenant update(
-            UUID id, String name, String brandName, String configurationJson) {
-        validateConfiguration(configurationJson);
+    public Tenant updateCode(String id, String code) {
         Tenant tenant = findById(id);
-        tenant.updateDetails(name, brandName, configurationJson);
+        String normalizedCode = requireCode(code);
+        if (!tenant.getTenantCode().equals(normalizedCode)
+                && repository.existsByTenantCode(normalizedCode)) {
+            throw new IllegalArgumentException("Tenant code already exists");
+        }
+        tenant.setTenantCode(normalizedCode);
         return repository.save(tenant);
     }
 
     @Transactional
-    public Tenant setActive(UUID id, boolean active) {
+    public Tenant setActive(String id, boolean active) {
         Tenant tenant = findById(id);
         tenant.setActive(active);
         return repository.save(tenant);
     }
 
-    private void validateConfiguration(String configurationJson) {
-        if (configurationJson == null || configurationJson.isBlank()) {
-            return;
+    private String requireCode(String value) {
+        if (value == null || value.isBlank() || value.length() > 80) {
+            throw new IllegalArgumentException("Tenant code is required (max 80 characters)");
         }
-        try {
-            JsonNode node = objectMapper.readTree(configurationJson);
-            if (node == null || !node.isObject()) {
-                throw new IllegalArgumentException("configurationJson must be a JSON object");
-            }
-        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
-            throw new IllegalArgumentException("configurationJson must be valid JSON", exception);
-        }
+        return value.trim();
     }
 }

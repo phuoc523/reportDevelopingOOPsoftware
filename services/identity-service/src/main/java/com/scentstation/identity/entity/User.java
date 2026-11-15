@@ -30,7 +30,7 @@ public class User {
     @Column(nullable = false)
     private boolean active = true;
 
-    @Column(nullable = false)
+    @Transient
     private boolean locked = false;
 
     protected User() {

@@ -1,10 +1,8 @@
 package com.scentstation.identity.tenant;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scentstation.identity.repository.TenantRepository;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -21,34 +19,21 @@ class TenantRegistryTest {
     @BeforeEach
     void setUp() {
         repository = mock(TenantRepository.class);
-        registry = new TenantRegistry(repository, new ObjectMapper());
+        registry = new TenantRegistry(repository);
     }
 
     @Test
-    void createTenantWithDefaultConfiguration() {
+    void createTenantMatchesExistingSchema() {
         when(repository.existsByTenantCode("BRAND01")).thenReturn(false);
         when(repository.saveAndFlush(any(Tenant.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        Tenant result = registry.create("BRAND01", "Tenant One", "Brand One", null);
+        Tenant result = registry.create(" BRAND01 ");
 
+        assertNotNull(result.getId());
         assertEquals("BRAND01", result.getTenantCode());
-        assertEquals("Tenant One", result.getName());
-        assertEquals("Brand One", result.getBrandName());
-        assertEquals("{}", result.getConfigurationJson());
+        assertTrue(result.isActive());
         verify(repository).saveAndFlush(any(Tenant.class));
-    }
-
-    @Test
-    void createTenantWithCustomConfiguration() {
-        when(repository.existsByTenantCode("BRAND02")).thenReturn(false);
-        when(repository.saveAndFlush(any(Tenant.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        Tenant result = registry.create(
-                "BRAND02", "Tenant Two", "Brand Two", "{\"theme\":\"dark\"}");
-
-        assertEquals("{\"theme\":\"dark\"}", result.getConfigurationJson());
     }
 
     @Test
@@ -56,46 +41,57 @@ class TenantRegistryTest {
         when(repository.existsByTenantCode("BRAND01")).thenReturn(true);
 
         assertThrows(IllegalArgumentException.class,
-                () -> registry.create("BRAND01", "Tenant One", "Brand One", "{}"));
+                () -> registry.create("BRAND01"));
 
         verify(repository, never()).saveAndFlush(any(Tenant.class));
     }
 
     @Test
-    void rejectInvalidConfigurationJson() {
+    void rejectBlankTenantCode() {
         assertThrows(IllegalArgumentException.class,
-                () -> registry.create("BRAND03", "Tenant Three", "Brand Three", "{invalid"));
+                () -> registry.create(" "));
 
         verify(repository, never()).saveAndFlush(any(Tenant.class));
     }
 
     @Test
-    void listTenantsByName() {
-        List<Tenant> tenants = List.of(
-                new Tenant("B", "Beta", "Beta Brand"),
-                new Tenant("A", "Alpha", "Alpha Brand"));
-        when(repository.findAllByOrderByNameAsc()).thenReturn(tenants);
+    void listTenantsByCode() {
+        when(repository.findAllByOrderByTenantCodeAsc())
+                .thenReturn(List.of(new Tenant("A"), new Tenant("B")));
 
         assertEquals(2, registry.findAll().size());
-        verify(repository).findAllByOrderByNameAsc();
+        verify(repository).findAllByOrderByTenantCodeAsc();
     }
 
     @Test
-    void throwWhenTenantDoesNotExist() {
-        UUID id = UUID.randomUUID();
-        when(repository.findById(id)).thenReturn(Optional.empty());
+    void findTenantByStringId() {
+        Tenant tenant = new Tenant("BRAND01");
+        when(repository.findById(tenant.getId())).thenReturn(Optional.of(tenant));
 
-        assertThrows(java.util.NoSuchElementException.class,
-                () -> registry.findById(id));
+        assertSame(tenant, registry.findById(tenant.getId()));
     }
 
     @Test
-    void rejectDuplicateCodeReportedByDatabase() {
+    void updateTenantCodeWithoutChangingId() {
+        Tenant tenant = new Tenant("BRAND01");
+        when(repository.findById(tenant.getId())).thenReturn(Optional.of(tenant));
+        when(repository.existsByTenantCode("BRAND02")).thenReturn(false);
+        when(repository.save(any(Tenant.class))).thenAnswer(invocation ->
+                invocation.getArgument(0));
+
+        Tenant updated = registry.updateCode(tenant.getId(), "BRAND02");
+
+        assertEquals(tenant.getId(), updated.getId());
+        assertEquals("BRAND02", updated.getTenantCode());
+    }
+
+    @Test
+    void reportDuplicateCodeFromDatabase() {
         when(repository.existsByTenantCode("BRAND04")).thenReturn(false);
         when(repository.saveAndFlush(any(Tenant.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate key"));
 
         assertThrows(IllegalArgumentException.class,
-                () -> registry.create("BRAND04", "Tenant Four", "Brand Four", "{}"));
+                () -> registry.create("BRAND04"));
     }
 }
