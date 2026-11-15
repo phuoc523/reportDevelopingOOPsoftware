@@ -1,15 +1,324 @@
-# ScentStation Docker Compose skeleton.
-# TODO: Add services only after the team finalizes images, ports, networks,
-# environment variables, volumes, and health checks.
-#
-# Planned infrastructure:
-# - MySQL
-# - Redis
-# - Mosquitto
-# - Apache NiFi
-# - API Gateway
-# - Backend microservices
-# - Frontend applications
-#
-# No runnable service configuration is defined in this initialization step.
-services: {}
+# Local backend stack. Each business service owns its database.
+name: scentstation-local
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: api-gateway
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      IDENTITY_SERVICE_URL: http://identity-service:8081
+      CATALOG_SERVICE_URL: http://catalog-service:8082
+      ORDER_SERVICE_URL: http://order-service:8083
+      MACHINE_SERVICE_URL: http://machine-service:8084
+      OPERATION_SERVICE_URL: http://operation-service:8085
+      REPORTING_SERVICE_URL: http://reporting-service:8086
+
+  identity-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: identity-service
+    environment:
+      DB_URL: "jdbc:mysql://identity-db:3306/scentstation_identity?allowPublicKeyRetrieval=true&sslMode=DISABLED"
+      DB_USERNAME: "identity_app"
+      DB_PASSWORD: "identity_local_password"
+      JWT_SECRET: "${JWT_SECRET:-U2NlbnRTdGF0aW9uRGV2ZWxvcG1lbnRLZXlGb3JKV1QyMDI2IQ==}"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+    depends_on:
+      identity-db:
+        condition: service_healthy
+
+  catalog-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: catalog-service
+    environment:
+      CATALOG_DB_URL: "jdbc:mysql://catalog-db:3306/scentstation_catalog?allowPublicKeyRetrieval=true&sslMode=DISABLED"
+      CATALOG_DB_USERNAME: "catalog_app"
+      CATALOG_DB_PASSWORD: "catalog_local_password"
+      SPRING_PROFILES_ACTIVE: "local"
+      IDENTITY_SERVICE_URL: "http://identity-service:8081"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+
+  order-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: order-service
+    environment:
+      DB_URL: "jdbc:mysql://order-db:3306/order_db?allowPublicKeyRetrieval=true&sslMode=DISABLED"
+      DB_USERNAME: "order_user"
+      DB_PASSWORD: "order_local_password"
+      MACHINE_SERVICE_BASE_URL: "http://machine-service:8084"
+      CATALOG_SERVICE_BASE_URL: "http://catalog-service:8082"
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Ho_Chi_Minh"
+      REPORTING_SERVICE_URL: "http://reporting-service:8086"
+      REPORTING_SYNC_ENABLED: "true"
+      REPORTING_SYNC_API_KEY: "${REPORTING_SYNC_API_KEY:-local-reporting-sync-key}"
+      IDENTITY_SERVICE_URL: "http://identity-service:8081"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+    depends_on:
+      order-db:
+        condition: service_healthy
+
+  machine-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: machine-service
+    environment:
+      MACHINE_DB_URL: "jdbc:mysql://machine-db:3306/scentstation_machine?allowPublicKeyRetrieval=true&sslMode=DISABLED"
+      MACHINE_DB_USERNAME: "machine_app"
+      MACHINE_DB_PASSWORD: "machine_local_password"
+      IDENTITY_SERVICE_URL: "http://identity-service:8081"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      MACHINE_NOTIFICATION_KAFKA_ENABLED: "true"
+      MACHINE_NOTIFICATION_KAFKA_TOPIC: "machine-alert.v1"
+    depends_on:
+      machine-db:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: notification-service
+    ports:
+      - "127.0.0.1:8087:8087"
+    environment:
+      NOTIFICATION_DB_URL: "jdbc:mysql://notification-db:3306/scentstation_notification?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      NOTIFICATION_DB_USERNAME: "notification_app"
+      NOTIFICATION_DB_PASSWORD: "notification_local_password"
+      NOTIFICATION_IDENTITY_URL: "http://identity-service:8081"
+      NOTIFICATION_IDENTITY_INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      NOTIFICATION_KAFKA_ENABLED: "true"
+      NOTIFICATION_KAFKA_MACHINE_ALERT_TOPIC: "machine-alert.v1"
+      NOTIFICATION_KAFKA_DEAD_LETTER_TOPIC: "machine-alert.v1.DLT"
+      NOTIFICATION_FIREBASE_ENABLED: "${NOTIFICATION_FIREBASE_ENABLED:-false}"
+      NOTIFICATION_FIREBASE_PROJECT_ID: "${NOTIFICATION_FIREBASE_PROJECT_ID:-}"
+      NOTIFICATION_FIREBASE_CREDENTIALS_PATH: "${NOTIFICATION_FIREBASE_CREDENTIALS_PATH:-}"
+    depends_on:
+      notification-db:
+        condition: service_healthy
+      identity-service:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  operation-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: operation-service
+    environment:
+      OPERATION_DB_URL: "jdbc:mysql://operation-db:3306/scentstation_operation?allowPublicKeyRetrieval=true&sslMode=DISABLED"
+      OPERATION_DB_USERNAME: "operation_app"
+      OPERATION_DB_PASSWORD: "operation_local_password"
+      IDENTITY_SERVICE_URL: "http://identity-service:8081"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-}"
+      SPRING_PROFILES_ACTIVE: "docker-local"
+    depends_on:
+      operation-db:
+        condition: service_healthy
+
+  reporting-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: reporting-service
+    environment:
+      DB_URL: "jdbc:mysql://reporting-db:3306/scentstation_reporting?allowPublicKeyRetrieval=true&sslMode=DISABLED"
+      DB_USERNAME: "reporting_app"
+      DB_PASSWORD: "reporting_local_password"
+      ORDER_SERVICE_URL: "http://order-service:8083"
+      MACHINE_SERVICE_URL: "http://machine-service:8084"
+      OPERATION_SERVICE_URL: "http://operation-service:8085"
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Ho_Chi_Minh"
+      REPORTING_SYNC_API_KEY: "${REPORTING_SYNC_API_KEY:-local-reporting-sync-key}"
+    ports:
+      - "127.0.0.1:8086:8086"
+    depends_on:
+      reporting-db:
+        condition: service_healthy
+
+  identity-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: scentstation_identity
+      MYSQL_USER: identity_app
+      MYSQL_PASSWORD: identity_local_password
+      MYSQL_ROOT_PASSWORD: identity_local_root_password
+    volumes:
+      - identity-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  catalog-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: scentstation_catalog
+      MYSQL_USER: catalog_app
+      MYSQL_PASSWORD: catalog_local_password
+      MYSQL_ROOT_PASSWORD: catalog_local_root_password
+    volumes:
+      - catalog-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  order-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: order_db
+      MYSQL_USER: order_user
+      MYSQL_PASSWORD: order_local_password
+      MYSQL_ROOT_PASSWORD: order_local_root_password
+    volumes:
+      - order-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  machine-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: scentstation_machine
+      MYSQL_USER: machine_app
+      MYSQL_PASSWORD: machine_local_password
+      MYSQL_ROOT_PASSWORD: machine_local_root_password
+    volumes:
+      - machine-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  operation-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: scentstation_operation
+      MYSQL_USER: operation_app
+      MYSQL_PASSWORD: operation_local_password
+      MYSQL_ROOT_PASSWORD: operation_local_root_password
+    volumes:
+      - operation-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  reporting-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: scentstation_reporting
+      MYSQL_USER: reporting_app
+      MYSQL_PASSWORD: reporting_local_password
+      MYSQL_ROOT_PASSWORD: reporting_local_root_password
+    volumes:
+      - reporting-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  notification-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: scentstation_notification
+      MYSQL_USER: notification_app
+      MYSQL_PASSWORD: notification_local_password
+      MYSQL_ROOT_PASSWORD: notification_local_root_password
+    volumes:
+      - notification-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root --password=$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  kafka:
+    image: apache/kafka:3.8.1
+    ports:
+      - "127.0.0.1:9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: CONTROLLER://:9093,INTERNAL://:29092,EXTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 20s
+
+  kafka-init:
+    image: apache/kafka:3.8.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
+        --create --if-not-exists --topic machine-alert.v1
+        --partitions 1 --replication-factor 1 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
+        --create --if-not-exists --topic machine-alert.v1.DLT
+        --partitions 1 --replication-factor 1
+
+volumes:
+  identity-data:
+  catalog-data:
+  order-data:
+  machine-data:
+  operation-data:
+  reporting-data:
+  notification-data:
+  kafka-data:
