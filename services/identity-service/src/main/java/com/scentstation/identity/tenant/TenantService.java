@@ -5,6 +5,9 @@ import com.scentstation.identity.rbac.AccessPolicy;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -13,8 +16,42 @@ public class TenantService {
     private final TenantRepository tenants;
     private final AccessPolicy access;
     private final AuditService audit;
+    private TenantViewCache tenantViewCache;
     public TenantService(TenantRepository tenants, AccessPolicy access, AuditService audit) {
         this.tenants = tenants; this.access = access; this.audit = audit;
+    }
+
+    /** Optional bean injection preserves existing tests and service callers. */
+    @Autowired(required = false)
+    public void setTenantViewCache(TenantViewCache cache) {
+        this.tenantViewCache = cache;
+    }
+
+    /** Cached display-only snapshot; security paths call require() instead. */
+    public TenantView view(Long id) {
+        if (id == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tenant not assigned");
+        }
+        TenantViewCache cache = tenantViewCache;
+        if (cache != null) {
+            TenantView hit = cache.get(id);
+            if (hit != null) return hit;
+        }
+        TenantView fresh = TenantView.from(require(id));
+        if (cache != null) cache.put(id, fresh);
+        return fresh;
+    }
+
+    private void evictViewAfterCommit(Long tenantId) {
+        TenantViewCache cache = tenantViewCache;
+        if (cache == null) return;
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+            || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            throw new IllegalStateException("Active transaction required for cache invalidation");
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { cache.evict(tenantId); }
+        });
     }
 
     public Tenant require(Long id) {
@@ -46,6 +83,7 @@ public class TenantService {
         if (r.name() != null && !r.name().isBlank()) t.setName(r.name().trim());
         apply(t, r.profile());
         audit.record(access.current().id(), id, "TENANT_UPDATED", "TENANT", id.toString(), null, "profile-changed");
+        evictViewAfterCommit(id);
         return t;
     }
 
@@ -58,6 +96,7 @@ public class TenantService {
         if (r.name() != null && !r.name().isBlank()) t.setName(r.name().trim());
         apply(t, r.profile());
         audit.record(access.current().id(), tenantId, "BRAND_PROFILE_UPDATED", "TENANT", tenantId.toString(), null, "profile-changed");
+        evictViewAfterCommit(tenantId);
         return t;
     }
 
@@ -68,6 +107,7 @@ public class TenantService {
         if (previous == status) throw new ResponseStatusException(HttpStatus.CONFLICT, "Tenant already in requested status");
         t.setStatus(status);
         audit.record(access.current().id(), id, "TENANT_STATUS_CHANGED", "TENANT", id.toString(), previous.name(), status.name());
+        evictViewAfterCommit(id);
         return t;
     }
 

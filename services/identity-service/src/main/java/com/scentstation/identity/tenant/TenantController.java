@@ -23,7 +23,7 @@ public class TenantController {
 
     @GetMapping("/api/platform/tenants/{id}")
     @PreAuthorize("@accessPolicy.has('TENANT_MANAGE')")
-    public Tenant get(@PathVariable Long id) { return service.require(id); }
+    public TenantView get(@PathVariable Long id) { return service.view(id); }
 
     @PatchMapping("/api/platform/tenants/{id}")
     @PreAuthorize("@accessPolicy.has('TENANT_MANAGE')")
@@ -39,7 +39,12 @@ public class TenantController {
 
     @GetMapping("/api/brand/tenant")
     @PreAuthorize("@accessPolicy.has('BRAND_PROFILE_READ')")
-    public Tenant brand() { return service.require(access.current().tenantId()); }
+    public TenantView brand() {
+        Long tenantId = access.current().tenantId();
+        // A cached display cannot bypass current tenant suspension checks.
+        service.requireActive(tenantId);
+        return service.view(tenantId);
+    }
 
     @PatchMapping("/api/brand/tenant")
     @PreAuthorize("@accessPolicy.has('BRAND_PROFILE_EDIT')")

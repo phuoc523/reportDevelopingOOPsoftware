@@ -1,0 +1,40 @@
+name: Identity Redis Cache CI
+
+on:
+  push:
+    branches: [feature/redis-cache]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  identity-redis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 16379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: services/identity-service/pom.xml
+      - name: Run identity tests with dedicated live Redis
+        env:
+          RUN_REDIS_TESTS: 'true'
+          REDIS_TEST_HOST: 127.0.0.1
+          REDIS_TEST_PORT: '16379'
+        run: mvn -B -ntp -f services/identity-service/pom.xml test
+      - name: Publish test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-redis-surefire
+          path: services/identity-service/target/surefire-reports/
+          if-no-files-found: ignore
