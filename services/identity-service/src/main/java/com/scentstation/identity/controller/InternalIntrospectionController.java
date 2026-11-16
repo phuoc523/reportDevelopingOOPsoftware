@@ -31,6 +31,8 @@ public class InternalIntrospectionController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                 "Service authentication required");
         }
+        // The JWT filter re-loads active account, tokenVersion, current roles,
+        // grants, scopes and active tenant BEFORE method invocation.
         return access.current();
     }
 }

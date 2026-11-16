@@ -1,5 +1,5 @@
 import { api, authToken, download, query } from './client'
-import type { Account, AccountCreateInput, Alert, AuthResponse, Bottle, Campaign, CampaignInput, Dashboard, InventoryBatch, JsonRecord, Location, Machine, MachineInput, MaintenanceTicket, Order, PageResponse, PaymentReview, Permission, Principal, Product, Role, Slot, SlotInput, Tenant, TenantInput, Transaction } from './types'
+import type { Account, AccountCreateInput, Alert, AuthResponse, Bottle, Campaign, CampaignInput, Dashboard, DeviceRegistration, InventoryBatch, JsonRecord, Location, Machine, MachineInput, MaintenanceTicket, NotificationItem, NotificationPage, Order, PageResponse, PaymentReview, Permission, Principal, Product, Role, Slot, SlotInput, Tenant, TenantInput, Transaction } from './types'
 
 export const backend = {
   async login(username: string, password: string) {
@@ -64,4 +64,11 @@ export const backend = {
   transactionSummary: (period: string, startDate?: string, endDate?: string) => api<JsonRecord>(`/api/reporting/transactions/summary${query({ period, startDate, endDate })}`),
   dashboard: (tenantId?: number, period = 'month') => api<Dashboard>(`/api/reporting/dashboard${query({ tenantId, period })}`),
   audit: (tenantId?: number) => api<JsonRecord[]>(`/api/audit/recent${query({ tenantId })}`),
+  notifications: (tenantId?: number, page = 0, size = 20) => api<NotificationPage>(`/api/notifications${query({ tenantId, page, size, sortDirection: 'DESC' })}`),
+  unreadNotifications: (tenantId?: number) => api<{ unreadCount: number }>(`/api/notifications/unread-count${query({ tenantId })}`),
+  markNotificationRead: (id: number, tenantId?: number) => api<NotificationItem>(`/api/notifications/${id}/read${query({ tenantId })}`, { method: 'PATCH' }),
+  markNotificationsRead: (notificationIds: number[], tenantId?: number) => api<{ updatedCount: number }>(`/api/notifications/read${query({ tenantId })}`, { method: 'PATCH', body: JSON.stringify({ notificationIds }) }),
+  registerNotificationDevice: (data: { tenantId?: string; deviceId: string; firebaseToken: string; platform: 'WEB' }) => api<DeviceRegistration>('/api/notification-device-tokens', { method: 'POST', body: JSON.stringify(data) }),
+  notificationDevice: (deviceId: string, tenantId?: number) => api<DeviceRegistration>(`/api/notification-device-tokens/${encodeURIComponent(deviceId)}${query({ tenantId })}`),
+  revokeNotificationDevice: (deviceId: string, tenantId?: number) => api<DeviceRegistration>(`/api/notification-device-tokens/${encodeURIComponent(deviceId)}${query({ tenantId })}`, { method: 'DELETE' }),
 }

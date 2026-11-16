@@ -1,0 +1,130 @@
+package com.scentstation.notification.exception;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
+import com.scentstation.notification.security.NotificationAuthorizationException;
+import com.scentstation.notification.security.NotificationAuthorizationUnavailableException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.dao.DataAccessException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.time.Instant;
+import java.util.Map;
+import java.util.TreeMap;
+
+@RestControllerAdvice
+public class NotificationExceptionHandler {
+
+    @ExceptionHandler(NotificationNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleNotFound(
+            NotificationNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return response(HttpStatus.NOT_FOUND, exception.getMessage(), request, Map.of());
+    }
+
+    @ExceptionHandler(DeviceRegistrationNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleDeviceNotFound(
+            DeviceRegistrationNotFoundException exception, HttpServletRequest request) {
+        return response(HttpStatus.NOT_FOUND, exception.getMessage(), request, Map.of());
+    }
+
+    @ExceptionHandler(DeviceTokenConflictException.class)
+    public ResponseEntity<ApiErrorResponse> handleDeviceTokenConflict(
+            DeviceTokenConflictException exception, HttpServletRequest request) {
+        return response(HttpStatus.CONFLICT, exception.getMessage(), request, Map.of());
+    }
+
+    @ExceptionHandler(DuplicateNotificationEventException.class)
+    public ResponseEntity<ApiErrorResponse> handleDuplicateEvent(
+            DuplicateNotificationEventException exception,
+            HttpServletRequest request
+    ) {
+        return response(HttpStatus.CONFLICT, exception.getMessage(), request, Map.of());
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiErrorResponse> handleRequestValidation(
+            MethodArgumentNotValidException exception,
+            HttpServletRequest request
+    ) {
+        Map<String, String> errors = new TreeMap<>();
+        for (FieldError fieldError : exception.getBindingResult().getFieldErrors()) {
+            errors.putIfAbsent(fieldError.getField(), fieldError.getDefaultMessage());
+        }
+        return response(HttpStatus.BAD_REQUEST, "Request validation failed", request, errors);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleConstraintViolation(
+            ConstraintViolationException exception,
+            HttpServletRequest request
+    ) {
+        Map<String, String> errors = new TreeMap<>();
+        exception.getConstraintViolations().forEach(violation ->
+            errors.putIfAbsent(violation.getPropertyPath().toString(), violation.getMessage())
+        );
+        return response(HttpStatus.BAD_REQUEST, "Request validation failed", request, errors);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleUnreadableRequest(HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "Request body is invalid", request, Map.of());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidParameter(HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "Request parameter is invalid", request, Map.of());
+    }
+
+    @ExceptionHandler(NotificationAuthorizationException.class)
+    public ResponseEntity<ApiErrorResponse> handleAuthorization(
+            NotificationAuthorizationException exception,
+            HttpServletRequest request
+    ) {
+        return response(exception.status(), exception.getMessage(), request, Map.of());
+    }
+
+    @ExceptionHandler(NotificationAuthorizationUnavailableException.class)
+    public ResponseEntity<ApiErrorResponse> handleAuthorizationUnavailable(HttpServletRequest request) {
+        return response(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Caller authorization is temporarily unavailable",
+            request,
+            Map.of()
+        );
+    }
+
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<ApiErrorResponse> handleDatabaseUnavailable(HttpServletRequest request) {
+        return response(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Notification persistence is temporarily unavailable",
+            request,
+            Map.of()
+        );
+    }
+
+    private ResponseEntity<ApiErrorResponse> response(
+            HttpStatus status,
+            String message,
+            HttpServletRequest request,
+            Map<String, String> validationErrors
+    ) {
+        ApiErrorResponse body = new ApiErrorResponse(
+            status.value(),
+            status.getReasonPhrase(),
+            message,
+            request.getRequestURI(),
+            Instant.now(),
+            validationErrors
+        );
+        return ResponseEntity.status(status).body(body);
+    }
+}

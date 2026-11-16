@@ -60,6 +60,11 @@ spring:
           predicates:
             - Path=/api/reporting/**
 
+        - id: notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8087}
+          predicates:
+            - Path=/api/notifications/**,/api/notification-device-tokens/**
+
 management:
   endpoints:
     web:

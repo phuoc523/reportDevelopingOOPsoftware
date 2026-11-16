@@ -27,6 +27,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private boolean permittedTenant(com.scentstation.identity.entity.User user) {
+        // Public kiosk customers may have no tenant. Assigned staff must not
+        // keep using JWTs issued before their tenant was suspended.
         if (user.getTenantId() == null) return true;
         return tenants.findById(user.getTenantId())
             .map(t -> t.getStatus() == Tenant.Status.ACTIVE).orElse(false);

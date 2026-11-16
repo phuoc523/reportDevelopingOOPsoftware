@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 public class MachineAlertChangedEvent {
+    private final int eventVersion;
     private final String eventId;
     private final Long alertId;
     private final String tenantId;
@@ -25,6 +26,7 @@ public class MachineAlertChangedEvent {
     public MachineAlertChangedEvent(String eventId, Long alertId, String tenantId, Long machineId,
                                     String locationId, String alertType, String severity,
                                     String status, Instant occurredAt) {
+        this.eventVersion = 1;
         this.eventId = eventId;
         this.alertId = alertId;
         this.tenantId = tenantId;
@@ -37,6 +39,7 @@ public class MachineAlertChangedEvent {
         this.source = "machine-service";
     }
 
+    public int getEventVersion() { return eventVersion; }
     public String getEventId() { return eventId; }
     public Long getAlertId() { return alertId; }
     public String getTenantId() { return tenantId; }

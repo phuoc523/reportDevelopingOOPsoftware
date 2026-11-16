@@ -31,6 +31,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/auth/health").permitAll()
                 .requestMatchers("/error").permitAll()
+                .requestMatchers(HttpMethod.POST, "/internal/notifications/authorize-service").permitAll()
+                .requestMatchers(HttpMethod.POST, "/internal/notifications/resolve-recipients").permitAll()
+                .requestMatchers(HttpMethod.POST, "/internal/notifications/authorize-user").authenticated()
                 .requestMatchers(HttpMethod.POST, "/internal/auth/introspect").authenticated()
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                 .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
@@ -38,10 +41,13 @@ public class SecurityConfig {
                 .requestMatchers("/api/platform/**").hasRole("PLATFORM_SUPER_ADMIN")
                 // Brand controllers enforce fine-grained permissions with @PreAuthorize/service checks.
                 .requestMatchers("/api/brand/**").authenticated()
+                // Legacy ADMIN/STAFF values are retained for old records only.
+                // They must not authorize privileged endpoints implicitly.
                 .requestMatchers("/api/admin/**").hasAnyRole("PLATFORM_SUPER_ADMIN", "BRAND_ADMIN")
                 .requestMatchers("/api/staff/**").hasAnyRole("PLATFORM_SUPER_ADMIN", "BRAND_ADMIN",
                     "OPERATIONS_MANAGER", "TECHNICIAN", "INVENTORY_STAFF")
                 .requestMatchers("/api/customer/**").hasAnyRole("CUSTOMER", "PLATFORM_SUPER_ADMIN")
+                // Fail closed. Add explicit routes and method-level checks for new Identity APIs.
                 .anyRequest().denyAll())
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

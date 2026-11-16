@@ -20,6 +20,7 @@ services:
       CORS_ALLOWED_ORIGIN_2: http://127.0.0.1:7514
       CORS_ALLOWED_ORIGIN_3: http://localhost:7515
       CORS_ALLOWED_ORIGIN_4: http://127.0.0.1:7515
+      NOTIFICATION_SERVICE_URL: http://notification-service:8087
 
   identity-service:
     build:
@@ -88,9 +89,59 @@ services:
       MACHINE_DB_PASSWORD: "machine_local_password"
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
       INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      MACHINE_NOTIFICATION_KAFKA_ENABLED: "true"
+      MACHINE_NOTIFICATION_KAFKA_TOPIC: "machine-alert.v1"
     depends_on:
       machine-db:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+      args:
+        SERVICE: notification-service
+    ports:
+      - "127.0.0.1:8087:8087"
+    environment:
+      NOTIFICATION_DB_URL: "jdbc:mysql://notification-db:3306/scentstation_notification?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+      NOTIFICATION_DB_USERNAME: "notification_app"
+      NOTIFICATION_DB_PASSWORD: "notification_local_password"
+      NOTIFICATION_IDENTITY_URL: "http://identity-service:8081"
+      NOTIFICATION_IDENTITY_INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      NOTIFICATION_KAFKA_ENABLED: "true"
+      NOTIFICATION_KAFKA_MACHINE_ALERT_TOPIC: "machine-alert.v1"
+      NOTIFICATION_KAFKA_GROUP_ID: "${NOTIFICATION_KAFKA_GROUP_ID:-notification-service-v1}"
+      NOTIFICATION_KAFKA_RETRY_ATTEMPTS: "${NOTIFICATION_KAFKA_RETRY_ATTEMPTS:-3}"
+      NOTIFICATION_KAFKA_RETRY_BACKOFF_MS: "${NOTIFICATION_KAFKA_RETRY_BACKOFF_MS:-1000}"
+      NOTIFICATION_KAFKA_DEAD_LETTER_TOPIC: "machine-alert.v1.DLT"
+      # Base compose stays operational without Firebase credentials. The Firebase overlay
+      # explicitly enables FCM and requires a mounted service-account file.
+      NOTIFICATION_FIREBASE_ENABLED: "false"
+      NOTIFICATION_FIREBASE_PROJECT_ID: "${NOTIFICATION_FIREBASE_PROJECT_ID:-}"
+      NOTIFICATION_FIREBASE_CREDENTIALS_PATH: "${NOTIFICATION_FIREBASE_CREDENTIALS_PATH:-}"
+      NOTIFICATION_FIREBASE_POLL_INTERVAL: "${NOTIFICATION_FIREBASE_POLL_INTERVAL:-5s}"
+      NOTIFICATION_FIREBASE_BATCH_SIZE: "${NOTIFICATION_FIREBASE_BATCH_SIZE:-20}"
+      NOTIFICATION_FIREBASE_MAX_ATTEMPTS: "${NOTIFICATION_FIREBASE_MAX_ATTEMPTS:-5}"
+      NOTIFICATION_FIREBASE_INITIAL_BACKOFF: "${NOTIFICATION_FIREBASE_INITIAL_BACKOFF:-10s}"
+      NOTIFICATION_FIREBASE_DELIVERY_LEASE: "${NOTIFICATION_FIREBASE_DELIVERY_LEASE:-5m}"
+    depends_on:
+      notification-db:
+        condition: service_healthy
+      identity-service:
+        condition: service_started
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health/readiness | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
   operation-service:
     build:
@@ -222,6 +273,63 @@ services:
       timeout: 5s
       retries: 30
 
+  notification-db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: scentstation_notification
+      MYSQL_USER: notification_app
+      MYSQL_PASSWORD: notification_local_password
+      MYSQL_ROOT_PASSWORD: notification_local_root_password
+    volumes:
+      - notification-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root --password=$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  kafka:
+    image: apache/kafka:3.9.1
+    ports:
+      - "127.0.0.1:9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: CONTROLLER://:9093,INTERNAL://:29092,EXTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 20s
+
+  kafka-init:
+    image: apache/kafka:3.9.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
+        --create --if-not-exists --topic machine-alert.v1
+        --partitions 1 --replication-factor 1 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
+        --create --if-not-exists --topic machine-alert.v1.DLT
+        --partitions 1 --replication-factor 1
+
 volumes:
   identity-data:
   catalog-data:
@@ -229,3 +337,5 @@ volumes:
   machine-data:
   operation-data:
   reporting-data:
+  notification-data:
+  kafka-data:

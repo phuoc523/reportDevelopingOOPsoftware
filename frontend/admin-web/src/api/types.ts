@@ -49,4 +49,7 @@ export interface PaymentReview { reference: string; orderId: number; reason: str
 export interface Transaction { id: number; reference: string; orderId: string; amount: number; currency: string; status: string; createdAt: string; paidAt: string | null }
 export interface PageResponse<T> { content: T[]; totalElements: number; totalPages: number; number: number; size: number }
 export interface Dashboard { transactions: Record<string, unknown>; machines: Record<string, unknown>; alerts: Record<string, unknown>; inventory: Record<string, unknown>; upstream: Record<string, string>; operations: Record<string, unknown>; access: Record<string, unknown> | null }
+export interface NotificationItem { id: number; tenantId: string; title: string; content: string; notificationType: string; priority: string; source: string; sourceEventId: string | null; createdAt: string; updatedAt: string; readAt: string | null }
+export interface NotificationPage { items: NotificationItem[]; page: number; size: number; totalElements: number; totalPages: number }
+export interface DeviceRegistration { id: number; tenantId: string; userId: string; deviceId: string; platform: 'ANDROID' | 'IOS' | 'WEB'; active: boolean; createdAt: string; updatedAt: string; lastSeenAt: string }
 export type JsonRecord = Record<string, unknown>

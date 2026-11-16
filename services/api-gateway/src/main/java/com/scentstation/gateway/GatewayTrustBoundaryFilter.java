@@ -26,6 +26,7 @@ public class GatewayTrustBoundaryFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().value();
+        // Never proxy internal APIs through the public Gateway.
         for (String segment : path.split("/")) {
             if ("internal".equalsIgnoreCase(segment)) {
                 exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);

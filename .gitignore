@@ -11,3 +11,7 @@
 
 # Environment secrets
 .env
+
+# Firebase service-account credentials
+infra/firebase/*.json
+**/firebase-service-account*.json

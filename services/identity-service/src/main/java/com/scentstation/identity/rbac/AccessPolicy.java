@@ -43,6 +43,9 @@ public class AccessPolicy {
             && !a.roles().contains(Role.BRAND_ADMIN)
             && !a.roles().contains(Role.OPERATIONS_MANAGER)
             && !a.roles().contains(Role.PLATFORM_SUPER_ADMIN);
+        // Technicians must be assigned a concrete machine. Do not treat a missing
+        // machineId or an empty assignment as tenant-wide access. List endpoints
+        // must query/filter assigned machines rather than call scope(..., null).
         if (technicianOnly && (machineId == null || a.machineIds().isEmpty()
             || !a.machineIds().contains(machineId))) return false;
         if (locationId != null && !a.locationIds().isEmpty() && !a.locationIds().contains(locationId)) return false;

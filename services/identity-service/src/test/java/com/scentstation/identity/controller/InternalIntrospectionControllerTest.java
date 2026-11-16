@@ -7,7 +7,6 @@ import com.scentstation.identity.rbac.Permission;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
-
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 

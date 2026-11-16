@@ -11,9 +11,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 class AlertHandoffOutboxRetryJobTest {
     @Test
@@ -27,7 +25,8 @@ class AlertHandoffOutboxRetryJobTest {
             when(repository.findTop100ByNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(any(Instant.class)))
                 .thenReturn(List.of(item));
             AlertHandoffOutboxRetryJob job = new AlertHandoffOutboxRetryJob(repository,
-                "http://127.0.0.1:" + server.getAddress().getPort() + "/handoff", "", "test-key");
+                "http://127.0.0.1:" + server.getAddress().getPort() + "/handoff", "", "test-key",
+                disabledKafkaPublisher());
 
             job.retryPending();
 
@@ -48,7 +47,8 @@ class AlertHandoffOutboxRetryJobTest {
             when(repository.findTop100ByNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(any(Instant.class)))
                 .thenReturn(List.of(item));
             AlertHandoffOutboxRetryJob job = new AlertHandoffOutboxRetryJob(repository,
-                "http://127.0.0.1:" + server.getAddress().getPort() + "/handoff", "", "test-key");
+                "http://127.0.0.1:" + server.getAddress().getPort() + "/handoff", "", "test-key",
+                disabledKafkaPublisher());
 
             job.retryPending();
 
@@ -58,8 +58,49 @@ class AlertHandoffOutboxRetryJobTest {
         }
     }
 
+    @Test
+    void removesOutboxOnlyAfterKafkaAcknowledges() {
+        AlertHandoffOutboxRepository repository = mock(AlertHandoffOutboxRepository.class);
+        MachineAlertKafkaPublisher publisher = mock(MachineAlertKafkaPublisher.class);
+        AlertHandoffOutbox item = item();
+        when(repository.findTop100ByNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(any()))
+            .thenReturn(List.of(item));
+        when(publisher.isEnabled()).thenReturn(true);
+        AlertHandoffOutboxRetryJob job = new AlertHandoffOutboxRetryJob(
+            repository, "", "", "", publisher);
+
+        job.retryPending();
+
+        verify(publisher).publish(any());
+        verify(repository).delete(item);
+    }
+
+    @Test
+    void keepsOutboxWhenKafkaDoesNotAcknowledge() {
+        AlertHandoffOutboxRepository repository = mock(AlertHandoffOutboxRepository.class);
+        MachineAlertKafkaPublisher publisher = mock(MachineAlertKafkaPublisher.class);
+        AlertHandoffOutbox item = item();
+        when(repository.findTop100ByNextAttemptAtLessThanEqualOrderByNextAttemptAtAsc(any()))
+            .thenReturn(List.of(item));
+        when(publisher.isEnabled()).thenReturn(true);
+        doThrow(new IllegalStateException("broker unavailable")).when(publisher).publish(any());
+        AlertHandoffOutboxRetryJob job = new AlertHandoffOutboxRetryJob(
+            repository, "", "", "", publisher);
+
+        job.retryPending();
+
+        assertEquals(1, item.getAttemptCount());
+        verify(repository, never()).delete(item);
+    }
+
     private AlertHandoffOutbox item() {
         return new AlertHandoffOutbox("notification", "event-1", 1L, "tenant-1", 2L,
             "location-1", "LOW_STOCK", "MEDIUM", "ESCALATED", Instant.now());
+    }
+
+    private MachineAlertKafkaPublisher disabledKafkaPublisher() {
+        MachineAlertKafkaPublisher publisher = mock(MachineAlertKafkaPublisher.class);
+        when(publisher.isEnabled()).thenReturn(false);
+        return publisher;
     }
 }
