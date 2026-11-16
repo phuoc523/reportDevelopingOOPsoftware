@@ -43,7 +43,8 @@ trong môi trường phát triển. Với bản build tĩnh, đặt biến này 
 1. Identity: đăng nhập và lấy principal/JWT.
 2. Machine + Catalog: tải máy, slot, sản phẩm và giá khuyến mại hiệu lực.
 3. Order: tạo đơn `PENDING`; backend kiểm tra tenant, khách hàng, giá, máy và slot.
-4. Payment: tạo/lấy QR và thăm dò trạng thái theo reference.
+4. Payment: tạo/lấy payment; Kiosk vẽ QR từ `qrPayload` backend trả về và thăm dò
+   trạng thái theo reference mỗi 3 giây.
 5. Dispensing: sau callback `PAID`, Order Service tự gửi lệnh xịt; Kiosk chỉ đọc kết quả.
 
 Kiosk cố ý không gọi endpoint `/simulate` và không gọi trực tiếp endpoint nội bộ
@@ -55,7 +56,9 @@ thái chờ tích hợp và không tạo đơn giả khi backend chưa có nghi�
 
 ## Giới hạn backend hiện tại
 
-- Payload QR đang là URI `scentstation://...`, chưa phải tích hợp cổng thanh toán thật.
+- QR payload là URL do Order Service cấu hình và trả về; Kiosk không tự tạo URL,
+  số tiền hoặc QR giả. Luồng hiện tại là thanh toán mô phỏng, không kết nối provider
+  thanh toán thật.
 - Chưa có endpoint browse chuyên biệt dùng quyền `KIOSK_BROWSE`; tài khoản demo cần
   thêm quyền đọc Catalog/Machine với scope máy `9101`.
 - Đăng ký công khai tạo `CUSTOMER` không có tenant, nên tài khoản đó chưa thể tạo đơn.

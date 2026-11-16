@@ -34,6 +34,7 @@ public class PaymentService {
     private final ReportingTransactionClient reportingTransactionClient;
     private final Duration qrExpiration;
     private final String callbackToken;
+    private final String mockPaymentWebBaseUrl;
 
     public PaymentService(
             PaymentRepository paymentRepository,
@@ -41,7 +42,8 @@ public class PaymentService {
             DispensingService dispensingService,
             ReportingTransactionClient reportingTransactionClient,
             @Value("${payment.qr-expiration:PT15M}") Duration qrExpiration,
-            @Value("${payment.callback-token:local-mock-callback-token}") String callbackToken
+            @Value("${payment.callback-token:local-mock-callback-token}") String callbackToken,
+            @Value("${payment.mock-web-base-url:http://localhost:3000/mock-payment}") String mockPaymentWebBaseUrl
     ) {
         if (qrExpiration.isZero() || qrExpiration.isNegative()) {
             throw new IllegalArgumentException("Payment QR expiration must be positive");
@@ -55,6 +57,7 @@ public class PaymentService {
         this.reportingTransactionClient = reportingTransactionClient;
         this.qrExpiration = qrExpiration;
         this.callbackToken = callbackToken;
+        this.mockPaymentWebBaseUrl = normalizeBaseUrl(mockPaymentWebBaseUrl);
     }
 
     public PaymentResponse createOrGetQr(Long orderId) {
@@ -77,10 +80,7 @@ public class PaymentService {
         }
 
         String reference = "PAY-" + UUID.randomUUID().toString().replace("-", "").toUpperCase();
-        String qrPayload = "scentstation://pay/" + reference
-                + "?orderId=" + orderId
-                + "&amount=" + order.totalAmount().toPlainString()
-                + "&currency=" + Payment.CURRENCY;
+        String qrPayload = mockPaymentWebBaseUrl + "/" + reference;
         LocalDateTime createdAt = LocalDateTime.now();
         LocalDateTime expiresAt = createdAt.plus(qrExpiration);
         if (order.expiresAt() != null && expiresAt.isAfter(order.expiresAt())) {
@@ -249,6 +249,17 @@ public class PaymentService {
         )) {
             throw new PaymentVerificationException(HttpStatus.UNAUTHORIZED, "Invalid payment callback token");
         }
+    }
+
+    private static String normalizeBaseUrl(String baseUrl) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return "http://localhost:3000/mock-payment";
+        }
+        String normalized = baseUrl.trim();
+        if (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     private PaymentResponse accept(PaymentCallbackRequest request, Payment payment) {

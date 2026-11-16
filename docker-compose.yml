@@ -67,6 +67,8 @@ services:
       DB_PASSWORD: "order_local_password"
       MACHINE_SERVICE_BASE_URL: "http://machine-service:8084"
       CATALOG_SERVICE_BASE_URL: "http://catalog-service:8082"
+      PAYMENT_MOCK_WEB_BASE_URL: "${PAYMENT_MOCK_WEB_BASE_URL:-http://localhost:3000/mock-payment}"
+      PAYMENT_CALLBACK_TOKEN: "${PAYMENT_CALLBACK_TOKEN:-local-mock-callback-token}"
       JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Ho_Chi_Minh"
       REPORTING_SERVICE_URL: "http://reporting-service:8086"
       REPORTING_SYNC_ENABLED: "true"
@@ -76,6 +78,19 @@ services:
     depends_on:
       order-db:
         condition: service_healthy
+
+  mock-payment-web:
+    build:
+      context: .
+      dockerfile: infra/docker/mock-payment-web.Dockerfile
+    environment:
+      VITE_ORDER_SERVICE_URL: "${ORDER_SERVICE_URL:-http://localhost:8083}"
+      VITE_PAYMENT_CALLBACK_TOKEN: "${PAYMENT_CALLBACK_TOKEN:-local-mock-callback-token}"
+      VITE_MOCK_PAYMENT_WEB_BASE_URL: "${PAYMENT_MOCK_WEB_BASE_URL:-http://localhost:3000/mock-payment}"
+    ports:
+      - "${MOCK_PAYMENT_WEB_PORT:-3000}:3000"
+    depends_on:
+      - order-service
 
   machine-service:
     build:

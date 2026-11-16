@@ -82,7 +82,7 @@ class JpaRepositoryIntegrationTest {
                 savedOrder.getId(),
                 new BigDecimal("12.00"),
                 "VND",
-                "scentstation://pay/PAY-UNIQUE-1",
+                "http://localhost:3000/mock-payment/PAY-UNIQUE-1",
                 LocalDateTime.now(),
                 LocalDateTime.now().plusMinutes(15)
         );
@@ -94,7 +94,7 @@ class JpaRepositoryIntegrationTest {
                 savedOrder.getId(),
                 new BigDecimal("12.00"),
                 "VND",
-                "scentstation://pay/PAY-UNIQUE-2",
+                "http://localhost:3000/mock-payment/PAY-UNIQUE-2",
                 LocalDateTime.now(),
                 LocalDateTime.now().plusMinutes(15)
         );
@@ -162,7 +162,7 @@ class JpaRepositoryIntegrationTest {
                 savedOrder.getId(),
                 new BigDecimal("9.00"),
                 "VND",
-                "scentstation://pay/PAY-REVIEW-2",
+                "http://localhost:3000/mock-payment/PAY-REVIEW-2",
                 LocalDateTime.now(),
                 LocalDateTime.now().plusMinutes(15)
         );

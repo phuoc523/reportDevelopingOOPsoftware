@@ -140,10 +140,13 @@ numeric order ID (for example, `http://localhost:8083/api/v1/orders/1` to view t
 full order as JSON). Shell variables such as `$($order.id)` are expanded only
 inside PowerShell commands, not in a browser address bar.
 
-The QR response contains a `qrPayload` URI (`scentstation://pay/...`) that a
-client can render as a QR image. This is a mock payload, not a connection to a
-payment provider. Payments use VND and expire 15 minutes after creation by
-default (`PAYMENT_QR_EXPIRATION`, ISO-8601 duration, for example `PT15M`).
+The QR response contains an HTTP `qrPayload` URL such as
+`http://localhost:3000/mock-payment/PAY-...` that a client can render as a QR
+image. This is a mock payment page, not a connection to a real payment
+provider. Payments use VND and expire 15 minutes after creation by default
+(`PAYMENT_QR_EXPIRATION`, ISO-8601 duration, for example `PT15M`). The base URL
+is configurable via `PAYMENT_MOCK_WEB_BASE_URL`; for LAN testing, set it to the
+reachable host IP or hostname instead of hard-coding `localhost`.
 Orders also expire after `ORDER_EXPIRATION` (default `PT15M`); this is an
 independent setting and a payment QR cannot outlive its order.
 Order expiry is enforced when an order is read or processed. Payment expiry is

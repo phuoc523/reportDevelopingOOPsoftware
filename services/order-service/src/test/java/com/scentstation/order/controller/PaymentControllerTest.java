@@ -70,7 +70,7 @@ class PaymentControllerTest {
                 .andExpect(jsonPath("$.amount").value(25.5))
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.qrPayload").value(org.hamcrest.Matchers.startsWith(
-                        "scentstation://pay/PAY-"
+                        "http://localhost:3000/mock-payment/PAY-"
                 )))
                 .andReturn();
 
@@ -232,7 +232,7 @@ class PaymentControllerTest {
                 orderId,
                 new java.math.BigDecimal("25.50"),
                 Payment.CURRENCY,
-                "scentstation://pay/PAY-EXPIRED",
+                "http://localhost:3000/mock-payment/PAY-EXPIRED",
                 LocalDateTime.now().minusMinutes(20),
                 LocalDateTime.now().minusMinutes(5)
         );

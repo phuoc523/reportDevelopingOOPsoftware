@@ -3,6 +3,7 @@ package com.scentstation.order.controller;
 import com.scentstation.order.dto.request.PaymentCallbackRequest;
 import com.scentstation.order.dto.response.PaymentResponse;
 import com.scentstation.order.exception.ApiErrorResponse;
+import com.scentstation.order.exception.PaymentVerificationException;
 import com.scentstation.order.service.PaymentService;
 import com.scentstation.order.security.OrderCurrentActorContext;
 import jakarta.validation.Valid;
@@ -14,6 +15,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -79,6 +81,27 @@ public class PaymentController {
     })
     public ResponseEntity<PaymentResponse> simulatePayment(@PathVariable String reference) {
         return ResponseEntity.ok(paymentService.simulatePayment(reference, actors.principal()));
+    }
+
+    @GetMapping("/api/v1/payments/public/{reference}")
+    @Operation(summary = "Read a payment without authentication",
+            description = "Public endpoint used by the mock payment web page on a customer phone. It exposes the real payment state without allowing arbitrary business mutations.")
+    public ResponseEntity<PaymentResponse> getPublicPayment(@PathVariable String reference) {
+        return ResponseEntity.ok(paymentService.getPayment(reference));
+    }
+
+    @PostMapping("/api/v1/payments/public/{reference}/confirm")
+    @Operation(summary = "Confirm a payment from the mock payment web",
+            description = "Public callback endpoint used by the mock payment page. It still validates the callback token and the payment details before marking the order as confirmed.")
+    public ResponseEntity<PaymentResponse> confirmPublicPayment(
+            @PathVariable String reference,
+            @Valid @RequestBody PaymentCallbackRequest request,
+            @RequestHeader(value = "X-Payment-Callback-Token", required = false) String callbackToken) {
+        if (!reference.equals(request.reference())) {
+            throw new PaymentVerificationException(HttpStatus.BAD_REQUEST,
+                    "Payment reference in the URL must match the callback request.");
+        }
+        return ResponseEntity.ok(paymentService.processCallback(request, callbackToken));
     }
 
     @PostMapping("/api/v1/payments/callback")

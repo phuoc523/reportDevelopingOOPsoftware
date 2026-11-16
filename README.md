@@ -41,6 +41,7 @@ Vietnamese integration notes: [Tích hợp Reporting](docs/reporting-integration
 
 - `frontend/admin-web`: admin and operation web application.
 - `frontend/kiosk-web`: kiosk web application.
+- `frontend/mock-payment-web`: mock payment page used by QR code flows on customer phones.
 
 Frontend applications must call backend capabilities through the API Gateway.
 
