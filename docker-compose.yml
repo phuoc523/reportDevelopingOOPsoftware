@@ -1,6 +1,17 @@
 # Local backend stack. Each business service owns its database.
 name: scentstation-local
 services:
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   api-gateway:
     build:
       context: .
@@ -10,6 +21,10 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CACHE_PREFIX: "api-gateway:"
       IDENTITY_SERVICE_URL: http://identity-service:8081
       CATALOG_SERVICE_URL: http://catalog-service:8082
       ORDER_SERVICE_URL: http://order-service:8083
@@ -21,7 +36,9 @@ services:
       CORS_ALLOWED_ORIGIN_3: http://localhost:7515
       CORS_ALLOWED_ORIGIN_4: http://127.0.0.1:7515
       NOTIFICATION_SERVICE_URL: http://notification-service:8087
-
+    depends_on:
+      redis:
+        condition: service_healthy
   identity-service:
     build:
       context: .
@@ -29,12 +46,18 @@ services:
       args:
         SERVICE: identity-service
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CACHE_PREFIX: "identity-service:"
       DB_URL: "jdbc:mysql://identity-db:3306/scentstation_identity?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       DB_USERNAME: "identity_app"
       DB_PASSWORD: "identity_local_password"
       JWT_SECRET: "${JWT_SECRET:-U2NlbnRTdGF0aW9uRGV2ZWxvcG1lbnRLZXlGb3JKV1QyMDI2IQ==}"
       INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
     depends_on:
+      redis:
+        condition: service_healthy
       identity-db:
         condition: service_healthy
 
@@ -45,6 +68,10 @@ services:
       args:
         SERVICE: catalog-service
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CACHE_PREFIX: "catalog-service:"
       CATALOG_DB_URL: "jdbc:mysql://catalog-db:3306/scentstation_catalog?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       CATALOG_DB_USERNAME: "catalog_app"
       CATALOG_DB_PASSWORD: "catalog_local_password"
@@ -52,6 +79,8 @@ services:
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
       INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
     depends_on:
+      redis:
+        condition: service_healthy
       catalog-db:
         condition: service_healthy
 
@@ -62,6 +91,10 @@ services:
       args:
         SERVICE: order-service
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CACHE_PREFIX: "order-service:"
       DB_URL: "jdbc:mysql://order-db:3306/order_db?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       DB_USERNAME: "order_user"
       DB_PASSWORD: "order_local_password"
@@ -74,6 +107,8 @@ services:
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
       INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
     depends_on:
+      redis:
+        condition: service_healthy
       order-db:
         condition: service_healthy
 
@@ -84,6 +119,10 @@ services:
       args:
         SERVICE: machine-service
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CACHE_PREFIX: "machine-service:"
       MACHINE_DB_URL: "jdbc:mysql://machine-db:3306/scentstation_machine?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       MACHINE_DB_USERNAME: "machine_app"
       MACHINE_DB_PASSWORD: "machine_local_password"
@@ -93,6 +132,8 @@ services:
       MACHINE_NOTIFICATION_KAFKA_ENABLED: "true"
       MACHINE_NOTIFICATION_KAFKA_TOPIC: "machine-alert.v1"
     depends_on:
+      redis:
+        condition: service_healthy
       machine-db:
         condition: service_healthy
       kafka-init:
@@ -107,6 +148,10 @@ services:
     ports:
       - "127.0.0.1:8087:8087"
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CACHE_PREFIX: "notification-service:"
       NOTIFICATION_DB_URL: "jdbc:mysql://notification-db:3306/scentstation_notification?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
       NOTIFICATION_DB_USERNAME: "notification_app"
       NOTIFICATION_DB_PASSWORD: "notification_local_password"
@@ -130,6 +175,8 @@ services:
       NOTIFICATION_FIREBASE_INITIAL_BACKOFF: "${NOTIFICATION_FIREBASE_INITIAL_BACKOFF:-10s}"
       NOTIFICATION_FIREBASE_DELIVERY_LEASE: "${NOTIFICATION_FIREBASE_DELIVERY_LEASE:-5m}"
     depends_on:
+      redis:
+        condition: service_healthy
       notification-db:
         condition: service_healthy
       identity-service:
@@ -150,6 +197,10 @@ services:
       args:
         SERVICE: operation-service
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CACHE_PREFIX: "operation-service:"
       OPERATION_DB_URL: "jdbc:mysql://operation-db:3306/scentstation_operation?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       OPERATION_DB_USERNAME: "operation_app"
       OPERATION_DB_PASSWORD: "operation_local_password"
@@ -157,6 +208,8 @@ services:
       INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
       SPRING_PROFILES_ACTIVE: "docker-local"
     depends_on:
+      redis:
+        condition: service_healthy
       operation-db:
         condition: service_healthy
 
@@ -167,6 +220,10 @@ services:
       args:
         SERVICE: reporting-service
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CACHE_PREFIX: "reporting-service:"
       DB_URL: "jdbc:mysql://reporting-db:3306/scentstation_reporting?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       DB_USERNAME: "reporting_app"
       DB_PASSWORD: "reporting_local_password"
@@ -180,6 +237,8 @@ services:
     ports:
       - "127.0.0.1:8086:8086"
     depends_on:
+      redis:
+        condition: service_healthy
       reporting-db:
         condition: service_healthy
 
