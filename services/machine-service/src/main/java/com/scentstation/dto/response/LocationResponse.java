@@ -2,7 +2,8 @@ package com.scentstation.dto.response;
 
 import java.time.Instant;
 
-public class LocationResponse {
+public class LocationResponse implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
     private final String locationId;
     private final String tenantId;
     private final String name;

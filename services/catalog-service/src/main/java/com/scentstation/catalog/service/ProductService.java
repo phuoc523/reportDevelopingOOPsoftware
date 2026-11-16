@@ -26,6 +26,7 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
     private final CurrentActorContext currentActorContext;
+    private final ProductListCache productListCache;
 
     // Tạo sản phẩm bằng tenant đã xác minh và từ chối body giả tenant khác.
     @Transactional
@@ -35,6 +36,7 @@ public class ProductService {
         Product product = productMapper.toEntity(request, tenantId);
 
         Product savedProduct = productRepository.save(product);
+        productListCache.evictAll();
 
         return productMapper.toResponse(savedProduct);
     }
@@ -43,12 +45,8 @@ public class ProductService {
     @Transactional(readOnly = true)
     public List<ProductResponse> getProducts(Long requestedTenantId) {
         currentActorContext.requirePermission(CatalogPermissions.READ);
-        return productRepository.findAllByTenantId(
-                        currentActorContext.requireTenant(requestedTenantId)
-                )
-                .stream()
-                .map(productMapper::toResponse)
-                .toList();
+        Long tenantId = currentActorContext.requireTenant(requestedTenantId);
+        return productListCache.getForTenant(tenantId);
     }
 
     // Chỉ trả sản phẩm thuộc tenant hiện tại để tránh đọc chéo tenant.
@@ -67,6 +65,7 @@ public class ProductService {
         Product product = findProductForCurrentTenant(id);
         product.setAvailable(request.getAvailable());
         Product updatedProduct = productRepository.save(product);
+        productListCache.evictAll();
 
         return productMapper.toResponse(updatedProduct);
     }
@@ -78,6 +77,7 @@ public class ProductService {
         Product product = findProductForCurrentTenant(id);
         product.setDefaultPrice(request.getDefaultPrice());
         Product updatedProduct = productRepository.save(product);
+        productListCache.evictAll();
 
         return productMapper.toResponse(updatedProduct);
     }

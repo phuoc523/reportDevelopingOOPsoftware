@@ -7,6 +7,8 @@ import com.scentstation.exception.ConflictException;
 import com.scentstation.exception.InvalidOperationException;
 import com.scentstation.exception.ResourceNotFoundException;
 import com.scentstation.repository.LocationRepository;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ public class LocationService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "machine-location-list", allEntries = true)
     public LocationResponse create(@NonNull String locationId, String tenantId, String name, String address) {
         String normalizedLocationId = Objects.requireNonNull(locationId.trim(), "locationId");
         if (locations.existsById(normalizedLocationId)) {
@@ -34,6 +37,7 @@ public class LocationService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(cacheNames = "machine-location-list", key = "#p0.trim()", sync = true)
     public List<LocationResponse> list(String tenantId) {
         if (tenantId == null || tenantId.isBlank()) {
             throw new InvalidOperationException("tenantId is required");
@@ -49,6 +53,7 @@ public class LocationService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "machine-location-list", allEntries = true)
     public LocationResponse update(@NonNull String locationId, @NonNull String requestedLocationId,
                                    @NonNull String tenantId, String name, String address) {
         Location location = requireLocation(locationId);
@@ -66,6 +71,7 @@ public class LocationService {
     }
 
     @Transactional
+    @CacheEvict(cacheNames = "machine-location-list", allEntries = true)
     public LocationResponse setActive(@NonNull String locationId, boolean active) {
         Location location = requireLocation(locationId);
         location.setActive(active);

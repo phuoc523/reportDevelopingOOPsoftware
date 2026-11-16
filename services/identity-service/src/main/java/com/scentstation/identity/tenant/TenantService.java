@@ -13,13 +13,21 @@ public class TenantService {
     private final TenantRepository tenants;
     private final AccessPolicy access;
     private final AuditService audit;
-    public TenantService(TenantRepository tenants, AccessPolicy access, AuditService audit) {
-        this.tenants = tenants; this.access = access; this.audit = audit;
+    private final TenantProfileCache profileCache;
+    public TenantService(TenantRepository tenants, AccessPolicy access, AuditService audit,
+                         TenantProfileCache profileCache) {
+        this.tenants = tenants; this.access = access; this.audit = audit; this.profileCache = profileCache;
     }
 
     public Tenant require(Long id) {
         if (id == null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tenant not assigned");
         return tenants.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found"));
+    }
+
+    public TenantView profileView(Long id) {
+        TenantLiveFields live = tenants.findLiveFieldsById(id).orElseThrow(() ->
+            new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found"));
+        return TenantView.from(live, profileCache.get(id));
     }
 
     public void requireActive(Long tenantId) {
@@ -36,6 +44,7 @@ public class TenantService {
         Tenant t = new Tenant(code, r.name().trim());
         apply(t, r.profile());
         t = tenants.save(t);
+        profileCache.invalidateAll();
         audit.record(access.current().id(), t.getId(), "TENANT_CREATED", "TENANT", t.getId().toString(), null, t.getStatus().name());
         return t;
     }
@@ -45,6 +54,7 @@ public class TenantService {
         Tenant t = require(id);
         if (r.name() != null && !r.name().isBlank()) t.setName(r.name().trim());
         apply(t, r.profile());
+        profileCache.invalidateAll();
         audit.record(access.current().id(), id, "TENANT_UPDATED", "TENANT", id.toString(), null, "profile-changed");
         return t;
     }
@@ -57,6 +67,7 @@ public class TenantService {
         Tenant t = require(tenantId);
         if (r.name() != null && !r.name().isBlank()) t.setName(r.name().trim());
         apply(t, r.profile());
+        profileCache.invalidateAll();
         audit.record(access.current().id(), tenantId, "BRAND_PROFILE_UPDATED", "TENANT", tenantId.toString(), null, "profile-changed");
         return t;
     }

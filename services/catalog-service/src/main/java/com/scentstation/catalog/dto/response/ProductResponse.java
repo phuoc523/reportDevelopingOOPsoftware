@@ -14,7 +14,9 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProductResponse {
+public class ProductResponse implements java.io.Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private Long id;
     private Long tenantId;

@@ -8,11 +8,16 @@ Spring Data Redis and Spring Cache. The cache manager uses a 60-second default T
 does not cache null values, and applies a distinct service prefix. The React frontends
 continue to call backend APIs and do not connect to Redis directly.
 
-This change wires Redis and Spring Cache into each backend; it does not add business
-`@Cacheable` rules to every endpoint. Add caching only to suitable read paths, use
-`tenantId` in keys for tenant-owned data, and invalidate after successful updates.
-Never cache authentication decisions, tokens, revocation state or tenant suspension
-state. Choose serialization suitable for the cached DTOs.
+Redis-backed business caches are enabled for tenant-scoped Catalog product lists,
+Identity tenant profile fields, and Machine location lists. Keys include the tenant
+identifier where applicable, and writes evict the affected cache entries. Gateway,
+Order, Notification, Operation, and Reporting retain Redis connectivity and a cache
+manager but do not cache volatile workflow or authorization data.
+
+Identity caches profile fields only. Tenant status is read live on every profile
+request so a suspension is not hidden by a cache hit. Authentication decisions,
+tokens, sessions, RBAC results, and revocation state are never cached. Cached DTOs
+must remain serializable for Redis.
 
 ## Run full local stack
 
