@@ -1,0 +1,35 @@
+services:
+  operation-db:
+    image: mysql:8.0.41
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: scentstation_operation
+      MYSQL_USER: ${OPERATION_DB_USERNAME:-operation_app}
+      MYSQL_PASSWORD: ${OPERATION_DB_PASSWORD:?Set OPERATION_DB_PASSWORD}
+    volumes:
+      - operation-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysqladmin ping -h localhost -uroot --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  operation-service:
+    image: scentstation/operation-service:local
+    build:
+      context: .
+    environment:
+      OPERATION_DB_URL: jdbc:mysql://operation-db:3306/scentstation_operation
+      OPERATION_DB_USERNAME: ${OPERATION_DB_USERNAME:-operation_app}
+      OPERATION_DB_PASSWORD: ${OPERATION_DB_PASSWORD:?Set OPERATION_DB_PASSWORD}
+      OPERATION_SERVICE_PORT: ${OPERATION_SERVICE_PORT:-8085}
+      SPRING_PROFILES_ACTIVE: docker-local
+    ports:
+      - "${OPERATION_SERVICE_PORT:-8085}:${OPERATION_SERVICE_PORT:-8085}"
+    depends_on:
+      operation-db:
+        condition: service_healthy
+
+volumes:
+  operation-mysql-data:

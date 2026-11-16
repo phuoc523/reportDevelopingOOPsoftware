@@ -21,6 +21,14 @@ spring:
 server:
   port: ${MACHINE_SERVICE_PORT:8084}
 
+integration:
+  identity:
+    base-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+
+security:
+  internal:
+    service-key: ${INTERNAL_SERVICE_KEY:}
+
 machine:
   commands:
     expiry-interval-ms: ${MACHINE_COMMAND_EXPIRY_INTERVAL_MS:60000}
@@ -36,3 +44,14 @@ machine:
     handoff-retry-interval-ms: ${MACHINE_HANDOFF_RETRY_INTERVAL_MS:60000}
   gateway:
     enforce-tenant-header: ${MACHINE_GATEWAY_ENFORCE_TENANT_HEADER:false}
+  mqtt:
+    enabled: ${MACHINE_MQTT_ENABLED:false}
+    broker-url: ${MACHINE_MQTT_BROKER_URL:tcp://localhost:1883}
+    username: ${MACHINE_MQTT_USERNAME:}
+    password: ${MACHINE_MQTT_PASSWORD:}
+    client-id: ${MACHINE_MQTT_CLIENT_ID:machine-service}
+    connection-timeout-seconds: ${MACHINE_MQTT_CONNECTION_TIMEOUT_SECONDS:10}
+    keep-alive-interval-seconds: ${MACHINE_MQTT_KEEP_ALIVE_INTERVAL_SECONDS:30}
+    reconnect-interval-ms: ${MACHINE_MQTT_RECONNECT_INTERVAL_MS:5000}
+    max-payload-bytes: ${MACHINE_MQTT_MAX_PAYLOAD_BYTES:65536}
+    allowed-clock-skew-seconds: ${MACHINE_MQTT_ALLOWED_CLOCK_SKEW_SECONDS:300}

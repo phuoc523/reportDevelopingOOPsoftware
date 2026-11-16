@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 class MachineRegistrationIntegrationTest extends MachineServiceIntegrationTestBase {
     @Test
     void registersMachineAndPersistsItsHistory() {
-        String tenantId = uniqueId("tenant");
+        String tenantId = "1";
         String locationId = uniqueId("location");
         assertEquals(HttpStatus.CREATED, createLocation(locationId, tenantId).getStatusCode());
 
@@ -38,24 +38,24 @@ class MachineRegistrationIntegrationTest extends MachineServiceIntegrationTestBa
 
     @Test
     void rejectsRegistrationWhenLocationBelongsToAnotherTenant() {
-        String locationTenant = uniqueId("tenant");
-        String machineTenant = uniqueId("tenant");
+        String locationTenant = "1";
+        String machineTenant = "2";
         String locationId = uniqueId("location");
         assertEquals(HttpStatus.CREATED, createLocation(locationId, locationTenant).getStatusCode());
 
         ResponseEntity<Map<String, Object>> registration =
             postJson("/api/machines", machineRequest(machineTenant, locationId));
 
-        assertEquals(HttpStatus.BAD_REQUEST, registration.getStatusCode());
+        assertEquals(HttpStatus.FORBIDDEN, registration.getStatusCode());
         assertEquals(0, machineRepository.count());
     }
 
     @Test
     void rejectsDuplicateSerialNumberRegardlessOfLetterCase() {
-        Long existingId = createMachine(uniqueId("tenant"));
+        Long existingId = createMachine("1");
         Map<String, Object> existingMachine = requireBody(getJson("/api/machines/" + existingId));
         String serialNumber = (String) existingMachine.get("serialNumber");
-        String tenantId = uniqueId("tenant");
+        String tenantId = "1";
         String locationId = uniqueId("location");
         assertEquals(HttpStatus.CREATED, createLocation(locationId, tenantId).getStatusCode());
 

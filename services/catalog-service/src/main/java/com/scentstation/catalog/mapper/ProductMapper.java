@@ -10,9 +10,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class ProductMapper {
 
-    public Product toEntity(CreateProductRequest request) {
+    // Chuyển request thành Product bằng tenant đã được xác minh thay vì tenant do caller tự khai báo.
+    public Product toEntity(CreateProductRequest request, Long tenantId) {
         return Product.builder()
-                .tenantId(request.getTenantId())
+                .tenantId(tenantId)
                 .name(request.getName())
                 .description(request.getDescription())
                 .fragranceNotes(request.getFragranceNotes())
@@ -22,6 +23,7 @@ public class ProductMapper {
                 .build();
     }
 
+    // Chuyển entity sản phẩm thành dữ liệu phản hồi gửi cho client.
     public ProductResponse toResponse(Product product) {
         return ProductResponse.builder()
                 .id(product.getId())
@@ -37,6 +39,7 @@ public class ProductMapper {
                 .build();
     }
 
+    // Sao chép các giá trị được phép cập nhật từ request vào sản phẩm hiện có.
     public void updateEntity(
             UpdateProductRequest request,
             Product product

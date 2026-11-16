@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 class SlotAvailabilityIntegrationTest extends MachineServiceIntegrationTestBase {
     @Test
     void configuredSlotBecomesAvailableWhenMachineIsOnline() {
-        Long machineId = createMachine(uniqueId("tenant"));
+        Long machineId = createMachine("1");
 
         ResponseEntity<Map<String, Object>> online = patchJson(
             "/api/machines/" + machineId + "/operational-status",
@@ -41,7 +41,7 @@ class SlotAvailabilityIntegrationTest extends MachineServiceIntegrationTestBase 
 
     @Test
     void disabledSlotIsNotAvailableEvenWhenMachineIsOnline() {
-        Long machineId = createMachine(uniqueId("tenant"));
+        Long machineId = createMachine("1");
         patchJson(
             "/api/machines/" + machineId + "/operational-status",
             Map.of("status", "ONLINE")
@@ -64,8 +64,8 @@ class SlotAvailabilityIntegrationTest extends MachineServiceIntegrationTestBase 
 
     @Test
     void cartridgeCannotBeAssignedToSlotsOnDifferentMachines() {
-        Long firstMachineId = createMachine(uniqueId("tenant"));
-        Long secondMachineId = createMachine(uniqueId("tenant"));
+        Long firstMachineId = createMachine("1");
+        Long secondMachineId = createMachine("1");
         String cartridgeId = uniqueId("cartridge");
         ResponseEntity<Map<String, Object>> firstSlot = postJson(
             "/api/machines/" + firstMachineId + "/slots",
@@ -83,7 +83,7 @@ class SlotAvailabilityIntegrationTest extends MachineServiceIntegrationTestBase 
 
     @Test
     void revokedMachineCannotChangeItsSlots() {
-        Long machineId = createMachine(uniqueId("tenant"));
+        Long machineId = createMachine("1");
         ResponseEntity<Map<String, Object>> revoked = patchJson(
             "/api/machines/" + machineId + "/device-registration-status",
             Map.of("status", "REVOKED")
@@ -100,7 +100,7 @@ class SlotAvailabilityIntegrationTest extends MachineServiceIntegrationTestBase 
 
     @Test
     void rejectsSprayDurationAboveFiveSecondsWithFieldSpecificError() {
-        Long machineId = createMachine(uniqueId("tenant"));
+        Long machineId = createMachine("1");
 
         ResponseEntity<Map<String, Object>> response = postJson(
             "/api/machines/" + machineId + "/slots",

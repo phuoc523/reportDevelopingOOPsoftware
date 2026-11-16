@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class LocationIntegrationTest extends MachineServiceIntegrationTestBase {
     @Test
     void createsListsAndUpdatesLocationWithoutChangingTenantOwnership() {
-        String tenantId = uniqueId("tenant");
+        String tenantId = "1";
         String locationId = uniqueId("location");
         assertEquals(HttpStatus.CREATED, createLocation(locationId, tenantId).getStatusCode());
 
@@ -30,15 +30,15 @@ class LocationIntegrationTest extends MachineServiceIntegrationTestBase {
         assertEquals(HttpStatus.OK, updated.getStatusCode());
         assertEquals("Updated location", requireBody(updated).get("name"));
 
-        update.put("tenantId", uniqueId("other-tenant"));
+        update.put("tenantId", "2");
         ResponseEntity<Map<String, Object>> rejectedUpdate =
             putJson("/api/locations/" + locationId, update);
-        assertEquals(HttpStatus.BAD_REQUEST, rejectedUpdate.getStatusCode());
+        assertEquals(HttpStatus.FORBIDDEN, rejectedUpdate.getStatusCode());
     }
 
     @Test
     void getsAndDeactivatesLocation() {
-        String tenantId = uniqueId("tenant");
+        String tenantId = "1";
         String locationId = uniqueId("location");
         assertEquals(HttpStatus.CREATED, createLocation(locationId, tenantId).getStatusCode());
 
@@ -57,7 +57,7 @@ class LocationIntegrationTest extends MachineServiceIntegrationTestBase {
 
     @Test
     void inactiveLocationCannotBeUsedToRegisterMachine() {
-        String tenantId = uniqueId("tenant");
+        String tenantId = "1";
         String locationId = uniqueId("location");
         assertEquals(HttpStatus.CREATED, createLocation(locationId, tenantId).getStatusCode());
 

@@ -1,0 +1,34 @@
+services:
+  catalog-db:
+    image: mysql:8.0.41
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: scentstation_catalog
+      MYSQL_USER: ${CATALOG_DB_USERNAME:-catalog_app}
+      MYSQL_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD}
+    volumes:
+      - catalog-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_ROOT_PASSWORD}\" mysqladmin ping -h localhost -uroot --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  catalog-service:
+    image: scentstation/catalog-service:local
+    build:
+      context: .
+    environment:
+      CATALOG_DB_URL: jdbc:mysql://catalog-db:3306/scentstation_catalog
+      CATALOG_DB_USERNAME: ${CATALOG_DB_USERNAME:-catalog_app}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Set CATALOG_DB_PASSWORD}
+      CATALOG_SERVICE_PORT: ${CATALOG_SERVICE_PORT:-8082}
+    ports:
+      - "${CATALOG_SERVICE_PORT:-8082}:${CATALOG_SERVICE_PORT:-8082}"
+    depends_on:
+      catalog-db:
+        condition: service_healthy
+
+volumes:
+  catalog-mysql-data:

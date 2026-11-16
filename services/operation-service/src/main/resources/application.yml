@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: operation-service
+
+  datasource:
+    url: ${OPERATION_DB_URL:jdbc:mysql://localhost:3306/scentstation_operation}
+    username: ${OPERATION_DB_USERNAME:}
+    password: ${OPERATION_DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+server:
+  port: ${OPERATION_SERVICE_PORT:8085}
+
+integration:
+  identity:
+    base-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+
+security:
+  internal:
+    service-key: ${INTERNAL_SERVICE_KEY:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
