@@ -34,6 +34,8 @@ function App() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const creatingRef = useRef(false)
+  const paymentReference = payment?.reference
+  const paymentStatus = payment?.status
 
   const machineReady = machine?.deviceRegistrationStatus === 'ACTIVE'
     && machine.operationalStatus === 'ONLINE'
@@ -78,22 +80,26 @@ function App() {
   }, [loadCatalog])
 
   useEffect(() => {
-    if (screen !== 'payment' || !payment || payment.status !== 'PENDING') return
+    if (screen !== 'payment' || !paymentReference || paymentStatus !== 'PENDING') return
     let active = true
+    let polling = false
     const poll = async () => {
+      if (polling) return
+      polling = true
       try {
-        const current = await kioskApi.payment(payment.reference)
+        const current = await kioskApi.payment(paymentReference)
         if (!active) return
         setPayment(current)
         if (current.status === 'PAID') { setError(''); setScreen('dispensing') }
         else if (current.status === 'FAILED') { setError('Thanh toán thất bại. Hệ thống không gửi lệnh xịt.'); setScreen('result') }
         else if (current.status === 'EXPIRED') { setError('Giao dịch đã hết hạn. Hệ thống không gửi lệnh xịt.'); setScreen('result') }
       } catch (reason) { if (active) setError(`Mất kết nối khi kiểm tra thanh toán: ${readableError(reason)}`) }
+      finally { polling = false }
     }
     void poll()
     const timer = window.setInterval(() => void poll(), 3000)
     return () => { active = false; window.clearInterval(timer) }
-  }, [payment, screen])
+  }, [paymentReference, paymentStatus, screen])
 
   useEffect(() => {
     if (screen !== 'dispensing' || !order) return
@@ -147,13 +153,28 @@ function App() {
     }
     creatingRef.current = true; setBusy(true); setError('')
     try {
-      const created = await kioskApi.createOrder({
-        customerId: principal.id, tenantId: String(principal.tenantId), machineId: String(selected.slot.machineId), slotId: String(selected.slot.id),
-        items: [{ productId: selected.product.id, productName: selected.product.name, unitPrice: selected.pricing.effectivePrice, quantity: 1 }],
-      })
+      const reusableOrder = order
+        && ['PENDING', 'CONFIRMED'].includes(order.status)
+        && String(order.machineId) === String(selected.slot.machineId)
+        && String(order.slotId) === String(selected.slot.id)
+        && order.items.length === 1
+        && order.items[0].productId === selected.product.id
+        ? order
+        : null
+      const currentOrder = reusableOrder ? await kioskApi.order(reusableOrder.id) : null
+      const created = currentOrder && ['PENDING', 'CONFIRMED'].includes(currentOrder.status)
+        ? currentOrder
+        : await kioskApi.createOrder({
+          customerId: principal.id, tenantId: String(principal.tenantId), machineId: String(selected.slot.machineId), slotId: String(selected.slot.id),
+          items: [{ productId: selected.product.id, productName: selected.product.name, unitPrice: selected.pricing.effectivePrice, quantity: 1 }],
+        })
       setOrder(created)
       const qr = await kioskApi.createPayment(created.id)
-      setPayment(qr); setScreen('payment')
+      setPayment(qr)
+      if (qr.status === 'PAID') { setError(''); setScreen('dispensing') }
+      else if (qr.status === 'FAILED') { setError('Thanh toán thất bại. Hệ thống không gửi lệnh xịt.'); setScreen('result') }
+      else if (qr.status === 'EXPIRED') { setError('Giao dịch đã hết hạn. Hệ thống không gửi lệnh xịt.'); setScreen('result') }
+      else setScreen('payment')
     } catch (reason) {
       setError(readableError(reason)); await refresh()
     } finally { creatingRef.current = false; setBusy(false) }
@@ -205,7 +226,7 @@ function App() {
                 </span>
               </div>
               <div className="card-buttons">
-                <button className="primary" disabled={!ready} onClick={() => { setSelected(item); setError(''); setScreen('confirm') }}>{ready ? 'Thử mùi' : 'Không khả dụng'}</button>
+                <button className="primary" disabled={!ready} onClick={() => { setSelected(item); setError(''); setScreen('confirm') }}>{ready ? 'Xịt thử' : 'Không khả dụng'}</button>
                 <button className="secondary compact" onClick={() => { setSelected(item); setError(''); setScreen('purchase') }}>Mua chai</button>
               </div>
             </div>

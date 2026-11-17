@@ -83,6 +83,18 @@ class PaymentControllerTest {
     }
 
     @Test
+    void createsDistinctQrPaymentsForDifferentOrders() throws Exception {
+        long firstOrderId = createOrder();
+        long secondOrderId = createOrder();
+
+        String firstReference = createPayment(firstOrderId);
+        String secondReference = createPayment(secondOrderId);
+
+        org.junit.jupiter.api.Assertions.assertNotEquals(firstReference, secondReference);
+        org.junit.jupiter.api.Assertions.assertNotEquals(firstOrderId, secondOrderId);
+    }
+
+    @Test
     void mockPaymentConfirmsOrderAndCanBeLookedUp() throws Exception {
         long orderId = createOrder();
         String reference = createPayment(orderId);
