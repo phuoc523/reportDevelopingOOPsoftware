@@ -15,8 +15,11 @@ import com.scentstation.operation.maintenance.mapper.MaintenanceChecklistMapper;
 import com.scentstation.operation.maintenance.repository.MaintenanceChecklistRepository;
 import com.scentstation.operation.maintenance.repository.MaintenanceTicketRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,6 +38,12 @@ public class MaintenanceChecklistService {
             maintenanceChecklistMapper;
 
     private final MaintenanceAuditService maintenanceAuditService;
+    private MaintenanceChecklistCache checklistCache;
+
+    @Autowired(required = false)
+    public void setChecklistCache(MaintenanceChecklistCache checklistCache) {
+        this.checklistCache = checklistCache;
+    }
 
     // Thêm checklist item vào maintenance ticket đang còn hiệu lực.
     @Transactional
@@ -67,6 +76,7 @@ public class MaintenanceChecklistService {
                 null,
                 "completed=false"
         );
+        evictAfterCommit(request.getTenantId(), ticketId);
 
         return maintenanceChecklistMapper
                 .toResponse(saved);
@@ -133,6 +143,7 @@ public class MaintenanceChecklistService {
                 "completed=false",
                 "completed=true"
         );
+        evictAfterCommit(request.getTenantId(), ticketId);
 
         return maintenanceChecklistMapper
                 .toResponse(saved);
@@ -149,7 +160,13 @@ public class MaintenanceChecklistService {
                 ticketId
         );
 
-        return maintenanceChecklistRepository
+        List<MaintenanceChecklistItemResponse> cached =
+                checklistCache == null ? null : checklistCache.get(tenantId, ticketId);
+        if (cached != null) {
+            return cached;
+        }
+
+        List<MaintenanceChecklistItemResponse> result = maintenanceChecklistRepository
                 .findAllByTenantIdAndTicketIdOrderByIdAsc(
                         tenantId,
                         ticketId
@@ -159,6 +176,10 @@ public class MaintenanceChecklistService {
                         maintenanceChecklistMapper::toResponse
                 )
                 .toList();
+        if (checklistCache != null) {
+            checklistCache.put(tenantId, ticketId, result);
+        }
+        return result;
     }
 
     // Kiểm tra ticket còn checklist bắt buộc chưa hoàn thành hay không.
@@ -234,5 +255,21 @@ public class MaintenanceChecklistService {
                         .source("MAINTENANCE")
                         .build()
         );
+    }
+
+    private void evictAfterCommit(Long tenantId, Long ticketId) {
+        if (checklistCache == null) {
+            return;
+        }
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    checklistCache.evict(tenantId, ticketId);
+                }
+            });
+        } else {
+            checklistCache.evict(tenantId, ticketId);
+        }
     }
 }

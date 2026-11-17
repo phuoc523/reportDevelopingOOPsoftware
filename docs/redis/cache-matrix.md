@@ -1,0 +1,18 @@
+# Redis cache matrix
+
+All keys are versioned and service-namespaced. Tenant keys use a trusted tenant value already established by the service's authentication/authorization layer. Cache payloads use JSON through `StringRedisTemplate`; Redis does not deserialize arbitrary Java object types.
+
+| Component | Cached data and key shape | TTL | Invalidation / rationale |
+|---|---|---:|---|
+| Identity | Non-sensitive tenant display profile: `scentstation:identity:v1:tenant-profile:tenant:{tenantId}` | 60s | `platformUpdate`, `brandUpdate`, and status changes delete the tenant key after commit. Tenant status is always read live and is never sourced from this cache. |
+| Catalog | Authorized tenant product list: `scentstation:catalog:v1:product-list:tenant:{tenantId}` | 60s | Product create, price update, and availability update delete that tenant's key after commit. Product detail, search, price decisions, and inventory are not cached. |
+| Order | Static order-status display metadata: `scentstation:order:v1:status-metadata:tenant:{tenantId}` | 5m | Enum-backed display metadata only; it has no mutable order/payment source. Changing status labels should bump `v1`. |
+| Machine | Tenant location display list: `scentstation:machine:v1:locations:tenant:{tenantId}` | 60s | Location create, update, and active-state changes delete the tenant key after commit. Machine safety, heartbeat, slot availability, and dispensing decisions remain live. |
+| Operation | Maintenance checklist display items: `scentstation:operation:v1:checklist:tenant:{tenantId}:ticket:{ticketId}` | 5s | Checklist create and complete delete this tenant/ticket key after commit. Ticket ownership checks, required-checklist completion queries, and inventory quantities remain database-backed. |
+| Reporting | No dashboard payload cache: active alerts, machine state, and inventory are live. Authenticated dashboard read counter: `scentstation:reporting:v1:dashboard-rate-limit:{sha256(tenantId:userId)}` | 1m default | Atomic fixed-window limiter runs after Identity authorization and scope validation; it stores only a count and expires automatically. No data invalidation is needed. |
+| Notification | No notification, active-alert, delivery, or FCM-token cache. Authorized read counter: `scentstation:notification:v1:read-rate-limit:{sha256(tenantId:userId)}`; service callers share a tenant-scoped counter. | 1m default | Counter runs only after Identity authorization and expires automatically. It does not retain notification payloads, recipient state, tokens, or delivery status. |
+| API Gateway | Fixed-window request counter: `scentstation:gateway:v1:rate-limit:{sha256(verifiedTenantAndUserOrPeerIp)}` | Configured window (1m default) | Lua sets expiry atomically on first increment. Identity is verified by Identity Service; rate limiting is not authentication or authorization. |
+
+All eight backends configure Spring's Redis `CacheManager` with a 60-second default TTL, null caching disabled, and an isolated `scentstation:{service}:spring-cache:v1:` prefix. The specific custom Redis use cases above retain their documented TTLs. `*_CACHE_ENABLED=false` disables the associated business cache where supported; Gateway and Reporting/Notification use their rate-limit enable flags. These are local recovery switches, not authorization controls.
+
+The Gateway key hashes the trusted `tenantId + subjectId` identity rather than storing those identifiers in Redis. Anonymous/invalid-token requests are keyed by the direct socket IP. Reporting and Notification hash tenant/user scope rather than storing identity values. Keys are documented in [key-design.md](key-design.md).

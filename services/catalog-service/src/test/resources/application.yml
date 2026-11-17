@@ -16,3 +16,7 @@ spring:
       enabled: false
 server:
   port: 0
+
+catalog:
+  cache:
+    enabled: false

@@ -23,7 +23,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = "management.endpoints.web.exposure.include=health,info"
+        properties = {
+                "management.endpoints.web.exposure.include=health,info",
+                "gateway.rate-limit.enabled=false"
+        }
 )
 @AutoConfigureWebTestClient
 class ApiGatewayApplicationTest {

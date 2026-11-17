@@ -7,9 +7,12 @@ import com.scentstation.exception.ConflictException;
 import com.scentstation.exception.InvalidOperationException;
 import com.scentstation.exception.ResourceNotFoundException;
 import com.scentstation.repository.LocationRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.Objects;
@@ -17,9 +20,15 @@ import java.util.Objects;
 @Service
 public class LocationService {
     private final LocationRepository locations;
+    private LocationListCache locationListCache;
 
     public LocationService(LocationRepository locations) {
         this.locations = locations;
+    }
+
+    @Autowired(required = false)
+    public void setLocationListCache(LocationListCache locationListCache) {
+        this.locationListCache = locationListCache;
     }
 
     @Transactional
@@ -28,9 +37,11 @@ public class LocationService {
         if (locations.existsById(normalizedLocationId)) {
             throw new ConflictException("locationId already exists");
         }
-        return toResponse(locations.save(new Location(
+        LocationResponse created = toResponse(locations.save(new Location(
             normalizedLocationId, tenantId.trim(), name.trim(), address
         )));
+        evictAfterCommit(created.getTenantId());
+        return created;
     }
 
     @Transactional(readOnly = true)
@@ -38,9 +49,18 @@ public class LocationService {
         if (tenantId == null || tenantId.isBlank()) {
             throw new InvalidOperationException("tenantId is required");
         }
-        return locations.findAllByTenantIdOrderByNameAsc(tenantId.trim()).stream()
+        String verifiedTenantId = tenantId.trim();
+        List<LocationResponse> cached = locationListCache == null ? null : locationListCache.get(verifiedTenantId);
+        if (cached != null) {
+            return cached;
+        }
+        List<LocationResponse> result = locations.findAllByTenantIdOrderByNameAsc(verifiedTenantId).stream()
             .map(LocationService::toResponse)
             .toList();
+        if (locationListCache != null) {
+            locationListCache.put(verifiedTenantId, result);
+        }
+        return result;
     }
 
     @Transactional(readOnly = true)
@@ -62,14 +82,34 @@ public class LocationService {
         }
         location.setName(name.trim());
         location.setAddress(address);
-        return toResponse(locations.save(location));
+        LocationResponse updated = toResponse(locations.save(location));
+        evictAfterCommit(updated.getTenantId());
+        return updated;
     }
 
     @Transactional
     public LocationResponse setActive(@NonNull String locationId, boolean active) {
         Location location = requireLocation(locationId);
         location.setActive(active);
-        return toResponse(locations.save(location));
+        LocationResponse updated = toResponse(locations.save(location));
+        evictAfterCommit(updated.getTenantId());
+        return updated;
+    }
+
+    private void evictAfterCommit(String tenantId) {
+        if (locationListCache == null) {
+            return;
+        }
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    locationListCache.evict(tenantId);
+                }
+            });
+        } else {
+            locationListCache.evict(tenantId);
+        }
     }
 
     private Location requireLocation(@NonNull String locationId) {

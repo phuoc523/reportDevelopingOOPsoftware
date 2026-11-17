@@ -3,6 +3,19 @@ server:
 spring:
   application:
     name: identity-service
+  cache:
+    type: redis
+    redis:
+      time-to-live: ${REDIS_CACHE_TTL:60s}
+      cache-null-values: false
+      key-prefix: "scentstation:identity:spring-cache:v1:"
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_TIMEOUT:2s}
   datasource:
     url: ${DB_URL:jdbc:mysql://127.0.0.1:3307/scentstation_identity?createDatabaseIfNotExist=true}
     username: ${DB_USERNAME:root}
@@ -17,10 +30,14 @@ spring:
         format_sql: true
 security:
   jwt:
-    # Replace this development key with a strong secret from an environment variable in real deployments.
-    secret: ${JWT_SECRET:U2NlbnRTdGF0aW9uRGV2ZWxvcG1lbnRLZXlGb3JKV1QyMDI2IQ==}
+    secret: ${JWT_SECRET:}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 
   internal:
     # Mandatory for private service-to-service introspection. No default credential.
     service-key: ${INTERNAL_SERVICE_KEY:}
+
+identity:
+  cache:
+    enabled: ${IDENTITY_CACHE_ENABLED:true}
+    ttl: ${IDENTITY_CACHE_TTL:60s}

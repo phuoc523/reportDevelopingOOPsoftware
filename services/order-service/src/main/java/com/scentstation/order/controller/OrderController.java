@@ -5,6 +5,7 @@ import com.scentstation.order.dto.request.UpdateOrderStatusRequest;
 import com.scentstation.order.dto.response.DispensingResponse;
 import com.scentstation.order.dto.response.OrderResponse;
 import com.scentstation.order.dto.response.OrderStatusResponse;
+import com.scentstation.order.dto.response.OrderStatusMetadata;
 import com.scentstation.order.exception.ApiErrorResponse;
 import com.scentstation.order.service.DispensingService;
 import com.scentstation.order.service.OrderService;
@@ -106,6 +107,11 @@ public class OrderController {
     @ApiResponse(responseCode = "200", description = "List of orders")
     public ResponseEntity<List<OrderResponse>> getOrders() {
         return ResponseEntity.ok(orderService.getOrders(actors.principal()));
+    }
+
+    @GetMapping("/metadata/statuses")
+    public ResponseEntity<List<OrderStatusMetadata>> getStatusMetadata() {
+        return ResponseEntity.ok(orderService.getStatusMetadata(actors.principal()));
     }
 
     @GetMapping("/{id}")

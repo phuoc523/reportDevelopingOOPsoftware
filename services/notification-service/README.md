@@ -13,8 +13,20 @@ Notification Service quản lý hộp thư thông báo theo tenant và người 
 - Tự vô hiệu hóa token FCM không còn hợp lệ.
 - Flyway migration, readiness/liveness probe và graceful shutdown.
 - Lỗi Identity hoặc database được fail-closed và trả response an toàn.
+- Redis dùng chung cho fixed-window rate limit của các API đọc; response thông báo, trạng thái đọc, cảnh báo, FCM token và trạng thái delivery không được cache.
 
 Firebase và Kafka là adapter tùy chọn, có thể bật/tắt độc lập. Hộp thư trong ứng dụng vẫn hoạt động khi hai adapter này tắt.
+
+## Redis dùng chung
+
+Notification Service dùng Redis duy nhất trong root `docker-compose.yml`. `RedisCacheManager` có TTL mặc định 60 giây, không cache null và prefix riêng `scentstation:notification:spring-cache:v1:`. Chức năng Redis nghiệp vụ là bộ đếm rate limit nguyên tử sau khi Identity xác thực/quyền và tenant:
+
+- GET inbox/notification/unread count: 120 request mỗi user+tenant trong cửa sổ 1 phút mặc định.
+- Service principal được giới hạn theo tenant.
+- Bộ đếm có TTL tự hết hạn; vượt ngưỡng trả `429`, Redis lỗi trả `503`.
+- Notification payload, trạng thái đang hoạt động/delivery, read-state và FCM token không được ghi vào Redis.
+
+Cấu hình: `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_CONNECT_TIMEOUT`, `REDIS_TIMEOUT`, `REDIS_CACHE_TTL`, `NOTIFICATION_RATE_LIMIT_ENABLED`, `NOTIFICATION_RATE_LIMIT_REQUESTS`, `NOTIFICATION_RATE_LIMIT_WINDOW`. Dùng root Compose để đảm bảo chỉ có một Redis; không tạo Redis riêng trong Compose của Notification.
 
 ## API công khai qua Gateway
 

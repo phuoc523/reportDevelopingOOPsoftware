@@ -32,11 +32,31 @@ services:
       PAYMENT_QR_EXPIRATION: ${PAYMENT_QR_EXPIRATION:-PT15M}
       PAYMENT_CALLBACK_TOKEN: ${PAYMENT_CALLBACK_TOKEN:-local-mock-callback-token}
       MACHINE_SERVICE_BASE_URL: ${MACHINE_SERVICE_BASE_URL:-http://host.docker.internal:8084}
+      REDIS_HOST: ${REDIS_CONTAINER_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_CONNECT_TIMEOUT: ${REDIS_CONNECT_TIMEOUT:-2s}
+      REDIS_TIMEOUT: ${REDIS_TIMEOUT:-2s}
+      REDIS_CACHE_TTL: ${REDIS_CACHE_TTL:-60s}
+      ORDER_STATUS_METADATA_TTL: ${ORDER_STATUS_METADATA_TTL:-5m}
+      ORDER_CACHE_ENABLED: ${ORDER_CACHE_ENABLED:-true}
     ports:
       - "${ORDER_SERVICE_PORT:-8083}:8083"
     depends_on:
       order-db:
         condition: service_healthy
+    networks:
+      - default
+      - scentstation-backend
+      - scentstation-redis
 
 volumes:
   order-db-data:
+
+networks:
+  scentstation-backend:
+    external: true
+    name: scentstation-backend
+  scentstation-redis:
+    external: true
+    name: scentstation-redis

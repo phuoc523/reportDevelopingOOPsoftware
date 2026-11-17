@@ -5,6 +5,7 @@ import com.scentstation.notification.security.IdentityAuthorizationClient;
 import com.scentstation.notification.security.NotificationAuthorizationException;
 import com.scentstation.notification.security.NotificationAuthorizationResponse;
 import com.scentstation.notification.service.NotificationService;
+import com.scentstation.notification.service.NotificationReadRateLimiter;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -36,6 +37,9 @@ class NotificationApiControllerTests {
 
     @MockBean
     private IdentityAuthorizationClient identity;
+
+    @MockBean
+    private NotificationReadRateLimiter rateLimiter;
 
     @Test
     void createsWithTenantAndRecipientsReturnedByIdentity() throws Exception {
