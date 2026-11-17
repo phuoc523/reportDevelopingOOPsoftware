@@ -1,6 +1,19 @@
 ﻿spring:
   application:
     name: reporting-service
+  cache:
+    type: redis
+    redis:
+      time-to-live: ${REDIS_CACHE_TTL:60s}
+      cache-null-values: false
+      key-prefix: "scentstation:reporting:spring-cache:v1:"
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_TIMEOUT:2s}
 
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/scentstation_reporting?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Ho_Chi_Minh}
@@ -28,6 +41,11 @@ reporting:
   zone-id: ${REPORTING_TIME_ZONE:Asia/Ho_Chi_Minh}
   sync:
     api-key: ${REPORTING_SYNC_API_KEY:local-reporting-sync-key}
+  rate-limit:
+    dashboard:
+      enabled: ${REPORTING_DASHBOARD_RATE_LIMIT_ENABLED:true}
+      max-requests: ${REPORTING_DASHBOARD_RATE_LIMIT_REQUESTS:120}
+      window: ${REPORTING_DASHBOARD_RATE_LIMIT_WINDOW:1m}
 
 integration:
   identity:

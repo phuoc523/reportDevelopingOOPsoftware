@@ -7,8 +7,11 @@ import com.scentstation.catalog.exception.ProductNotFoundException;
 import com.scentstation.catalog.mapper.ProductMapper;
 import com.scentstation.catalog.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.scentstation.catalog.dto.request.UpdateProductAvailabilityRequest;
 import com.scentstation.catalog.dto.request.UpdateProductPriceRequest;
 import com.scentstation.catalog.dto.request.ProductSearchCriteria;
@@ -26,6 +29,12 @@ public class ProductService {
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
     private final CurrentActorContext currentActorContext;
+    private ProductListCache productListCache;
+
+    @Autowired(required = false)
+    public void setProductListCache(ProductListCache productListCache) {
+        this.productListCache = productListCache;
+    }
 
     // Tạo sản phẩm bằng tenant đã xác minh và từ chối body giả tenant khác.
     @Transactional
@@ -35,6 +44,7 @@ public class ProductService {
         Product product = productMapper.toEntity(request, tenantId);
 
         Product savedProduct = productRepository.save(product);
+        evictProductListAfterCommit(tenantId);
 
         return productMapper.toResponse(savedProduct);
     }
@@ -43,12 +53,19 @@ public class ProductService {
     @Transactional(readOnly = true)
     public List<ProductResponse> getProducts(Long requestedTenantId) {
         currentActorContext.requirePermission(CatalogPermissions.READ);
-        return productRepository.findAllByTenantId(
-                        currentActorContext.requireTenant(requestedTenantId)
-                )
+        Long tenantId = currentActorContext.requireTenant(requestedTenantId);
+        List<ProductResponse> cached = productListCache == null ? null : productListCache.get(tenantId);
+        if (cached != null) {
+            return cached;
+        }
+        List<ProductResponse> products = productRepository.findAllByTenantId(tenantId)
                 .stream()
                 .map(productMapper::toResponse)
                 .toList();
+        if (productListCache != null) {
+            productListCache.put(tenantId, products);
+        }
+        return products;
     }
 
     // Chỉ trả sản phẩm thuộc tenant hiện tại để tránh đọc chéo tenant.
@@ -67,6 +84,7 @@ public class ProductService {
         Product product = findProductForCurrentTenant(id);
         product.setAvailable(request.getAvailable());
         Product updatedProduct = productRepository.save(product);
+        evictProductListAfterCommit(product.getTenantId());
 
         return productMapper.toResponse(updatedProduct);
     }
@@ -78,6 +96,7 @@ public class ProductService {
         Product product = findProductForCurrentTenant(id);
         product.setDefaultPrice(request.getDefaultPrice());
         Product updatedProduct = productRepository.save(product);
+        evictProductListAfterCommit(product.getTenantId());
 
         return productMapper.toResponse(updatedProduct);
     }
@@ -89,6 +108,22 @@ public class ProductService {
                         currentActorContext.requireTenant(null)
                 )
                 .orElseThrow(() -> new ProductNotFoundException(id));
+    }
+
+    private void evictProductListAfterCommit(Long tenantId) {
+        if (productListCache == null) {
+            return;
+        }
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    productListCache.evict(tenantId);
+                }
+            });
+        } else {
+            productListCache.evict(tenantId);
+        }
     }
 
     // Tìm sản phẩm bằng tenant đã xác minh và không cho query override tenant.

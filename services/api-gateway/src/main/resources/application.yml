@@ -4,6 +4,19 @@ server:
 spring:
   application:
     name: api-gateway
+  cache:
+    type: redis
+    redis:
+      time-to-live: ${REDIS_CACHE_TTL:60s}
+      cache-null-values: false
+      key-prefix: "scentstation:api-gateway:spring-cache:v1:"
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_TIMEOUT:2s}
   cloud:
     gateway:
       globalcors:
@@ -70,6 +83,14 @@ management:
     web:
       exposure:
         include: health,info
+
+gateway:
+  rate-limit:
+    enabled: ${GATEWAY_RATE_LIMIT_ENABLED:true}
+    requests-per-minute: ${GATEWAY_RATE_LIMIT_REQUESTS_PER_MINUTE:120}
+    window: ${GATEWAY_RATE_LIMIT_WINDOW:1m}
+    identity-service-url: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+    internal-service-key: ${INTERNAL_SERVICE_KEY:}
 
 logging:
   level:

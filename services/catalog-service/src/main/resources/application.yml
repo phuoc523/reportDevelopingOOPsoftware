@@ -2,6 +2,19 @@
 spring:
   application:
     name: catalog-service
+  cache:
+    type: redis
+    redis:
+      time-to-live: ${REDIS_CACHE_TTL:60s}
+      cache-null-values: false
+      key-prefix: "scentstation:catalog:spring-cache:v1:"
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_TIMEOUT:2s}
 
   datasource:
     url: ${CATALOG_DB_URL:jdbc:mysql://localhost:3306/scentstation_catalog}
@@ -37,3 +50,8 @@ management:
   endpoint:
     health:
       show-details: never
+
+catalog:
+  cache:
+    enabled: ${CATALOG_CACHE_ENABLED:true}
+    product-list-ttl: ${CATALOG_PRODUCT_LIST_TTL:60s}

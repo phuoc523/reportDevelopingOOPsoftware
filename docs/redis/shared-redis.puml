@@ -1,0 +1,44 @@
+@startuml
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam defaultFontColor black
+skinparam ArrowColor black
+skinparam RectangleBorderColor black
+skinparam RectangleBackgroundColor white
+skinparam DatabaseBorderColor black
+skinparam DatabaseBackgroundColor white
+skinparam componentStyle rectangle
+
+actor "Client" as client
+rectangle "API Gateway\nrate-limit (Redis Lua)" as gateway
+rectangle "Identity Service\nprofile display cache" as identity
+rectangle "Catalog Service\nproduct-list cache" as catalog
+rectangle "Order Service\nstatus metadata cache" as order
+rectangle "Machine Service\nlocation-list cache" as machine
+rectangle "Operation Service\nmaintenance checklist cache" as operation
+rectangle "Reporting Service\ntenant dashboard cache" as reporting
+database "Shared Redis 7.4\ninternal network\nTTL + service/tenant keys" as redis
+
+client --> gateway
+gateway --> identity : routing + trusted introspection
+gateway --> catalog
+gateway --> order
+gateway --> machine
+gateway --> operation
+gateway --> reporting
+gateway <--> redis : hashed rate counters
+identity <--> redis : scentstation:identity:v1
+catalog <--> redis : scentstation:catalog:v1
+order <--> redis : scentstation:order:v1
+machine <--> redis : scentstation:machine:v1
+operation <--> redis : scentstation:operation:v1
+reporting <--> redis : scentstation:reporting:v1
+
+note bottom of redis
+No Redis host port published.
+Each service owns its cache namespace.
+Tenant cache access is authorized before use.
+Auth, payment, inventory, and device safety
+remain source-of-truth decisions.
+end note
+@enduml

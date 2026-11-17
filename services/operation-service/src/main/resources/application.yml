@@ -1,6 +1,19 @@
 spring:
   application:
     name: operation-service
+  cache:
+    type: redis
+    redis:
+      time-to-live: ${REDIS_CACHE_TTL:60s}
+      cache-null-values: false
+      key-prefix: "scentstation:operation:spring-cache:v1:"
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_TIMEOUT:2s}
 
   datasource:
     url: ${OPERATION_DB_URL:jdbc:mysql://localhost:3306/scentstation_operation}
@@ -32,3 +45,8 @@ management:
   endpoint:
     health:
       show-details: never
+
+operation:
+  cache:
+    enabled: ${OPERATION_CACHE_ENABLED:true}
+    checklist-ttl: ${OPERATION_CHECKLIST_TTL:5s}

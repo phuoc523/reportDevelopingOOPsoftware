@@ -3,8 +3,11 @@ package com.scentstation.identity.tenant;
 import com.scentstation.identity.audit.AuditService;
 import com.scentstation.identity.rbac.AccessPolicy;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -13,8 +16,50 @@ public class TenantService {
     private final TenantRepository tenants;
     private final AccessPolicy access;
     private final AuditService audit;
+    private TenantProfileCache profileCache;
+
     public TenantService(TenantRepository tenants, AccessPolicy access, AuditService audit) {
-        this.tenants = tenants; this.access = access; this.audit = audit;
+        this.tenants = tenants;
+        this.access = access;
+        this.audit = audit;
+    }
+
+    @Autowired(required = false)
+    public void setProfileCache(TenantProfileCache profileCache) {
+        this.profileCache = profileCache;
+    }
+
+    @Transactional(readOnly = true)
+    public TenantView view(Long id) {
+        if (id == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tenant not assigned");
+        }
+        Tenant.Status liveStatus = tenants.findStatusById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tenant not found"));
+        TenantProfileSnapshot profile = profileCache == null ? null : profileCache.get(id);
+        if (profile == null) {
+            profile = TenantProfileSnapshot.from(require(id));
+            if (profileCache != null) {
+                profileCache.put(id, profile);
+            }
+        }
+        return TenantView.from(profile, liveStatus);
+    }
+
+    private void evictProfileAfterCommit(Long tenantId) {
+        if (profileCache == null) {
+            return;
+        }
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    profileCache.evict(tenantId);
+                }
+            });
+        } else {
+            profileCache.evict(tenantId);
+        }
     }
 
     public Tenant require(Long id) {
@@ -46,6 +91,7 @@ public class TenantService {
         if (r.name() != null && !r.name().isBlank()) t.setName(r.name().trim());
         apply(t, r.profile());
         audit.record(access.current().id(), id, "TENANT_UPDATED", "TENANT", id.toString(), null, "profile-changed");
+        evictProfileAfterCommit(id);
         return t;
     }
 
@@ -58,6 +104,7 @@ public class TenantService {
         if (r.name() != null && !r.name().isBlank()) t.setName(r.name().trim());
         apply(t, r.profile());
         audit.record(access.current().id(), tenantId, "BRAND_PROFILE_UPDATED", "TENANT", tenantId.toString(), null, "profile-changed");
+        evictProfileAfterCommit(tenantId);
         return t;
     }
 
@@ -68,6 +115,7 @@ public class TenantService {
         if (previous == status) throw new ResponseStatusException(HttpStatus.CONFLICT, "Tenant already in requested status");
         t.setStatus(status);
         audit.record(access.current().id(), id, "TENANT_STATUS_CHANGED", "TENANT", id.toString(), previous.name(), status.name());
+        evictProfileAfterCommit(id);
         return t;
     }
 

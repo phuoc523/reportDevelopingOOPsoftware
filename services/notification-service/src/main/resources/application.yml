@@ -5,6 +5,19 @@ server:
 spring:
   application:
     name: notification-service
+  cache:
+    type: redis
+    redis:
+      time-to-live: ${REDIS_CACHE_TTL:60s}
+      cache-null-values: false
+      key-prefix: "scentstation:notification:spring-cache:v1:"
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_TIMEOUT:2s}
   datasource:
     url: ${NOTIFICATION_DB_URL:jdbc:mysql://127.0.0.1:3306/scentstation_notification?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
     username: ${NOTIFICATION_DB_USERNAME}
@@ -77,6 +90,10 @@ notification:
     internal-service-key: ${NOTIFICATION_IDENTITY_INTERNAL_SERVICE_KEY:}
     connect-timeout: ${NOTIFICATION_IDENTITY_CONNECT_TIMEOUT:2s}
     read-timeout: ${NOTIFICATION_IDENTITY_READ_TIMEOUT:5s}
+  rate-limit:
+    enabled: ${NOTIFICATION_RATE_LIMIT_ENABLED:true}
+    requests: ${NOTIFICATION_RATE_LIMIT_REQUESTS:120}
+    window: ${NOTIFICATION_RATE_LIMIT_WINDOW:1m}
   kafka:
     enabled: ${NOTIFICATION_KAFKA_ENABLED:false}
     machine-alert-topic: ${NOTIFICATION_KAFKA_MACHINE_ALERT_TOPIC:machine-alert.v1}

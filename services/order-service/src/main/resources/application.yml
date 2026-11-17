@@ -1,6 +1,19 @@
 spring:
   application:
     name: order-service
+  cache:
+    type: redis
+    redis:
+      time-to-live: ${REDIS_CACHE_TTL:60s}
+      cache-null-values: false
+      key-prefix: "scentstation:order:spring-cache:v1:"
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${REDIS_TIMEOUT:2s}
   datasource:
     url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:order_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
     username: ${DB_USERNAME:order_user}
@@ -25,6 +38,18 @@ payment:
 
 order:
   expiration: ${ORDER_EXPIRATION:PT15M}
+  cache:
+    enabled: ${ORDER_CACHE_ENABLED:true}
+    status-metadata-ttl: ${ORDER_STATUS_METADATA_TTL:5m}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
 
 integration:
   identity:

@@ -2,7 +2,7 @@
 
 ScentStation is a university monorepo for an IoT smart perfume kiosk system.
 
-The local backend stack runs the API Gateway and six Spring Boot services.
+The local backend stack runs the API Gateway and seven Spring Boot services (eight backend components total), including Notification.
 Each business service has a separate MySQL database and communicates with other services via HTTP.
 
 ```powershell
@@ -14,6 +14,8 @@ The Gateway is available at `http://localhost:8080`. See the
 [Reporting Service guide](services/reporting-service/README.md#local-integration)
 for dashboard, payment synchronization, and replay.
 Vietnamese integration notes: [Tích hợp Reporting](docs/reporting-integration.md).
+Shared Redis setup, cache boundaries, and verification steps are in the
+[Redis guide](docs/redis/README.md).
 
 ## Architecture
 
@@ -36,6 +38,7 @@ Vietnamese integration notes: [Tích hợp Reporting](docs/reporting-integration
 | `machine-service` | Machines, locations, slots, alerts and dispensing commands | TBD |
 | `operation-service` | Inventory and maintenance | TBD |
 | `reporting-service` | Transactions, dashboards and Excel exports | TBD |
+| `notification-service` | Tenant/user notification inbox and delivery adapters | TBD |
 
 ## Frontend
 

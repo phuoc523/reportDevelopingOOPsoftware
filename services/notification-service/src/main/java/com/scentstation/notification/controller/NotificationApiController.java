@@ -10,6 +10,7 @@ import com.scentstation.notification.dto.response.NotificationsMarkedReadRespons
 import com.scentstation.notification.security.IdentityAuthorizationClient;
 import com.scentstation.notification.security.NotificationAuthorizationException;
 import com.scentstation.notification.security.NotificationAuthorizationResponse;
+import com.scentstation.notification.service.NotificationReadRateLimiter;
 import com.scentstation.notification.service.NotificationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -43,13 +44,16 @@ public class NotificationApiController {
 
     private final NotificationService notifications;
     private final IdentityAuthorizationClient identity;
+    private final NotificationReadRateLimiter rateLimiter;
 
     public NotificationApiController(
             NotificationService notifications,
-            IdentityAuthorizationClient identity
+            IdentityAuthorizationClient identity,
+            NotificationReadRateLimiter rateLimiter
     ) {
         this.notifications = notifications;
         this.identity = identity;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping
@@ -91,6 +95,7 @@ public class NotificationApiController {
         NotificationAuthorizationResponse caller = identity.authorize(
             authorization, serviceId, serviceCredential, READ_PERMISSION, tenantId, List.of()
         );
+        rateLimiter.check(caller);
         var notification = caller.isUser()
             ? notifications.getForRecipient(id, caller.tenantId(), caller.userId().toString())
             : notifications.getById(id, caller.tenantId());
@@ -115,6 +120,7 @@ public class NotificationApiController {
         NotificationAuthorizationResponse caller = identity.authorize(
             authorization, serviceId, serviceCredential, READ_PERMISSION, tenantId, List.of()
         );
+        rateLimiter.check(caller);
         Sort.Direction direction = Sort.Direction.fromString(sortDirection);
         PageRequest tenantPageable = PageRequest.of(
             page,
@@ -188,6 +194,7 @@ public class NotificationApiController {
             authorization, serviceId, serviceCredential, READ_PERMISSION, tenantId, List.of()
         );
         String recipientId = requireUserId(caller);
+        rateLimiter.check(caller);
         return new NotificationReadCountResponse(
             notifications.countUnreadForRecipient(caller.tenantId(), recipientId)
         );

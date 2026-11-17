@@ -21,3 +21,7 @@ integration:
 security:
   internal:
     service-key: test-internal-service-key
+
+order:
+  cache:
+    enabled: false

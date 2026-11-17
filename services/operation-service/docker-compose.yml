@@ -25,11 +25,31 @@ services:
       OPERATION_DB_PASSWORD: ${OPERATION_DB_PASSWORD:?Set OPERATION_DB_PASSWORD}
       OPERATION_SERVICE_PORT: ${OPERATION_SERVICE_PORT:-8085}
       SPRING_PROFILES_ACTIVE: docker-local
+      REDIS_HOST: ${REDIS_CONTAINER_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_CONNECT_TIMEOUT: ${REDIS_CONNECT_TIMEOUT:-2s}
+      REDIS_TIMEOUT: ${REDIS_TIMEOUT:-2s}
+      REDIS_CACHE_TTL: ${REDIS_CACHE_TTL:-60s}
+      OPERATION_CHECKLIST_TTL: ${OPERATION_CHECKLIST_TTL:-5s}
+      OPERATION_CACHE_ENABLED: ${OPERATION_CACHE_ENABLED:-true}
     ports:
       - "${OPERATION_SERVICE_PORT:-8085}:${OPERATION_SERVICE_PORT:-8085}"
     depends_on:
       operation-db:
         condition: service_healthy
+    networks:
+      - default
+      - scentstation-backend
+      - scentstation-redis
 
 volumes:
   operation-mysql-data:
+
+networks:
+  scentstation-backend:
+    external: true
+    name: scentstation-backend
+  scentstation-redis:
+    external: true
+    name: scentstation-redis

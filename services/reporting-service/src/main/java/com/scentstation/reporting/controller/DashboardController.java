@@ -3,7 +3,9 @@ package com.scentstation.reporting.controller;
 import com.scentstation.reporting.dto.DashboardResponse;
 import com.scentstation.reporting.enumtype.ReportPeriod;
 import com.scentstation.reporting.service.DashboardAggregationService;
+import com.scentstation.reporting.service.DashboardRequestRateLimiter;
 import com.scentstation.reporting.security.ReportingPermissions;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,9 +20,15 @@ import java.util.Locale;
 public class DashboardController {
 
     private final DashboardAggregationService dashboardAggregationService;
+    private DashboardRequestRateLimiter dashboardRequestRateLimiter;
 
     public DashboardController(DashboardAggregationService dashboardAggregationService) {
         this.dashboardAggregationService = dashboardAggregationService;
+    }
+
+    @Autowired(required = false)
+    public void setDashboardRequestRateLimiter(DashboardRequestRateLimiter dashboardRequestRateLimiter) {
+        this.dashboardRequestRateLimiter = dashboardRequestRateLimiter;
     }
 
     @GetMapping("/dashboard")
@@ -49,7 +57,10 @@ public class DashboardController {
             }
             tenantId = actor.tenantId().toString();
         }
-        var dashboard = dashboardAggregationService.getDashboard(tenantId, reportPeriod, platform);
+        if (dashboardRequestRateLimiter != null) {
+            dashboardRequestRateLimiter.check(actor);
+        }
+        DashboardResponse dashboard = dashboardAggregationService.getDashboard(tenantId, reportPeriod, platform);
         return dashboard.withAccess(new DashboardResponse.ReportAccess(platform ? "platform" : "tenant",
                 tenantId == null ? null : tenantId.trim(), platform,
                 platform && ReportingPermissions.has(actor, ReportingPermissions.EXPORT)));

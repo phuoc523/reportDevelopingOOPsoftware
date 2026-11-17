@@ -20,6 +20,8 @@ server:
 operation:
   security:
     enabled: false
+  cache:
+    enabled: false
 
 integration:
   identity:

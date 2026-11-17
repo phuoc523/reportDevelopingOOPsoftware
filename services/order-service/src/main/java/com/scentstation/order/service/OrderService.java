@@ -4,6 +4,7 @@ import com.scentstation.order.dto.request.CreateOrderRequest;
 import com.scentstation.order.dto.request.UpdateOrderStatusRequest;
 import com.scentstation.order.dto.response.OrderResponse;
 import com.scentstation.order.dto.response.OrderStatusResponse;
+import com.scentstation.order.dto.response.OrderStatusMetadata;
 import com.scentstation.order.entity.DispensingCommand;
 import com.scentstation.order.entity.Order;
 import com.scentstation.order.entity.OrderStatus;
@@ -23,6 +24,7 @@ import com.scentstation.order.client.CatalogProductSnapshot;
 import com.scentstation.order.client.MachineAuthorityGateway;
 import com.scentstation.order.client.MachineSlotSnapshot;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -56,6 +58,7 @@ public class OrderService {
     private final OrderAuthorization authorization;
     private final CatalogServiceGateway catalog;
     private final MachineAuthorityGateway machines;
+    private OrderStatusMetadataCache statusMetadataCache;
 
     public OrderService(
             OrderRepository orderRepository,
@@ -78,6 +81,26 @@ public class OrderService {
             throw new IllegalArgumentException("Order expiration must be positive");
         }
         this.orderExpiration = orderExpiration;
+    }
+
+    @Autowired(required = false)
+    public void setStatusMetadataCache(OrderStatusMetadataCache statusMetadataCache) {
+        this.statusMetadataCache = statusMetadataCache;
+    }
+
+    public List<OrderStatusMetadata> getStatusMetadata(IdentityPrincipal actor) {
+        if (actor == null || (!actor.grants().contains(OrderAuthorization.ORDER_READ)
+                && !actor.grants().contains(OrderAuthorization.KIOSK_ORDER))) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.FORBIDDEN,
+                    "Order read access is not allowed"
+            );
+        }
+        String tenantId = authorization.tenant(actor);
+        if (statusMetadataCache == null) {
+            return OrderStatusMetadataCache.statusMetadata();
+        }
+        return statusMetadataCache.getOrLoad(tenantId);
     }
 
     public OrderResponse createOrder(CreateOrderRequest request) {

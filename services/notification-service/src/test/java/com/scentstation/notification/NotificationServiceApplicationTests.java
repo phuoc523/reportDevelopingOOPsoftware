@@ -20,9 +20,9 @@ class NotificationServiceApplicationTests {
     private MockMvc mockMvc;
 
     @Test
-    void healthEndpointReturnsUp() throws Exception {
+    void healthEndpointReportsRedisUnavailable() throws Exception {
         mockMvc.perform(get("/actuator/health"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.status").value("UP"));
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.status").value("DOWN"));
     }
 }

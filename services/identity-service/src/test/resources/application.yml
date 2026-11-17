@@ -1,0 +1,6 @@
+identity:
+  cache:
+    enabled: false
+security:
+  jwt:
+    secret: dGVzdC1qd3Qta2V5LXRlc3Qtand0LWtleS10ZXN0LXNlY3JldA==

@@ -24,7 +24,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /** Isolated security tests mock Identity transport, never bypass the production filter. */
-@WebMvcTest(controllers = {ReportingSecurityTest.Probe.class, DashboardController.class, TransactionSyncController.class})
+@WebMvcTest(
+        controllers = {ReportingSecurityTest.Probe.class, DashboardController.class, TransactionSyncController.class},
+        properties = "reporting.sync.api-key=local-reporting-sync-key"
+)
 @Import({ReportingSecurityConfig.class, ReportingSecurityTest.Probe.class, InternalApiKeyVerifier.class})
 class ReportingSecurityTest {
     @Autowired MockMvc mvc;
