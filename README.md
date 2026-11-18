@@ -4,6 +4,9 @@ ScentStation is a university monorepo for an IoT smart perfume kiosk system.
 
 Current scope: repository structure only. Business logic is not implemented yet.
 
+Optional Prometheus and Grafana monitoring is available with the `monitoring`
+Compose profile. See [docs/monitoring.md](docs/monitoring.md) for startup and access.
+
 ## Architecture
 
 - SOA and microservices
@@ -51,7 +54,12 @@ Machine Service is the only backend service allowed to communicate directly with
 
 - Redis is an infrastructure component, not a business service.
 - Apache NiFi is an infrastructure component, not a business service.
+<<<<<<< Updated upstream
 - MySQL, Mosquitto, Redis, NiFi, and Docker configuration are only skeletons until the team finalizes ports, environment variables, and runtime details.
+=======
+- The local Compose stack includes MySQL and the backend services.
+- Prometheus and Grafana are optional and start with the `monitoring` Compose profile.
+>>>>>>> Stashed changes
 
 ## Not Implemented Yet
 

@@ -48,6 +48,7 @@ public class SecurityConfig {
                 .authenticationEntryPoint(
                     new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(auth -> auth
+<<<<<<< Updated upstream
                 .requestMatchers("/api/auth/**", "/error").permitAll()
                 .requestMatchers("/api/tenants/**").hasRole(platform)
                 .requestMatchers("/api/admin/users/**").hasRole(platform)
@@ -98,6 +99,23 @@ public class SecurityConfig {
                 .requestMatchers("/api/staff/**").hasAnyRole(platform, "ADMIN", "STAFF")
                 .requestMatchers("/api/customer/**").hasAnyRole(platform, "ADMIN", "CUSTOMER")
                 .anyRequest().authenticated())
+=======
+                .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/auth/health").permitAll()
+                .requestMatchers("/actuator/**").permitAll()
+                .requestMatchers("/error").permitAll()
+                .requestMatchers(HttpMethod.POST, "/internal/auth/introspect").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
+                .requestMatchers(HttpMethod.GET, "/api/audit/recent").authenticated()
+                .requestMatchers("/api/platform/**").hasRole("PLATFORM_SUPER_ADMIN")
+                .requestMatchers("/api/brand/**").hasRole("BRAND_ADMIN")
+                .requestMatchers("/api/admin/**").hasAnyRole("PLATFORM_SUPER_ADMIN", "BRAND_ADMIN")
+                .requestMatchers("/api/staff/**").hasAnyRole("PLATFORM_SUPER_ADMIN", "BRAND_ADMIN",
+                    "OPERATIONS_MANAGER", "TECHNICIAN", "INVENTORY_STAFF")
+                .requestMatchers("/api/customer/**").hasAnyRole("CUSTOMER", "PLATFORM_SUPER_ADMIN")
+                .anyRequest().denyAll())
+>>>>>>> Stashed changes
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
