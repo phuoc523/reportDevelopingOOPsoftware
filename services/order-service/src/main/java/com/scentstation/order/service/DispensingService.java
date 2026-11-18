@@ -3,8 +3,6 @@ package com.scentstation.order.service;
 import com.scentstation.order.client.MachineCommandRequest;
 import com.scentstation.order.client.MachineCommandResponse;
 import com.scentstation.order.client.MachineServiceGateway;
-import com.scentstation.order.client.InstalledDispenseRequest;
-import com.scentstation.order.client.OperationInventoryGateway;
 import com.scentstation.order.dto.response.DispensingResponse;
 import com.scentstation.order.entity.DispensingCommand;
 import com.scentstation.order.entity.DispensingStatus;
@@ -37,7 +35,6 @@ public class DispensingService {
     private final DispensingRepository dispensingRepository;
     private final MachineServiceGateway machineServiceClient;
     private final TransactionReviewRepository transactionReviewRepository;
-    private final OperationInventoryGateway operationInventoryClient;
 
     @Autowired
     public DispensingService(
@@ -45,26 +42,13 @@ public class DispensingService {
             PaymentRepository paymentRepository,
             DispensingRepository dispensingRepository,
             MachineServiceGateway machineServiceClient,
-            TransactionReviewRepository transactionReviewRepository,
-            OperationInventoryGateway operationInventoryClient
+            TransactionReviewRepository transactionReviewRepository
     ) {
         this.orderRepository = orderRepository;
         this.paymentRepository = paymentRepository;
         this.dispensingRepository = dispensingRepository;
         this.machineServiceClient = machineServiceClient;
         this.transactionReviewRepository = transactionReviewRepository;
-        this.operationInventoryClient = operationInventoryClient;
-    }
-
-    public DispensingService(
-            OrderRepository orderRepository,
-            PaymentRepository paymentRepository,
-            DispensingRepository dispensingRepository,
-            MachineServiceGateway machineServiceClient,
-            TransactionReviewRepository transactionReviewRepository
-    ) {
-        this(orderRepository, paymentRepository, dispensingRepository, machineServiceClient,
-                transactionReviewRepository, request -> { });
     }
 
     public DispensingResponse requestDispensing(Long orderId) {
@@ -156,9 +140,6 @@ public class DispensingService {
             case FAILED -> firstNonBlank(response.message(), "Dispensing failed after payment was confirmed");
             default -> null;
         };
-        if (result == DispensingStatus.DISPENSED) {
-            recordInventoryConsumption(order, command);
-        }
         command.recordResult(result, reviewReason);
         dispensingRepository.save(command);
         if (command.isManualReviewRequired()) {
@@ -178,32 +159,6 @@ public class DispensingService {
                     orderRepository.save(order);
                 }
             }
-        }
-    }
-
-    private void recordInventoryConsumption(Order order, DispensingCommand command) {
-        Long tenantId = parseLongIdentifier(order.getTenantId());
-        Long machineId = parseLongIdentifier(command.getMachineId());
-        Long slotId = parseLongIdentifier(command.getSlotId());
-        if (tenantId == null || machineId == null || slotId == null) {
-            LOGGER.warn(
-                    "Skipping inventory consumption for legacy non-numeric identifiers: tenant={}, machine={}, slot={}",
-                    order.getTenantId(), command.getMachineId(), command.getSlotId()
-            );
-            return;
-        }
-        operationInventoryClient.recordSuccessfulTrial(new InstalledDispenseRequest(
-                tenantId, command.getCommandId(), machineId, slotId, "CUSTOMER", "SUCCESS"));
-    }
-
-    private Long parseLongIdentifier(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return Long.valueOf(value);
-        } catch (NumberFormatException exception) {
-            return null;
         }
     }
 

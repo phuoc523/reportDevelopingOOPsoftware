@@ -19,6 +19,8 @@ for dashboard, payment synchronization, and replay.
 Vietnamese integration notes: [Tích hợp Reporting](docs/reporting-integration.md).
 Shared Redis setup, cache boundaries, and verification steps are in the
 [Redis guide](docs/redis/README.md).
+Kafka topics, outbox guarantees, DLT handling and remaining synchronous boundaries
+are documented in [Kafka integration](docs/kafka-integration.md).
 
 ## Architecture
 
@@ -29,9 +31,11 @@ Shared Redis setup, cache boundaries, and verification steps are in the
 - React for frontend applications
 - MySQL 8.4 with one database per business service
 - Redis for cache and distributed rate limiting
-- Apache Kafka for machine-alert events consumed by Notification Service
+- Apache Kafka for machine alerts, durable payment projections and inventory-consumption events
 - Firebase Cloud Messaging as an optional notification delivery adapter
 - Mock QR payment web for the local payment flow
+- Prometheus, Alertmanager and Grafana for opt-in observability
+- Apache NiFi for the documented Order-to-Reporting ETL workflow
 
 ## Backend Services
 
@@ -62,12 +66,12 @@ Frontend applications must call backend capabilities through the API Gateway.
 | React, TypeScript, Vite | Running in Admin, Kiosk and Mock Payment web apps |
 | MySQL | Running as isolated databases for each data-owning service |
 | Redis | Running for caches and rate limits |
-| Kafka | Running for machine-alert notification events |
+| Kafka | Running for machine alerts, Order-to-Reporting payment events, and Order-to-Operation dispense events; retries and DLTs are configured |
 | Firebase Cloud Messaging | Implemented; enabled only when local credentials are supplied |
 | QR payment | Implemented with the local Mock Payment Web, not a real provider |
-| Prometheus/Grafana | Not integrated in the current branch |
+| Prometheus/Alertmanager/Grafana | Metrics, dashboard and authenticated alerts to Notification Service through the opt-in `monitoring` profile |
 | MQTT/Mosquitto | Not implemented; no broker or device adapter runs in Compose |
-| Apache NiFi | Requirements documentation only; no flow or runtime container |
+| Apache NiFi | Runtime container and JDBC integration available; flow setup is currently manual |
 
 ## Device
 
@@ -88,10 +92,11 @@ When hardware integration is implemented, Machine Service remains the only backe
 - Kafka and Redis are shared infrastructure components, not business services.
 - The local Compose stack includes seven MySQL databases, Redis, Kafka, the API Gateway and seven business services.
 - Firebase credentials remain local and must never be committed.
+- Monitoring instructions are in [docs/monitoring.md](docs/monitoring.md).
+- NiFi runs with `infra/nifi/start.ps1`; credentials stay in the ignored `infra/nifi/.env` and `verify.ps1` checks its driver/network wiring.
 
 ## Not Implemented Yet
 
 - Real payment-provider integration
 - MQTT/device execution and telemetry
-- NiFi flows and runtime
-- Prometheus/Grafana monitoring
+- Automatically versioned/provisioned NiFi flow definition

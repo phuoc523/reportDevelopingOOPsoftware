@@ -2,6 +2,7 @@ package com.scentstation.order.repository.jpa;
 
 import com.scentstation.order.entity.Payment;
 import com.scentstation.order.entity.PaymentCallbackEvent;
+import com.scentstation.order.entity.PaymentEventOutbox;
 import com.scentstation.order.repository.PaymentRepository;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,28 +16,37 @@ public class PaymentJpaAdapter implements PaymentRepository {
     private final SpringDataOrderRepository orders;
     private final SpringDataPaymentRepository payments;
     private final SpringDataPaymentCallbackEventRepository callbackEvents;
+    private final PaymentEventOutboxRepository paymentOutbox;
 
     public PaymentJpaAdapter(
             SpringDataOrderRepository orders,
             SpringDataPaymentRepository payments,
-            SpringDataPaymentCallbackEventRepository callbackEvents
+            SpringDataPaymentCallbackEventRepository callbackEvents,
+            PaymentEventOutboxRepository paymentOutbox
     ) {
         this.orders = orders;
         this.payments = payments;
         this.callbackEvents = callbackEvents;
+        this.paymentOutbox = paymentOutbox;
     }
 
     @Override
     @Transactional
     public Payment saveIfAbsent(Payment payment) {
         orders.findByIdForUpdate(payment.getOrderId());
-        return payments.findByOrderId(payment.getOrderId())
-                .orElseGet(() -> payments.save(payment));
+        Payment stored = payments.findByOrderId(payment.getOrderId()).orElse(null);
+        if (stored != null) return stored;
+        stored = payments.save(payment);
+        enqueue(stored);
+        return stored;
     }
 
     @Override
+    @Transactional
     public Payment save(Payment payment) {
-        return payments.save(payment);
+        Payment stored = payments.save(payment);
+        enqueue(stored);
+        return stored;
     }
 
     @Override
@@ -70,7 +80,15 @@ public class PaymentJpaAdapter implements PaymentRepository {
     @Override
     @Transactional
     public void deleteAll() {
+        paymentOutbox.deleteAll();
         callbackEvents.deleteAll();
         payments.deleteAll();
+    }
+
+    private void enqueue(Payment payment) {
+        PaymentEventOutbox event = new PaymentEventOutbox(payment);
+        if (!paymentOutbox.existsById(event.getEventId())) {
+            paymentOutbox.save(event);
+        }
     }
 }

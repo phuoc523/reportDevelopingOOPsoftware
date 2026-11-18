@@ -27,6 +27,14 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
 
 server:
   port: ${ORDER_SERVICE_PORT:8083}
@@ -41,15 +49,29 @@ order:
   cache:
     enabled: ${ORDER_CACHE_ENABLED:true}
     status-metadata-ttl: ${ORDER_STATUS_METADATA_TTL:5m}
+  events:
+    kafka:
+      enabled: ${ORDER_KAFKA_ENABLED:false}
+      payment-topic: ${ORDER_KAFKA_PAYMENT_TOPIC:payment-events.v1}
+      dispense-topic: ${ORDER_KAFKA_DISPENSE_TOPIC:dispense-events.v1}
+    outbox:
+      poll-interval-ms: ${ORDER_OUTBOX_POLL_INTERVAL_MS:1000}
+      initial-delay-ms: ${ORDER_OUTBOX_INITIAL_DELAY_MS:5000}
 
 management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
 
 integration:
   identity:
@@ -62,13 +84,5 @@ security:
 machine-service:
   base-url: ${MACHINE_SERVICE_BASE_URL:http://localhost:8084}
 
-operation-service:
-  base-url: ${OPERATION_SERVICE_BASE_URL:http://localhost:8085}
-
 catalog-service:
   base-url: ${CATALOG_SERVICE_BASE_URL:http://localhost:8082}
-
-reporting-service:
-  enabled: ${REPORTING_SYNC_ENABLED:true}
-  base-url: ${REPORTING_SERVICE_URL:http://localhost:8086}
-  api-key: ${REPORTING_SYNC_API_KEY:local-reporting-sync-key}

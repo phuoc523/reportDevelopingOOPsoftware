@@ -25,9 +25,9 @@ the script, or pass `-SyncApiKey` to the script. Use `-GatewayUrl` and
 `-ReportingUrl` when running on different local ports.
 
 - Dashboard via Gateway: `GET http://localhost:8080/api/reporting/dashboard?tenantId=1&period=day`.
-- Reporting stores its own copy of payments by payment reference. Order pushes
-  updates after committing the payment transaction. If the push fails, Order
-  logs the failure and the payment remains committed.
+- Reporting stores its own copy of payments by payment reference. Order writes a
+  payment outbox row in the same database transaction and publishes it to
+  `payment-events.v1`. Broker outages are retried without rolling back payment.
 - Replay a payment using
   `POST http://localhost:8086/api/reporting/internal/transactions/sync-from-order/{reference}`
   with the `X-Internal-Api-Key` header. Set the same `REPORTING_SYNC_API_KEY`
@@ -36,9 +36,9 @@ the script, or pass `-SyncApiKey` to the script. Use `-GatewayUrl` and
   applies to machines, alerts and inventory. Operation expects a positive numeric
   tenant ID. Check the dashboard's `upstream` values when a source is unavailable.
 
-## Order synchronization guarantees (Phase 2)
+## Order synchronization guarantees (Kafka + replay)
 
-- Both push and replay validate required fields, status/timestamps, and the
+- Both Kafka consumption and replay validate required fields, status/timestamps, and the
   `DECIMAL(15,2)` amount before persistence. Invalid Order responses return 502;
   invalid push payloads return 400.
 - Replaying identical PENDING or terminal data does not write another row.
@@ -47,9 +47,11 @@ the script, or pass `-SyncApiKey` to the script. Use `-GatewayUrl` and
 - Existing rows are locked during synchronization to serialize concurrent updates.
   Concurrent first inserts are protected by the unique reference. A duplicate insert,
   deadlock or lock acquisition failure returns 409; replay the request after the
-  competing transaction finishes. This does not provide automatic delivery retries.
-- An unavailable Order response does not write or clear Reporting transactions.
-  Durable retry/outbox delivery from Order remains work for the Order owner.
+  competing transaction finishes. Kafka delivery is retried and terminal consumer
+  failures are routed to `payment-events.v1.DLT`.
+- An unavailable Order replay response does not write or clear Reporting transactions.
+  Order exposes its pending outbox count to Prometheus. HTTP replay remains a
+  repair tool and is not part of the payment hot path.
 
 Run the standard tests with:
 

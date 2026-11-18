@@ -33,9 +33,43 @@
   sql:
     init:
       mode: always
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: com.scentstation.reporting.event
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.scentstation.reporting.event.PaymentChangedEvent
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
 
 server:
   port: ${REPORTING_SERVICE_PORT:8086}
+
+management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
 
 reporting:
   zone-id: ${REPORTING_TIME_ZONE:Asia/Ho_Chi_Minh}
@@ -46,6 +80,14 @@ reporting:
       enabled: ${REPORTING_DASHBOARD_RATE_LIMIT_ENABLED:true}
       max-requests: ${REPORTING_DASHBOARD_RATE_LIMIT_REQUESTS:120}
       window: ${REPORTING_DASHBOARD_RATE_LIMIT_WINDOW:1m}
+  events:
+    kafka:
+      enabled: ${REPORTING_KAFKA_ENABLED:false}
+      payment-topic: ${REPORTING_KAFKA_PAYMENT_TOPIC:payment-events.v1}
+      group-id: ${REPORTING_KAFKA_GROUP_ID:reporting-payment-v1}
+      retry-attempts: ${REPORTING_KAFKA_RETRY_ATTEMPTS:5}
+      retry-backoff-ms: ${REPORTING_KAFKA_RETRY_BACKOFF_MS:2000}
+      dead-letter-topic: ${REPORTING_KAFKA_DEAD_LETTER_TOPIC:payment-events.v1.DLT}
 
 integration:
   identity:

@@ -11,7 +11,12 @@ import {
 } from '../services/firebaseMessaging'
 
 const priorityLabels: Record<string, string> = { CRITICAL: 'Khẩn cấp', HIGH: 'Cao', NORMAL: 'Bình thường', LOW: 'Thấp' }
-const typeLabels: Record<string, string> = { MACHINE_ALERT: 'Cảnh báo kiosk', SYSTEM: 'Hệ thống', INVENTORY_ALERT: 'Tồn kho' }
+const typeLabels: Record<string, string> = {
+  MACHINE_ALERT: 'Cảnh báo kiosk',
+  SYSTEM: 'Hệ thống',
+  SYSTEM_ALERT: 'Cảnh báo hệ thống',
+  INVENTORY_ALERT: 'Tồn kho',
+}
 const errorText = (error: unknown) => error instanceof ApiError || error instanceof Error ? error.message : 'Không thể tải thông báo.'
 
 const legacyTitles: Record<string, string> = {

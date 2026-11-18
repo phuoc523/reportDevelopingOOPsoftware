@@ -1,0 +1,85 @@
+groups:
+  - name: scentstation-backend
+    interval: 30s
+    rules:
+      - alert: BackendDown
+        expr: up{job="scentstation-services"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backend {{ $labels.service }} is down"
+          description: "Prometheus cannot scrape {{ $labels.instance }} for at least one minute."
+          runbook: "Check the service container, its health endpoint, management port 9090, and application logs."
+
+      - alert: PrometheusTargetMissing
+        expr: absent(up{job="scentstation-services"}) or count(up{job="scentstation-services"}) < 8
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Expected backend scrape target is missing"
+          description: "Expected 8 backend targets but Prometheus currently discovers fewer. Check static targets and Compose services."
+          runbook: "When adding or removing a backend, update both static targets in prometheus.yml and this expected count."
+
+      - alert: HighHttp5xxRate
+        expr: |
+          (
+            sum by (service) (rate(http_server_requests_seconds_count{job="scentstation-services",status=~"5.."}[5m]))
+            /
+            sum by (service) (rate(http_server_requests_seconds_count{job="scentstation-services"}[5m]))
+          ) > 0.05
+          and on (service)
+          sum by (service) (rate(http_server_requests_seconds_count{job="scentstation-services"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx rate in {{ $labels.service }}"
+          description: "More than 5% of observed requests returned 5xx over the recent five-minute window."
+          runbook: "Inspect service logs and dependencies. Tune the 5% threshold in alerts.yml if the service's expected profile differs."
+
+      - alert: HighHttpLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (service, le) (
+              rate(http_server_requests_seconds_bucket{job="scentstation-services"}[5m])
+            )
+          ) > 1
+          and on (service)
+          sum by (service) (rate(http_server_requests_seconds_count{job="scentstation-services"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP p95 latency in {{ $labels.service }}"
+          description: "The HTTP p95 latency is above one second over the recent five-minute window."
+          runbook: "Inspect request latency and downstream dependencies. Tune the one-second threshold in alerts.yml if required."
+
+      - alert: HighJvmHeapUsage
+        expr: |
+          (
+            sum by (service, instance) (jvm_memory_used_bytes{job="scentstation-services",area="heap"})
+            /
+            sum by (service, instance) (jvm_memory_max_bytes{job="scentstation-services",area="heap"})
+          ) > 0.85
+          and on (service, instance)
+          sum by (service, instance) (jvm_memory_max_bytes{job="scentstation-services",area="heap"}) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High JVM heap usage in {{ $labels.service }}"
+          description: "JVM heap usage is above 85% of the configured maximum for at least ten minutes."
+          runbook: "Inspect heap trends and GC behavior. Tune the 85% threshold in alerts.yml if the service requires a different limit."
+
+      - alert: OrderKafkaOutboxBacklog
+        expr: scentstation_order_outbox_pending{service="order-service"} > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Order Kafka outbox is not draining"
+          description: "The {{ $labels.event }} outbox has remained non-empty for at least ten minutes."
+          runbook: "Check Order Service, Kafka health, topic availability and consumer/DLT status before replaying or deleting any outbox row."

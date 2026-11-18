@@ -28,6 +28,7 @@ public class ReportingSecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reporting/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                         .requestMatchers("/api/reporting/internal/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reporting/dashboard").hasAuthority("REPORT_READ")
                         .requestMatchers(HttpMethod.GET, "/api/reporting/export/**").access((authentication, context) ->

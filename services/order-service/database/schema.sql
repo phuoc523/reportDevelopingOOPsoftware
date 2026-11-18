@@ -14,21 +14,8 @@ CREATE TABLE IF NOT EXISTS orders (
     INDEX idx_orders_created_at (created_at)
 );
 
-SET @order_type_column_exists = (
-    SELECT COUNT(*)
-    FROM information_schema.columns
-    WHERE table_schema = DATABASE()
-      AND table_name = 'orders'
-      AND column_name = 'order_type'
-);
-SET @order_type_ddl = IF(
-    @order_type_column_exists = 0,
-    'ALTER TABLE orders ADD COLUMN order_type VARCHAR(16) NOT NULL DEFAULT ''TRIAL'' AFTER slot_id',
-    'SELECT 1'
-);
-PREPARE order_type_statement FROM @order_type_ddl;
-EXECUTE order_type_statement;
-DEALLOCATE PREPARE order_type_statement;
+ALTER TABLE orders
+    ADD COLUMN IF NOT EXISTS order_type VARCHAR(16) NOT NULL DEFAULT 'TRIAL';
 
 CREATE TABLE IF NOT EXISTS order_items (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -69,6 +56,25 @@ CREATE TABLE IF NOT EXISTS payment_callback_events (
     INDEX idx_callback_events_reference (reference)
 );
 
+CREATE TABLE IF NOT EXISTS payment_event_outbox (
+    event_id VARCHAR(100) NOT NULL PRIMARY KEY,
+    event_version INT NOT NULL,
+    payment_reference VARCHAR(64) NOT NULL,
+    order_id BIGINT NOT NULL,
+    amount DECIMAL(19, 4) NOT NULL,
+    currency CHAR(3) NOT NULL,
+    payment_status VARCHAR(32) NOT NULL,
+    payment_created_at DATETIME(6) NOT NULL,
+    paid_at DATETIME(6) NULL,
+    occurred_at DATETIME(6) NOT NULL,
+    attempt_count INT NOT NULL DEFAULT 0,
+    next_attempt_at DATETIME(6) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    INDEX idx_payment_outbox_next_attempt (next_attempt_at),
+    CONSTRAINT fk_payment_outbox_payment FOREIGN KEY (payment_reference)
+        REFERENCES payments(reference) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS dispensing_commands (
     command_id VARCHAR(36) NOT NULL PRIMARY KEY,
     order_id BIGINT NOT NULL UNIQUE,
@@ -82,6 +88,24 @@ CREATE TABLE IF NOT EXISTS dispensing_commands (
     manual_review_reason VARCHAR(1000) NULL,
     CONSTRAINT fk_dispensing_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
     CONSTRAINT fk_dispensing_payment FOREIGN KEY (payment_reference) REFERENCES payments(reference) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dispense_event_outbox (
+    event_id VARCHAR(100) NOT NULL PRIMARY KEY,
+    event_version INT NOT NULL,
+    command_id VARCHAR(36) NOT NULL,
+    tenant_id BIGINT NOT NULL,
+    machine_id BIGINT NOT NULL,
+    slot_id BIGINT NOT NULL,
+    dispense_type VARCHAR(32) NOT NULL,
+    dispense_result VARCHAR(32) NOT NULL,
+    occurred_at DATETIME(6) NOT NULL,
+    attempt_count INT NOT NULL DEFAULT 0,
+    next_attempt_at DATETIME(6) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    INDEX idx_dispense_outbox_next_attempt (next_attempt_at),
+    CONSTRAINT fk_dispense_outbox_command FOREIGN KEY (command_id)
+        REFERENCES dispensing_commands(command_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS transaction_reviews (

@@ -7,6 +7,8 @@ import com.scentstation.order.entity.OrderItem;
 import com.scentstation.order.entity.OrderStatus;
 import com.scentstation.order.entity.Payment;
 import com.scentstation.order.entity.TransactionReview;
+import com.scentstation.order.repository.jpa.DispenseEventOutboxRepository;
+import com.scentstation.order.repository.jpa.PaymentEventOutboxRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -34,6 +36,12 @@ class JpaRepositoryIntegrationTest {
 
     @Autowired
     private TransactionReviewRepository transactionReviewRepository;
+
+    @Autowired
+    private PaymentEventOutboxRepository paymentEventOutboxRepository;
+
+    @Autowired
+    private DispenseEventOutboxRepository dispenseEventOutboxRepository;
 
     @Test
     void orderAndItemsPersistWithExpectedAuditFields() {
@@ -181,5 +189,36 @@ class JpaRepositoryIntegrationTest {
 
         assertEquals(DispensingStatus.UNKNOWN, command.getStatus());
         assertEquals("Machine service timed out", command.getManualReviewReason());
+    }
+
+    @Test
+    void paymentAndSuccessfulDispenseAreAtomicallyEnqueuedForKafka() {
+        Order order = new Order(
+                "1", 10L, "101", "201",
+                List.of(new OrderItem(12L, "Sample", new BigDecimal("15.00"), 1, new BigDecimal("15.00"))),
+                new BigDecimal("15.00"), "VND", LocalDateTime.now().plusMinutes(15));
+        order.setStatus(OrderStatus.CONFIRMED);
+        Order savedOrder = orderRepository.save(order);
+
+        Payment payment = new Payment(
+                "PAY-OUTBOX-1", savedOrder.getId(), new BigDecimal("15.00"), "VND",
+                "qr", LocalDateTime.now(), LocalDateTime.now().plusMinutes(15));
+        payment.markPaid();
+        paymentRepository.save(payment);
+
+        DispensingCommand command = new DispensingCommand(
+                "00000000-0000-0000-0000-000000000001", savedOrder.getId(),
+                payment.getReference(), "101", "201");
+        dispensingRepository.saveIfAbsent(command);
+        command.recordResult(DispensingStatus.DISPENSED, null);
+        dispensingRepository.save(command);
+
+        assertEquals("PAID", paymentEventOutboxRepository
+                .findById("PAY-OUTBOX-1:PAID").orElseThrow().getStatus());
+        var event = dispenseEventOutboxRepository
+                .findById("dispense:00000000-0000-0000-0000-000000000001").orElseThrow();
+        assertEquals(1L, event.getTenantId());
+        assertEquals(101L, event.getMachineId());
+        assertEquals(201L, event.getSlotId());
     }
 }

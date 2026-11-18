@@ -7,6 +7,23 @@ param(
 $ErrorActionPreference = 'Stop'
 $GatewayUrl = $GatewayUrl.TrimEnd('/')
 $ReportingUrl = $ReportingUrl.TrimEnd('/')
+
+function Wait-TransactionStatus([string]$Url, [string]$ExpectedStatus, [int]$TimeoutSeconds = 30) {
+    $statusDeadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        try {
+            $transaction = Invoke-RestMethod $Url -TimeoutSec 5
+            if ($transaction.status -eq $ExpectedStatus) { return $transaction }
+        } catch {
+            if ((Get-Date) -ge $statusDeadline) { throw }
+        }
+        if ((Get-Date) -ge $statusDeadline) {
+            throw "Timed out waiting for Reporting status $ExpectedStatus"
+        }
+        Start-Sleep -Milliseconds 500
+    } while ($true)
+}
+
 $deadline = (Get-Date).AddMinutes(2)
 do {
     try {
@@ -41,11 +58,10 @@ $order = Invoke-RestMethod "$GatewayUrl/api/v1/orders" -Method Post -ContentType
 $payment = Invoke-RestMethod "$GatewayUrl/api/v1/orders/$($order.id)/payments/qr" -Method Post
 $reference = $payment.reference
 $reportUrl = "$GatewayUrl/api/reporting/transactions/reference/$reference"
-$pending = Invoke-RestMethod $reportUrl
-if ($pending.status -ne 'PENDING') { throw "Expected PENDING for $reference" }
+$pending = Wait-TransactionStatus $reportUrl 'PENDING'
 
 $null = Invoke-RestMethod "$GatewayUrl/api/v1/payments/$reference/simulate" -Method Post
-$paid = Invoke-RestMethod $reportUrl
+$paid = Wait-TransactionStatus $reportUrl 'PAID'
 if ($paid.status -ne 'PAID' -or $paid.id -ne $pending.id -or
     $paid.orderId -ne [string]$order.id -or $paid.amount -ne 25000) {
     throw "Expected the same Reporting row to transition to PAID for $reference"

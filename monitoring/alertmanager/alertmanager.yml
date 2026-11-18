@@ -1,0 +1,25 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: scentstation-notification-service
+  group_by: [alertname, service, tenant_id]
+  group_wait: 10s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: scentstation-notification-service
+    webhook_configs:
+      - url: http://notification-service:8087/internal/events/prometheus-alerts
+        send_resolved: true
+        max_alerts: 0
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /run/scentstation-secrets/internal-service-key
+
+inhibit_rules:
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    equal: [alertname, service, tenant_id]
