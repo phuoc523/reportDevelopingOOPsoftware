@@ -3,10 +3,12 @@ package com.scentstation.catalog.repository;
 import com.scentstation.catalog.entity.Product;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import jakarta.persistence.LockModeType;
 
 @Repository
 public interface ProductRepository
@@ -18,4 +20,7 @@ public interface ProductRepository
 
     // Tìm sản phẩm theo id và tenant để che resource của tenant khác như không tồn tại.
     Optional<Product> findByIdAndTenantId(Long id, Long tenantId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<Product> findForUpdateByIdAndTenantId(Long id, Long tenantId);
 }

@@ -31,13 +31,15 @@ public class OperationAuthorization {
     }
 
     public void requireTenant(IdentityPrincipal actor, Long tenantId) {
-        if (tenantId == null || !tenantId.equals(actor.tenantId())) {
+        if (tenantId == null || (!platform(actor) && !tenantId.equals(actor.tenantId()))) {
             throw forbidden("Tenant access is not allowed");
         }
     }
 
     public MaintenanceTicket requireTicket(IdentityPrincipal actor, Long ticketId) {
-        MaintenanceTicket ticket = tickets.findByIdAndTenantId(ticketId, actor.tenantId())
+        MaintenanceTicket ticket = (platform(actor)
+                ? tickets.findById(ticketId)
+                : tickets.findByIdAndTenantId(ticketId, actor.tenantId()))
                 .orElseThrow(() -> forbidden("Maintenance ticket access is not allowed"));
         requireMachineScope(actor, ticket.getMachineId(), ticket.getLocationId());
         return ticket;
@@ -73,6 +75,10 @@ public class OperationAuthorization {
 
     private boolean technician(IdentityPrincipal actor) {
         return actor.roles().contains("TECHNICIAN");
+    }
+
+    private boolean platform(IdentityPrincipal actor) {
+        return actor.roles().contains("PLATFORM_SUPER_ADMIN");
     }
 
     private ResponseStatusException forbidden(String reason) {

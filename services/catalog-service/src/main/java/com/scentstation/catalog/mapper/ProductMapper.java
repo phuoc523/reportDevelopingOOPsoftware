@@ -19,6 +19,9 @@ public class ProductMapper {
                 .fragranceNotes(request.getFragranceNotes())
                 .imageUrl(request.getImageUrl())
                 .defaultPrice(request.getDefaultPrice())
+                .bottlePrice(request.getBottlePrice())
+                .bottleVolumeMl(request.getBottleVolumeMl())
+                .bottleStock(request.getBottleStock() == null ? 0 : request.getBottleStock())
                 .available(request.getAvailable())
                 .build();
     }
@@ -33,6 +36,9 @@ public class ProductMapper {
                 .fragranceNotes(product.getFragranceNotes())
                 .imageUrl(product.getImageUrl())
                 .defaultPrice(product.getDefaultPrice())
+                .bottlePrice(product.getBottlePrice())
+                .bottleVolumeMl(product.getBottleVolumeMl())
+                .bottleStock(product.getBottleStock())
                 .available(product.getAvailable())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
@@ -49,6 +55,9 @@ public class ProductMapper {
         product.setFragranceNotes(request.getFragranceNotes());
         product.setImageUrl(request.getImageUrl());
         product.setDefaultPrice(request.getDefaultPrice());
+        product.setBottlePrice(request.getBottlePrice());
+        product.setBottleVolumeMl(request.getBottleVolumeMl());
+        product.setBottleStock(request.getBottleStock() == null ? product.getBottleStock() : request.getBottleStock());
         product.setAvailable(request.getAvailable());
     }
 }

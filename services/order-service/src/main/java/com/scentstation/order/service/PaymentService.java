@@ -14,15 +14,18 @@ import com.scentstation.order.exception.PaymentNotAvailableException;
 import com.scentstation.order.exception.PaymentNotFoundException;
 import com.scentstation.order.exception.PaymentVerificationException;
 import com.scentstation.order.repository.PaymentRepository;
+import com.scentstation.order.security.OrderAuthorization;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -114,6 +117,28 @@ public class PaymentService {
         orderService.requireReadableOrder(payment.getOrderId(), actor);
         expireIfNecessary(payment);
         return toResponse(payment);
+    }
+
+    public List<PaymentResponse> getPayments(IdentityPrincipal actor) {
+        if (actor == null || !actor.grants().contains(OrderAuthorization.ORDER_READ)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Permission required: ORDER_READ");
+        }
+        return paymentRepository.findAll().stream()
+                .filter(payment -> canReadPayment(payment, actor))
+                .map(payment -> {
+                    expireIfNecessary(payment);
+                    return toResponse(payment);
+                })
+                .toList();
+    }
+
+    private boolean canReadPayment(Payment payment, IdentityPrincipal actor) {
+        try {
+            orderService.requireReadableOrder(payment.getOrderId(), actor);
+            return true;
+        } catch (com.scentstation.order.exception.OrderNotFoundException exception) {
+            return false;
+        }
     }
 
     @Transactional(noRollbackFor = PaymentVerificationException.class)
@@ -208,6 +233,7 @@ public class PaymentService {
                 return accept(request, payment);
             }
 
+            boolean bottleOrder = orderService.fulfillBottleOrderAfterPayment(payment.getOrderId());
             try {
                 orderService.confirmOrderAfterPayment(payment.getOrderId(), () -> {
                     payment.markPaid();
@@ -216,7 +242,7 @@ public class PaymentService {
             } catch (InvalidOrderStatusTransitionException exception) {
                 throw reject(request, HttpStatus.CONFLICT, "Order is not eligible for payment confirmation");
             }
-            dispensingService.requestDispensing(payment.getOrderId());
+            if (!bottleOrder) dispensingService.requestDispensing(payment.getOrderId());
             return accept(request, payment);
         }
     }

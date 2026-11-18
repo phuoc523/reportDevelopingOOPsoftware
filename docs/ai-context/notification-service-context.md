@@ -2,7 +2,7 @@
 
 ## 1. Project overview
 
-This repository is a Java 21 / Spring Boot microservice monorepo for ScentStation, an IoT smart perfume kiosk system. The live repository contains service directories under `services/`, React frontends under `frontend/`, hardware and simulator code under `device/`, and infrastructure skeletons under `infra/`, `docker-compose.yml`, and `docker-compose.mysql.yml`.
+This repository is a Java 21 / Spring Boot microservice monorepo for ScentStation, an IoT smart perfume kiosk system. The live repository contains service directories under `services/`, React frontends under `frontend/`, reserved hardware workspaces under `device/`, and the current local runtime in `docker-compose.yml` plus supporting files under `infra/`.
 
 The repository is not a single app; it is a multi-service codebase with separate business boundaries and partial implementations.
 

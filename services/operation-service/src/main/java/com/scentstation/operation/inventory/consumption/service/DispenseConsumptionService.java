@@ -8,6 +8,7 @@ import com.scentstation.operation.inventory.bottle.enums.BottleStatus;
 import com.scentstation.operation.inventory.bottle.exception.BottleNotFoundException;
 import com.scentstation.operation.inventory.bottle.repository.BottleRepository;
 import com.scentstation.operation.inventory.consumption.dto.request.RecordDispenseRequest;
+import com.scentstation.operation.inventory.consumption.dto.request.RecordInstalledDispenseRequest;
 import com.scentstation.operation.inventory.consumption.dto.response.DispenseConsumptionResponse;
 import com.scentstation.operation.inventory.consumption.entity.DispenseConsumption;
 import com.scentstation.operation.inventory.consumption.enums.DispenseResult;
@@ -25,6 +26,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.scentstation.operation.inventory.consumption.exception.BottleInstallationMismatchException;
 import com.scentstation.operation.inventory.consumption.exception.DispenseConsumptionNotFoundException;
+import com.scentstation.operation.inventory.consumption.event.InventoryLowStockEvent;
+import com.scentstation.operation.inventory.estimation.exception.SprayCalibrationNotFoundException;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 
@@ -37,6 +41,49 @@ public class DispenseConsumptionService {
     private final BottleInstallationRepository bottleInstallationRepository;
     private final BottleMovementRepository bottleMovementRepository;
     private final InventoryAuditService auditService;
+    private final ApplicationEventPublisher events;
+
+    @Transactional
+    public DispenseConsumptionResponse recordInstalledDispense(RecordInstalledDispenseRequest request) {
+        var existing = dispenseConsumptionRepository.findByTenantIdAndCommandId(
+                request.getTenantId(), request.getCommandId());
+        if (existing.isPresent()) {
+            Bottle existingBottle = getBottle(request.getTenantId(), existing.get().getBottleId());
+            return toResponse(existing.get(), existingBottle);
+        }
+
+        BottleInstallation installation = bottleInstallationRepository
+                .findByTenantIdAndMachineIdAndSlotIdAndActiveTrue(
+                        request.getTenantId(), request.getMachineId(), request.getSlotId())
+                .orElseThrow(() -> new ActiveInstallationNotFoundException(
+                        request.getTenantId(), request.getMachineId(), request.getSlotId()));
+        Bottle bottle = getBottle(request.getTenantId(), installation.getBottleId());
+        BigDecimal dose = bottle.getCalibratedConsumptionPerSpray();
+        if (dose == null || dose.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new SprayCalibrationNotFoundException(bottle.getId());
+        }
+
+        DispenseConsumptionResponse response = recordDispense(RecordDispenseRequest.builder()
+                .tenantId(request.getTenantId())
+                .commandId(request.getCommandId())
+                .bottleId(bottle.getId())
+                .machineId(request.getMachineId())
+                .slotId(request.getSlotId())
+                .dispenseType(request.getDispenseType())
+                .result(request.getResult())
+                .consumedQuantity(dose)
+                .build());
+
+        if (request.getResult() == DispenseResult.SUCCESS) {
+            long remainingSprays = response.getQuantityAfter().divide(dose, 0, java.math.RoundingMode.DOWN).longValue();
+            if (remainingSprays <= 5) {
+                events.publishEvent(new InventoryLowStockEvent(
+                        request.getTenantId(), request.getCommandId(), request.getMachineId(), request.getSlotId(),
+                        bottle.getId(), response.getQuantityAfter(), remainingSprays));
+            }
+        }
+        return response;
+    }
 
     // Ghi nhận một lần dispense; chỉ trừ tồn kho khi kết quả thành công.
     @Transactional

@@ -2,6 +2,7 @@ package com.scentstation.catalog.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -12,6 +13,7 @@ import java.time.LocalDateTime;
 @Getter
 @Setter
 @Builder
+@EqualsAndHashCode
 @NoArgsConstructor
 @AllArgsConstructor
 public class ProductResponse {
@@ -23,6 +25,9 @@ public class ProductResponse {
     private String fragranceNotes;
     private String imageUrl;
     private BigDecimal defaultPrice;
+    private BigDecimal bottlePrice;
+    private Integer bottleVolumeMl;
+    private Integer bottleStock;
     private Boolean available;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

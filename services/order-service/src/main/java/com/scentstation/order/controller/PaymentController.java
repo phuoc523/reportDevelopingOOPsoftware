@@ -24,6 +24,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @Tag(name = "Payments", description = "Mock QR payments, payment callbacks, and status lookup.")
 public class PaymentController {
@@ -65,6 +67,13 @@ public class PaymentController {
     })
     public ResponseEntity<PaymentResponse> getPayment(@PathVariable String reference) {
         return ResponseEntity.ok(paymentService.getPayment(reference, actors.principal()));
+    }
+
+    @GetMapping("/api/v1/payments")
+    @Operation(summary = "List readable payments",
+            description = "Returns payments in the caller's tenant, or every payment for Platform Super Admin.")
+    public ResponseEntity<List<PaymentResponse>> getPayments() {
+        return ResponseEntity.ok(paymentService.getPayments(actors.principal()));
     }
 
     @PostMapping("/api/v1/payments/{reference}/simulate")

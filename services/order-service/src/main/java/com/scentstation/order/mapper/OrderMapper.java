@@ -50,6 +50,7 @@ public class OrderMapper {
                 totalAmount,
                 "VND",
                 LocalDateTime.now().plus(orderExpiration)
+                , request.normalizedOrderType()
         );
     }
 
@@ -59,14 +60,16 @@ public class OrderMapper {
                 .mapToObj(index -> {
                     OrderItemRequest intent = request.items().get(index);
                     CatalogProductSnapshot product = products.get(index);
-                    BigDecimal lineTotal = product.unitPrice().multiply(BigDecimal.valueOf(intent.quantity()));
-                    return new OrderItem(product.productId(), product.name(), product.unitPrice(), intent.quantity(), lineTotal);
+                    BigDecimal price = request.normalizedOrderType() == com.scentstation.order.entity.OrderType.BOTTLE
+                            ? product.bottlePrice() : product.unitPrice();
+                    BigDecimal lineTotal = price.multiply(BigDecimal.valueOf(intent.quantity()));
+                    return new OrderItem(product.productId(), product.name(), price, intent.quantity(), lineTotal);
                 }).toList();
         BigDecimal total = items.stream().map(OrderItem::lineTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
         return new Order(OrderIdentifiers.requestText(tenantId, "tenantId"), customerId,
                 OrderIdentifiers.requestText(request.machineId(), "machineId"),
                 OrderIdentifiers.requestText(request.slotId(), "slotId"), items, total, "VND",
-                LocalDateTime.now().plus(orderExpiration));
+                LocalDateTime.now().plus(orderExpiration), request.normalizedOrderType());
     }
 
     public OrderResponse toResponse(Order order, DispensingCommand command) {
@@ -87,6 +90,7 @@ public class OrderMapper {
                 order.getTenantId(),
                 order.getMachineId(),
                 order.getSlotId(),
+                order.getOrderType(),
                 items,
                 order.getTotalAmount(),
                 order.getStatus(),

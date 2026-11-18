@@ -31,6 +31,8 @@ public class BottleResponse {
 
     private BigDecimal currentQuantity;
 
+    private BigDecimal calibratedConsumptionPerSpray;
+
     private BottleStatus status;
 
     private LocalDateTime createdAt;

@@ -45,4 +45,24 @@ public class CatalogServiceClient implements CatalogServiceGateway {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Catalog authority unavailable");
         }
     }
+
+    @Override
+    public void commitBottleSale(long tenantId, long productId, long orderId, int quantity) {
+        try {
+            client.post().uri(uri -> uri.path("/internal/catalog/order-products/{id}/sales")
+                            .queryParam("tenantId", tenantId).build(productId))
+                    .header("X-Internal-Service-Key", key)
+                    .body(new CommitRetailSaleRequest(orderId, quantity))
+                    .retrieve().toBodilessEntity();
+        } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode().value() == 409) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "Retail bottle stock is insufficient");
+            }
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Catalog retail stock unavailable");
+        } catch (RestClientException ex) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Catalog retail stock unavailable");
+        }
+    }
+
+    private record CommitRetailSaleRequest(Long orderId, Integer quantity) { }
 }

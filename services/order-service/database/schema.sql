@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS orders (
     customer_id BIGINT NOT NULL,
     machine_id VARCHAR(100) NOT NULL,
     slot_id VARCHAR(100) NOT NULL,
+    order_type VARCHAR(16) NOT NULL DEFAULT 'TRIAL',
     total_amount DECIMAL(19, 4) NOT NULL,
     currency CHAR(3) NOT NULL,
     status VARCHAR(32) NOT NULL,
@@ -12,6 +13,22 @@ CREATE TABLE IF NOT EXISTS orders (
     updated_at DATETIME(6) NOT NULL,
     INDEX idx_orders_created_at (created_at)
 );
+
+SET @order_type_column_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'orders'
+      AND column_name = 'order_type'
+);
+SET @order_type_ddl = IF(
+    @order_type_column_exists = 0,
+    'ALTER TABLE orders ADD COLUMN order_type VARCHAR(16) NOT NULL DEFAULT ''TRIAL'' AFTER slot_id',
+    'SELECT 1'
+);
+PREPARE order_type_statement FROM @order_type_ddl;
+EXECUTE order_type_statement;
+DEALLOCATE PREPARE order_type_statement;
 
 CREATE TABLE IF NOT EXISTS order_items (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,

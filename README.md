@@ -6,7 +6,10 @@ The local backend stack runs the API Gateway and seven Spring Boot services (eig
 Each business service has a separate MySQL database and communicates with other services via HTTP.
 
 ```powershell
+Copy-Item .env.example .env
+# Replace JWT_SECRET, INTERNAL_SERVICE_KEY and REPORTING_SYNC_API_KEY in .env.
 docker compose up -d --build
+pwsh -File infra/demo-data/seed-demo.ps1
 pwsh -File scripts/Test-ReportingIntegration.ps1
 ```
 
@@ -24,8 +27,11 @@ Shared Redis setup, cache boundaries, and verification steps are in the
 - API Gateway in front of backend services
 - Java 21 LTS and Spring Boot for backend services
 - React for frontend applications
-- MySQL, Redis, Apache NiFi, and Mosquitto as infrastructure components
-- Device Simulator before real hardware is available
+- MySQL 8.4 with one database per business service
+- Redis for cache and distributed rate limiting
+- Apache Kafka for machine-alert events consumed by Notification Service
+- Firebase Cloud Messaging as an optional notification delivery adapter
+- Mock QR payment web for the local payment flow
 
 ## Backend Services
 
@@ -48,12 +54,26 @@ Shared Redis setup, cache boundaries, and verification steps are in the
 
 Frontend applications must call backend capabilities through the API Gateway.
 
+## Runtime technology status
+
+| Technology | Current status |
+|---|---|
+| Java 21, Spring Boot, Spring Security, JPA | Running in backend services |
+| React, TypeScript, Vite | Running in Admin, Kiosk and Mock Payment web apps |
+| MySQL | Running as isolated databases for each data-owning service |
+| Redis | Running for caches and rate limits |
+| Kafka | Running for machine-alert notification events |
+| Firebase Cloud Messaging | Implemented; enabled only when local credentials are supplied |
+| QR payment | Implemented with the local Mock Payment Web, not a real provider |
+| Prometheus/Grafana | Not integrated in the current branch |
+| MQTT/Mosquitto | Not implemented; no broker or device adapter runs in Compose |
+| Apache NiFi | Requirements documentation only; no flow or runtime container |
+
 ## Device
 
-- `device/simulator`: simulator used before real hardware is available.
-- `device/firmware`: firmware workspace for real device work.
+- `device/simulator` and `device/firmware` are reserved workspaces only; no executable simulator or firmware is currently present.
 
-Machine Service is the only backend service allowed to communicate directly with MQTT devices.
+When hardware integration is implemented, Machine Service remains the only backend service allowed to communicate directly with devices.
 
 ## Data Ownership Rules
 
@@ -65,11 +85,13 @@ Machine Service is the only backend service allowed to communicate directly with
 ## Infrastructure Notes
 
 - Redis is an infrastructure component, not a business service.
-- Apache NiFi is an infrastructure component, not a business service.
-- The local Compose stack includes MySQL and the backend services.
+- Kafka and Redis are shared infrastructure components, not business services.
+- The local Compose stack includes seven MySQL databases, Redis, Kafka, the API Gateway and seven business services.
+- Firebase credentials remain local and must never be committed.
 
 ## Not Implemented Yet
 
 - Real payment-provider integration
-- MQTT logic
-- NiFi flows
+- MQTT/device execution and telemetry
+- NiFi flows and runtime
+- Prometheus/Grafana monitoring

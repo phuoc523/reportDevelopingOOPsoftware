@@ -169,6 +169,7 @@ services:
       DB_USERNAME: "order_user"
       DB_PASSWORD: "order_local_password"
       MACHINE_SERVICE_BASE_URL: "http://machine-service:8084"
+      OPERATION_SERVICE_BASE_URL: "http://operation-service:8085"
       CATALOG_SERVICE_BASE_URL: "http://catalog-service:8082"
       PAYMENT_MOCK_WEB_BASE_URL: "${PAYMENT_MOCK_WEB_BASE_URL:-http://localhost:3000/mock-payment}"
       PAYMENT_CALLBACK_TOKEN: "${PAYMENT_CALLBACK_TOKEN:-local-mock-callback-token}"
@@ -229,6 +230,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
       MACHINE_NOTIFICATION_KAFKA_ENABLED: "true"
       MACHINE_NOTIFICATION_KAFKA_TOPIC: "machine-alert.v1"
+      MACHINE_COMMAND_SIMULATION_ENABLED: "true"
     depends_on:
       redis:
         condition: service_healthy
@@ -324,6 +326,7 @@ services:
       OPERATION_DB_USERNAME: "operation_app"
       OPERATION_DB_PASSWORD: "operation_local_password"
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
+      MACHINE_SERVICE_BASE_URL: "http://machine-service:8084"
       INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}"
       SPRING_PROFILES_ACTIVE: "docker-local"
     depends_on:

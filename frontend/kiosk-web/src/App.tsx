@@ -10,13 +10,28 @@ const configuredMachineId = Number(import.meta.env.VITE_KIOSK_MACHINE_ID || '910
 const money = (value: number, currency = 'VND') => new Intl.NumberFormat('vi-VN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value)
 const readableError = (error: unknown) => error instanceof Error ? error.message : 'Không thể hoàn thành yêu cầu. Vui lòng thử lại.'
 
-const availabilityText = (slot: Slot, machineReady: boolean, product: Product) => {
+const availabilityText = (slot: Slot, machineReady: boolean, product: Product, machine: Machine | null) => {
   if (!machineReady) return 'Máy đang ngoại tuyến hoặc chưa sẵn sàng'
   if (!product.available) return 'Sản phẩm đang tạm ngừng phục vụ'
   if (!slot.enabled || slot.status === 'DISABLED') return 'Đầu phun đang bị khóa'
   if (slot.status === 'EMPTY') return 'Đã hết nước hoa'
   if (slot.status === 'ERROR') return 'Đầu phun đang gặp lỗi'
-  return slot.availabilityReason || 'Đầu phun chưa sẵn sàng'
+  const reason = slot.availabilityReason
+  if (!reason) return 'Đầu phun chưa sẵn sàng'
+  if (reason === 'Machine is outside operating hours') {
+    const hours = machine?.operatingHoursStart && machine?.operatingHoursEnd
+      ? ` (${machine.operatingHoursStart.slice(0, 5)}–${machine.operatingHoursEnd.slice(0, 5)})`
+      : ''
+    return `Máy hiện ngoài giờ phục vụ${hours}`
+  }
+  if (reason === 'Device registration has been revoked') return 'Thiết bị đã bị thu hồi đăng ký'
+  if (reason === 'Slot is disabled') return 'Đầu phun đang bị khóa'
+  if (reason === 'No product is assigned to the slot') return 'Đầu phun chưa được gán sản phẩm'
+  if (reason === 'No cartridge is assigned to the slot') return 'Đầu phun chưa được lắp bình nước hoa'
+  if (reason.startsWith('Machine operational status is ')) return 'Máy chưa ở trạng thái trực tuyến'
+  if (reason.startsWith('Slot status is ')) return 'Đầu phun chưa ở trạng thái sẵn sàng'
+  if (reason.startsWith('Active ')) return 'Đầu phun đang có cảnh báo cần xử lý'
+  return reason
 }
 
 function App() {
@@ -28,6 +43,7 @@ function App() {
   const [order, setOrder] = useState<OrderResponse | null>(null)
   const [payment, setPayment] = useState<PaymentResponse | null>(null)
   const [dispensing, setDispensing] = useState<DispensingResponse | null>(null)
+  const [transactionType, setTransactionType] = useState<'TRIAL' | 'BOTTLE'>('TRIAL')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -90,7 +106,10 @@ function App() {
         const current = await kioskApi.payment(paymentReference)
         if (!active) return
         setPayment(current)
-        if (current.status === 'PAID') { setError(''); setScreen('dispensing') }
+        if (current.status === 'PAID') {
+          setError('')
+          setScreen(order?.orderType === 'BOTTLE' ? 'result' : 'dispensing')
+        }
         else if (current.status === 'FAILED') { setError('Thanh toán thất bại. Hệ thống không gửi lệnh xịt.'); setScreen('result') }
         else if (current.status === 'EXPIRED') { setError('Giao dịch đã hết hạn. Hệ thống không gửi lệnh xịt.'); setScreen('result') }
       } catch (reason) { if (active) setError(`Mất kết nối khi kiểm tra thanh toán: ${readableError(reason)}`) }
@@ -99,7 +118,7 @@ function App() {
     void poll()
     const timer = window.setInterval(() => void poll(), 3000)
     return () => { active = false; window.clearInterval(timer) }
-  }, [paymentReference, paymentStatus, screen])
+  }, [order?.orderType, paymentReference, paymentStatus, screen])
 
   useEffect(() => {
     if (screen !== 'dispensing' || !order) return
@@ -144,7 +163,7 @@ function App() {
     try { await loadCatalog(principal) } catch (reason) { setError(readableError(reason)) } finally { setBusy(false) }
   }
 
-  async function startPayment() {
+  async function startPayment(type: 'TRIAL' | 'BOTTLE' = transactionType) {
     if (!principal || !selected || creatingRef.current) return
     if (resumablePayment) {
       setError('')
@@ -152,6 +171,7 @@ function App() {
       return
     }
     creatingRef.current = true; setBusy(true); setError('')
+    setTransactionType(type)
     try {
       const reusableOrder = order
         && ['PENDING', 'CONFIRMED'].includes(order.status)
@@ -159,6 +179,7 @@ function App() {
         && String(order.slotId) === String(selected.slot.id)
         && order.items.length === 1
         && order.items[0].productId === selected.product.id
+        && order.orderType === type
         ? order
         : null
       const currentOrder = reusableOrder ? await kioskApi.order(reusableOrder.id) : null
@@ -166,12 +187,13 @@ function App() {
         ? currentOrder
         : await kioskApi.createOrder({
           customerId: principal.id, tenantId: String(principal.tenantId), machineId: String(selected.slot.machineId), slotId: String(selected.slot.id),
-          items: [{ productId: selected.product.id, productName: selected.product.name, unitPrice: selected.pricing.effectivePrice, quantity: 1 }],
+          orderType: type,
+          items: [{ productId: selected.product.id, productName: selected.product.name, unitPrice: type === 'BOTTLE' ? Number(selected.product.bottlePrice) : selected.pricing.effectivePrice, quantity: 1 }],
         })
       setOrder(created)
       const qr = await kioskApi.createPayment(created.id)
       setPayment(qr)
-      if (qr.status === 'PAID') { setError(''); setScreen('dispensing') }
+      if (qr.status === 'PAID') { setError(''); setScreen(type === 'BOTTLE' ? 'result' : 'dispensing') }
       else if (qr.status === 'FAILED') { setError('Thanh toán thất bại. Hệ thống không gửi lệnh xịt.'); setScreen('result') }
       else if (qr.status === 'EXPIRED') { setError('Giao dịch đã hết hạn. Hệ thống không gửi lệnh xịt.'); setScreen('result') }
       else setScreen('payment')
@@ -181,7 +203,7 @@ function App() {
   }
 
   function resetTransaction() {
-    setSelected(null); setOrder(null); setPayment(null); setDispensing(null); setError(''); setScreen('catalog')
+    setSelected(null); setOrder(null); setPayment(null); setDispensing(null); setTransactionType('TRIAL'); setError(''); setScreen('catalog')
     if (principal) void refresh()
   }
 
@@ -216,7 +238,7 @@ function App() {
             <h2 className="product-name" title={item.product.name}>{item.product.name}</h2>
             <p className="product-description">{item.product.fragranceNotes || item.product.description || 'Thông tin hương thơm đang được cập nhật.'}</p>
             {item.pricing.promotionApplied && <div className="promotion">{item.pricing.campaignName || 'Ưu đãi đang áp dụng'}</div>}
-            {!ready && <div className="availability-note" role="status">{availabilityText(item.slot, Boolean(machineReady), item.product)}</div>}
+            {!ready && <div className="availability-note" role="status">{availabilityText(item.slot, Boolean(machineReady), item.product, machine)}</div>}
             <div className="card-footer">
               <div className="card-price">
                 <small>Phí trải nghiệm</small>
@@ -226,8 +248,8 @@ function App() {
                 </span>
               </div>
               <div className="card-buttons">
-                <button className="primary" disabled={!ready} onClick={() => { setSelected(item); setError(''); setScreen('confirm') }}>{ready ? 'Xịt thử' : 'Không khả dụng'}</button>
-                <button className="secondary compact" onClick={() => { setSelected(item); setError(''); setScreen('purchase') }}>Mua chai</button>
+                <button className="primary" disabled={!ready} title={!ready ? availabilityText(item.slot, Boolean(machineReady), item.product, machine) : 'Bắt đầu lượt thử hương'} onClick={() => { setSelected(item); setTransactionType('TRIAL'); setError(''); setScreen('confirm') }}>{ready ? 'Thử hương' : 'Chưa thể thử'}</button>
+                <button className="secondary compact" disabled={!item.product.bottlePrice || item.product.bottleStock <= 0} onClick={() => { setSelected(item); setTransactionType('BOTTLE'); setError(''); setScreen('purchase') }}>{item.product.bottleStock > 0 ? 'Mua chai' : 'Hết chai'}</button>
               </div>
             </div>
           </div>
@@ -251,7 +273,7 @@ function App() {
       <p className="flow-note">Giá, tenant, trạng thái máy, đầu phun và lượng xịt đều được backend kiểm tra lại. Kiosk không tự thay đổi liều lượng.</p>
       {resumablePayment && <div className="pending-payment-note">Mã QR đã được tạo và vẫn còn hiệu lực. Tiếp tục để mở lại đúng giao dịch, không tạo thêm đơn mới.</div>}
       {error && <div className="error-box" role="alert">{error}</div>}
-      <div className="flow-actions"><button className="secondary" onClick={() => setScreen('catalog')} disabled={busy}>Quay lại</button><button className="primary large" onClick={() => void startPayment()} disabled={busy}>{busy ? 'Đang tạo đơn…' : resumablePayment ? 'Tiếp tục thanh toán' : 'Thanh toán lượt thử'}</button></div>
+      <div className="flow-actions"><button className="secondary" onClick={() => setScreen('catalog')} disabled={busy}>Quay lại</button><button className="primary large" onClick={() => void startPayment('TRIAL')} disabled={busy}>{busy ? 'Đang tạo đơn…' : resumablePayment ? 'Tiếp tục thanh toán' : 'Thanh toán lượt thử'}</button></div>
     </section>}
 
     {screen === 'payment' && payment && <section className="flow-card payment-card">
@@ -279,13 +301,17 @@ function App() {
         <span>{payment.status === 'PENDING' ? 'Đang chờ backend xác nhận thanh toán…' : payment.status === 'PAID' ? 'Thanh toán thành công' : payment.status === 'FAILED' ? 'Thanh toán thất bại' : 'Giao dịch đã hết hạn'}</span>
       </div>
       {error && <div className="error-box" role="alert">{error}</div>}
-      <div className="flow-actions payment-actions"><button className="secondary large" onClick={() => { setError(''); setScreen('confirm') }}>← Quay lại xác nhận</button></div>
+      <div className="flow-actions payment-actions"><button className="secondary large" onClick={() => { setError(''); setScreen(order?.orderType === 'BOTTLE' ? 'purchase' : 'confirm') }}>← Quay lại xác nhận</button></div>
       <small className="payment-hint">Mã QR vẫn có hiệu lực đến thời gian hết hạn. Khi quay lại, Kiosk sẽ dừng kiểm tra tạm thời và không tạo thêm đơn mới.</small>
     </section>}
 
     {screen === 'dispensing' && <section className="flow-card dispensing-card"><p className="step">BƯỚC 3 / 3 · XỊT NƯỚC HOA</p><div className="spray-animation">✦</div><h1>Thanh toán đã được xác nhận</h1><p>Backend đang gửi lệnh hợp lệ đến {selected?.slot.slotCode}. Vui lòng đưa cổ tay đến vị trí đầu phun.</p><div className="waiting"><div className="spinner"/>{dispensing ? `Trạng thái: ${dispensing.status}` : 'Đang chờ máy nhận lệnh…'}</div>{error && <div className="error-box">{error}</div>}</section>}
 
-    {screen === 'result' && <section className={`flow-card result-card ${dispensing?.status === 'DISPENSED' ? 'success' : 'failure'}`}><div className="result-icon">{dispensing?.status === 'DISPENSED' ? '✓' : '!'}</div><p className="step">KẾT QUẢ GIAO DỊCH</p><h1>{dispensing?.status === 'DISPENSED' ? 'Bạn có thích mùi hương này?' : payment?.status === 'FAILED' ? 'Thanh toán thất bại' : payment?.status === 'EXPIRED' ? 'Giao dịch đã hết hạn' : 'Chưa thể hoàn tất lượt xịt'}</h1><p>{dispensing?.manualReviewReason || error || (dispensing?.status === 'DISPENSED' ? 'Lượt thử đã hoàn tất. Bạn có thể chọn mua chai hoặc tiếp tục khám phá mùi khác.' : dispensing?.status === 'FAILED' ? 'Máy báo lỗi khi thực hiện lệnh xịt.' : 'Vui lòng liên hệ nhân viên hỗ trợ nếu tiền đã được trừ.')}</p>{order && <div className="receipt"><span>Đơn hàng #{order.id}</span><span>{payment?.reference}</span><strong>{money(order.totalAmount, order.currency)}</strong></div>}<div className="flow-actions">{dispensing?.status === 'DISPENSED' && <button className="secondary large" onClick={() => setScreen('purchase')}>Tôi muốn mua chai</button>}<button className="primary large" onClick={resetTransaction}>{dispensing?.status === 'DISPENSED' ? 'Khám phá mùi khác' : 'Bắt đầu lượt mới'}</button></div></section>}
+    {screen === 'result' && order?.orderType === 'BOTTLE' && payment?.status === 'PAID' && <section className="flow-card result-card success"><div className="result-icon">✓</div><p className="step">ĐẶT CHAI THÀNH CÔNG</p><h1>Đơn mua chai đã được xác nhận</h1><p>Thanh toán đã hoàn tất và tồn kho chai đã được backend cập nhật. Vui lòng nhận sản phẩm tại quầy hỗ trợ của kiosk.</p><div className="receipt"><span>Đơn hàng #{order.id}</span><span>{payment.reference}</span><strong>{money(order.totalAmount, order.currency)}</strong></div><div className="flow-actions"><button className="primary large" onClick={resetTransaction}>Tiếp tục khám phá</button></div></section>}
+
+    {screen === 'result' && order?.orderType === 'BOTTLE' && payment?.status !== 'PAID' && <section className="flow-card result-card failure"><div className="result-icon">!</div><p className="step">KẾT QUẢ ĐƠN MUA CHAI</p><h1>{payment?.status === 'EXPIRED' ? 'Giao dịch đã hết hạn' : 'Thanh toán chưa thành công'}</h1><p>{error || 'Tồn kho chai chưa bị trừ. Bạn có thể quay lại danh mục và thực hiện một đơn mới.'}</p><div className="flow-actions"><button className="primary large" onClick={resetTransaction}>Quay lại danh mục</button></div></section>}
+
+    {screen === 'result' && order?.orderType !== 'BOTTLE' && <section className={`flow-card result-card ${dispensing?.status === 'DISPENSED' ? 'success' : 'failure'}`}><div className="result-icon">{dispensing?.status === 'DISPENSED' ? '✓' : '!'}</div><p className="step">KẾT QUẢ GIAO DỊCH</p><h1>{dispensing?.status === 'DISPENSED' ? 'Bạn có thích mùi hương này?' : payment?.status === 'FAILED' ? 'Thanh toán thất bại' : payment?.status === 'EXPIRED' ? 'Giao dịch đã hết hạn' : 'Chưa thể hoàn tất lượt xịt'}</h1><p>{dispensing?.manualReviewReason || error || (dispensing?.status === 'DISPENSED' ? 'Lượt thử đã hoàn tất. Bạn có thể chọn mua chai hoặc tiếp tục khám phá mùi khác.' : dispensing?.status === 'FAILED' ? 'Máy báo lỗi khi thực hiện lệnh xịt.' : 'Vui lòng liên hệ nhân viên hỗ trợ nếu tiền đã được trừ.')}</p>{order && <div className="receipt"><span>Đơn hàng #{order.id}</span><span>{payment?.reference}</span><strong>{money(order.totalAmount, order.currency)}</strong></div>}<div className="flow-actions">{dispensing?.status === 'DISPENSED' && <button className="secondary large" onClick={() => { setTransactionType('BOTTLE'); setOrder(null); setPayment(null); setDispensing(null); setScreen('purchase') }}>Tôi muốn mua chai</button>}<button className="primary large" onClick={resetTransaction}>{dispensing?.status === 'DISPENSED' ? 'Khám phá mùi khác' : 'Bắt đầu lượt mới'}</button></div></section>}
 
     {screen === 'purchase' && selected && <section className="flow-card purchase-card">
       <p className="step">MUA SẢN PHẨM</p>
@@ -298,18 +324,20 @@ function App() {
           <p>{selected.product.description || selected.product.fragranceNotes || 'Backend chưa cung cấp mô tả cho sản phẩm này.'}</p>
         </div>
       </div>
-      <section className="purchase-capability" aria-labelledby="purchase-capability-title">
-        <h2 id="purchase-capability-title">Thông tin mua chai chưa có trong Backend</h2>
-        <p>Để tránh hiển thị giá hoặc tùy chọn không có thật, Kiosk chưa thể tạo đơn mua chai.</p>
+      <section className="purchase-capability available" aria-labelledby="purchase-capability-title">
+        <h2 id="purchase-capability-title">Xác nhận mua chai nguyên hộp</h2>
+        <p>Giá bán, dung tích và tồn kho dưới đây được lấy trực tiếp từ Catalog Service.</p>
         <dl>
-          <div><dt>Dung tích và đơn giá chai</dt><dd>Chưa có dữ liệu/API bán chai</dd></div>
-          <div><dt>Tồn kho và số lượng</dt><dd>Backend chưa cung cấp tồn kho chai</dd></div>
-          <div><dt>Nhận tại điểm bán / giao hàng</dt><dd>Backend chưa có fulfillment</dd></div>
-          <div><dt>Thanh toán cho đơn mua chai</dt><dd>Chưa có loại Order bán chai</dd></div>
+          <div><dt>Dung tích</dt><dd>{selected.product.bottleVolumeMl ? `${selected.product.bottleVolumeMl} ml` : 'Chưa cấu hình'}</dd></div>
+          <div><dt>Đơn giá chai</dt><dd>{selected.product.bottlePrice ? money(selected.product.bottlePrice) : 'Chưa cấu hình'}</dd></div>
+          <div><dt>Tồn kho bán lẻ</dt><dd>{selected.product.bottleStock} chai</dd></div>
+          <div><dt>Hình thức nhận</dt><dd>Nhận tại quầy hỗ trợ kiosk</dd></div>
         </dl>
-        <p className="purchase-safety-note">Phí trải nghiệm trên danh sách sản phẩm không phải giá bán chai. Order thanh toán hiện có gắn với máy/slot và sau khi PAID sẽ kích hoạt lệnh xịt, vì vậy Kiosk không dùng luồng đó cho đơn mua chai.</p>
+        <p className="purchase-safety-note">Đây là đơn mua chai, backend sẽ không gửi lệnh xịt. Tồn kho bán lẻ chỉ được trừ một lần sau khi thanh toán thành công.</p>
       </section>
-      <div className="flow-actions"><button className="secondary" onClick={() => setScreen(dispensing?.status === 'DISPENSED' ? 'result' : 'catalog')}>Quay lại</button><button className="primary" disabled title="Chờ API sản phẩm và Order bán chai">Chưa thể xác nhận mua chai</button></div>
+      {resumablePayment && order?.orderType === 'BOTTLE' && <div className="pending-payment-note">Đơn mua chai đang chờ thanh toán. Tiếp tục để mở lại mã QR hiện tại.</div>}
+      {error && <div className="error-box" role="alert">{error}</div>}
+      <div className="flow-actions"><button className="secondary" onClick={() => setScreen(dispensing?.status === 'DISPENSED' ? 'result' : 'catalog')} disabled={busy}>Quay lại</button><button className="primary large" onClick={() => void startPayment('BOTTLE')} disabled={busy || !selected.product.bottlePrice || selected.product.bottleStock <= 0}>{busy ? 'Đang tạo đơn…' : resumablePayment ? 'Tiếp tục thanh toán' : 'Thanh toán mua chai'}</button></div>
     </section>}
   </main>
 }

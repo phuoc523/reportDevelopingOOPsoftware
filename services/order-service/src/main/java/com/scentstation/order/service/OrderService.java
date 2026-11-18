@@ -7,6 +7,7 @@ import com.scentstation.order.dto.response.OrderStatusResponse;
 import com.scentstation.order.dto.response.OrderStatusMetadata;
 import com.scentstation.order.entity.DispensingCommand;
 import com.scentstation.order.entity.Order;
+import com.scentstation.order.entity.OrderItem;
 import com.scentstation.order.entity.OrderStatus;
 import com.scentstation.order.entity.PaymentStatus;
 import com.scentstation.order.exception.InvalidOrderStatusTransitionException;
@@ -23,6 +24,7 @@ import com.scentstation.order.client.CatalogServiceGateway;
 import com.scentstation.order.client.CatalogProductSnapshot;
 import com.scentstation.order.client.MachineAuthorityGateway;
 import com.scentstation.order.client.MachineSlotSnapshot;
+import com.scentstation.order.entity.OrderType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -96,10 +98,13 @@ public class OrderService {
                     "Order read access is not allowed"
             );
         }
-        String tenantId = authorization.tenant(actor);
         if (statusMetadataCache == null) {
             return OrderStatusMetadataCache.statusMetadata();
         }
+        if (authorization.isPlatform(actor)) {
+            return OrderStatusMetadataCache.statusMetadata();
+        }
+        String tenantId = authorization.tenant(actor);
         return statusMetadataCache.getOrLoad(tenantId);
     }
 
@@ -122,7 +127,8 @@ public class OrderService {
         long machineId = OrderIdentifiers.request(request.machineId(), "machineId");
         long slotId = OrderIdentifiers.request(request.slotId(), "slotId");
         MachineSlotSnapshot slot = machines.getSlot(requestTenantId, machineId, slotId);
-        if (!slot.machineAvailable() || !slot.slotAvailable()) {
+        if (request.normalizedOrderType() == OrderType.TRIAL
+                && (!slot.machineAvailable() || !slot.slotAvailable())) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.CONFLICT, "Machine or slot is unavailable: " + slot.reason());
         }
@@ -141,16 +147,40 @@ public class OrderService {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.CONFLICT, "Product is not assigned to the selected slot");
         }
+        if (request.normalizedOrderType() == OrderType.BOTTLE) {
+            if (request.items().size() != 1) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.BAD_REQUEST, "Bottle orders must contain exactly one product");
+            }
+            var item = request.items().getFirst();
+            var product = products.getFirst();
+            if (product.bottlePrice() == null || product.bottlePrice().signum() <= 0
+                    || product.bottleVolumeMl() == null || product.bottleVolumeMl() <= 0
+                    || product.bottleStock() == null || product.bottleStock() < item.quantity()) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.CONFLICT, "Retail bottle is unavailable or out of stock");
+            }
+        }
         for (int index = 0; index < request.items().size(); index++) {
             var intent = request.items().get(index);
             var product = products.get(index);
-            if (!intent.productName().equals(product.name()) || intent.unitPrice().compareTo(product.unitPrice()) != 0) {
+            java.math.BigDecimal authoritativePrice = request.normalizedOrderType() == OrderType.BOTTLE
+                    ? product.bottlePrice() : product.unitPrice();
+            if (!intent.productName().equals(product.name()) || intent.unitPrice().compareTo(authoritativePrice) != 0) {
                 throw new org.springframework.web.server.ResponseStatusException(
                         org.springframework.http.HttpStatus.BAD_REQUEST, "Client product snapshot does not match Catalog authority");
             }
         }
         Order order = orderMapper.toAuthoritativeEntity(request, tenantId, actor.id(), products, orderExpiration);
         return orderMapper.toResponse(orderRepository.save(order), null);
+    }
+
+    public boolean fulfillBottleOrderAfterPayment(Long id) {
+        Order order = findOrderById(id);
+        if (order.getOrderType() != OrderType.BOTTLE) return false;
+        OrderItem item = order.getItems().getFirst();
+        catalog.commitBottleSale(Long.parseLong(order.getTenantId()), item.productId(), order.getId(), item.quantity());
+        return true;
     }
 
     public List<OrderResponse> getOrders() {
@@ -162,12 +192,15 @@ public class OrderService {
     }
 
     public List<OrderResponse> getOrders(IdentityPrincipal actor) {
-        String tenantId = authorization.tenant(actor);
         List<Order> orders;
-        if (actor.grants().contains(OrderAuthorization.ORDER_READ)) {
+        if (authorization.isPlatform(actor) && actor.grants().contains(OrderAuthorization.ORDER_READ)) {
+            orders = orderRepository.findAll();
+        } else if (actor.grants().contains(OrderAuthorization.ORDER_READ)) {
+            String tenantId = authorization.tenant(actor);
             orders = orderRepository.findAllByTenantId(tenantId);
         } else {
             authorization.require(actor, OrderAuthorization.KIOSK_ORDER);
+            String tenantId = authorization.tenant(actor);
             orders = orderRepository.findAllByTenantIdAndCustomerId(tenantId, actor.id());
         }
         return orders.stream()
@@ -265,7 +298,9 @@ public class OrderService {
     }
 
     private Order findOrderForActor(Long id, IdentityPrincipal actor) {
-        authorization.tenant(actor);
+        if (!authorization.isPlatform(actor)) {
+            authorization.tenant(actor);
+        }
         Order order = expireIfNecessary(orderRepository.findById(id)
                 .orElseThrow(() -> new OrderNotFoundException(id)));
         try {

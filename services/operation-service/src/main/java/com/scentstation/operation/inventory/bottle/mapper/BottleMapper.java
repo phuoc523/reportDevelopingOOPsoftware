@@ -32,6 +32,7 @@ public class BottleMapper {
                 .bottleCode(bottle.getBottleCode())
                 .initialQuantity(bottle.getInitialQuantity())
                 .currentQuantity(bottle.getCurrentQuantity())
+                .calibratedConsumptionPerSpray(bottle.getCalibratedConsumptionPerSpray())
                 .status(bottle.getStatus())
                 .createdAt(bottle.getCreatedAt())
                 .updatedAt(bottle.getUpdatedAt())

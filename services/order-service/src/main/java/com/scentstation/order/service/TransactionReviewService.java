@@ -49,6 +49,9 @@ public class TransactionReviewService {
 
     public List<TransactionReviewResponse> getReviews(IdentityPrincipal actor) {
         authorization.require(actor, OrderAuthorization.ORDER_REVIEW);
+        if (authorization.isPlatform(actor)) {
+            return getReviews();
+        }
         String tenantId = authorization.tenant(actor);
         return reviewRepository.findAll().stream()
                 .filter(review -> orderRepository.findByIdAndTenantId(review.getOrderId(), tenantId).isPresent())
@@ -95,8 +98,11 @@ public class TransactionReviewService {
             IdentityPrincipal actor
     ) {
         authorization.require(actor, OrderAuthorization.ORDER_REVIEW);
-        String tenantId = authorization.tenant(actor);
         request.payments().forEach(record -> requireTenantOrder(record.orderId(), actor));
+        if (authorization.isPlatform(actor)) {
+            return reconcile(request, paymentRepository.findAll());
+        }
+        String tenantId = authorization.tenant(actor);
         List<Payment> tenantPayments = paymentRepository.findAll().stream()
                 .filter(payment -> orderRepository.findByIdAndTenantId(payment.getOrderId(), tenantId).isPresent())
                 .toList();
@@ -161,6 +167,11 @@ public class TransactionReviewService {
     }
 
     private void requireTenantOrder(Long orderId, IdentityPrincipal actor) {
+        if (authorization.isPlatform(actor)) {
+            orderRepository.findById(orderId)
+                    .orElseThrow(() -> new OrderNotFoundException(orderId));
+            return;
+        }
         String tenantId = authorization.tenant(actor);
         orderRepository.findByIdAndTenantId(orderId, tenantId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));

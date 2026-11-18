@@ -8,6 +8,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Component
 public class OrderAuthorization {
+    public static final String PLATFORM_SUPER_ADMIN = "PLATFORM_SUPER_ADMIN";
     public static final String KIOSK_ORDER = "KIOSK_ORDER";
     public static final String ORDER_READ = "ORDER_READ";
     public static final String ORDER_REVIEW = "ORDER_REVIEW";
@@ -16,8 +17,14 @@ public class OrderAuthorization {
         if (!actor.grants().contains(permission)) {
             throw forbidden("Permission required: " + permission);
         }
-        tenant(actor);
+        if (!isPlatform(actor)) {
+            tenant(actor);
+        }
         return actor;
+    }
+
+    public boolean isPlatform(IdentityPrincipal actor) {
+        return actor != null && actor.roles().contains(PLATFORM_SUPER_ADMIN);
     }
 
     public String tenant(IdentityPrincipal actor) {
@@ -44,6 +51,9 @@ public class OrderAuthorization {
     }
 
     public void requireSameTenant(IdentityPrincipal actor, Order order) {
+        if (isPlatform(actor)) {
+            return;
+        }
         long actorTenant = actor.tenantId() == null
                 ? -1
                 : actor.tenantId();

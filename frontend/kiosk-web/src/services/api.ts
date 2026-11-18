@@ -95,6 +95,7 @@ export const kioskApi = {
     tenantId: string
     machineId: string
     slotId: string
+    orderType: 'TRIAL' | 'BOTTLE'
     items: Array<{ productId: number; productName: string; unitPrice: number; quantity: number }>
   }) => request<OrderResponse>('/api/v1/orders', { method: 'POST', body: JSON.stringify(payload) }),
   createPayment: (orderId: number) => request<PaymentResponse>(`/api/v1/orders/${orderId}/payments/qr`, { method: 'POST' }),

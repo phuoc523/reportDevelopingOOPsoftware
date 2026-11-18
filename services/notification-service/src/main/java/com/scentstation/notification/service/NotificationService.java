@@ -157,12 +157,14 @@ public class NotificationService {
             @NotEmpty List<@NotNull @Positive Long> notificationIds
     ) {
         Set<Long> uniqueIds = new LinkedHashSet<>(notificationIds);
-        return recipients.markUnreadNotificationsAsRead(
-            tenantId.trim(),
-            recipientId.trim(),
-            List.copyOf(uniqueIds),
-            Instant.now()
-        );
+        var unreadRecipients = recipients
+            .findAllByNotification_TenantIdAndRecipientIdAndReadAtIsNullAndNotification_IdIn(
+                tenantId.trim(),
+                recipientId.trim(),
+                List.copyOf(uniqueIds)
+            );
+        unreadRecipients.forEach(recipient -> recipient.markAsRead());
+        return unreadRecipients.size();
     }
 
     @Transactional(readOnly = true)

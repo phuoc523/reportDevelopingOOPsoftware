@@ -2,6 +2,7 @@ package com.scentstation.order.dto.response;
 
 import com.scentstation.order.entity.DispensingStatus;
 import com.scentstation.order.entity.OrderStatus;
+import com.scentstation.order.entity.OrderType;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -13,6 +14,7 @@ public record OrderResponse(
         String tenantId,
         String machineId,
         String slotId,
+        OrderType orderType,
         List<OrderItemResponse> items,
         BigDecimal totalAmount,
         OrderStatus status,

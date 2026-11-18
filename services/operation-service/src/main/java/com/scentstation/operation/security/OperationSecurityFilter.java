@@ -27,6 +27,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class OperationSecurityFilter extends OncePerRequestFilter {
     private static final Set<String> INTERNAL_POSTS = Set.of(
             "/api/inventory/consumptions",
+            "/api/inventory/consumptions/installed",
             "/api/inventory/reconciliations",
             "/api/maintenance/alerts/critical",
             "/api/maintenance/post-tests/results"
@@ -122,10 +123,13 @@ public class OperationSecurityFilter extends OncePerRequestFilter {
         if (!(parsed instanceof ObjectNode body)) return new CachedBodyRequest(request, bytes);
 
         JsonNode tenant = body.get("tenantId");
-        if (tenant != null && (!tenant.canConvertToLong() || tenant.longValue() != actor.tenantId())) {
-            throw status(HttpStatus.FORBIDDEN, "Tenant access is not allowed");
+        if (tenant != null) {
+            if (!tenant.canConvertToLong() || tenant.longValue() <= 0) {
+                throw status(HttpStatus.FORBIDDEN, "Tenant access is not allowed");
+            }
+            authorization.requireTenant(actor, tenant.longValue());
+            if (actor.tenantId() != null) body.put("tenantId", actor.tenantId());
         }
-        if (tenant != null) body.put("tenantId", actor.tenantId());
         ACTOR_FIELDS.forEach(field -> {
             if (body.has(field)) body.put(field, actor.id());
         });

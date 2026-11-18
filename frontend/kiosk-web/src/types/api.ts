@@ -31,6 +31,9 @@ export interface Product {
   fragranceNotes: string | null
   imageUrl: string | null
   defaultPrice: number
+  bottlePrice: number | null
+  bottleVolumeMl: number | null
+  bottleStock: number
   available: boolean
 }
 
@@ -95,6 +98,7 @@ export interface OrderResponse {
   tenantId: string
   machineId: string
   slotId: string
+  orderType: 'TRIAL' | 'BOTTLE'
   items: OrderItem[]
   totalAmount: number
   status: string

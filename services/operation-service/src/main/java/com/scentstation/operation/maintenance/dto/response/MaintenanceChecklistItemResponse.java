@@ -1,12 +1,14 @@
 package com.scentstation.operation.maintenance.dto.response;
 
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
 
 @Getter
 @Builder
+@EqualsAndHashCode
 public class MaintenanceChecklistItemResponse {
 
     private Long id;

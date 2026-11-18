@@ -1,5 +1,5 @@
 import { api, authToken, download, query } from './client'
-import type { Account, AccountCreateInput, Alert, AuthResponse, Bottle, Campaign, CampaignInput, Dashboard, DeviceRegistration, InventoryBatch, JsonRecord, Location, Machine, MachineInput, MaintenanceTicket, NotificationItem, NotificationPage, Order, PageResponse, PaymentReview, Permission, Principal, Product, Role, Slot, SlotInput, Tenant, TenantInput, Transaction } from './types'
+import type { Account, AccountCreateInput, Alert, AuthResponse, Bottle, Campaign, CampaignInput, Dashboard, DeviceRegistration, InventoryBatch, JsonRecord, Location, Machine, MachineInput, MaintenanceTicket, NotificationItem, NotificationPage, Order, PageResponse, Payment, PaymentReview, Permission, Principal, Product, Role, Slot, SlotInput, Tenant, TenantInput, Transaction } from './types'
 
 export const backend = {
   async login(username: string, password: string) {
@@ -24,8 +24,7 @@ export const backend = {
   resetUserPassword: (platform: boolean, id: number, newPassword: string) => api<void>(`${platform ? '/api/platform/users' : '/api/brand/users'}/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }) }),
   updateUserStatus: (platform: boolean, id: number, active: boolean, locked: boolean) => api<Account>(`${platform ? '/api/platform/users' : '/api/brand/users'}/${id}/status`, { method: 'PATCH', body: JSON.stringify({ active, locked }) }),
   products: (tenantId?: number) => api<Product[]>(`/api/products${query({ tenantId })}`),
-  product: (id: number) => api<Product>(`/api/products/${id}`),
-  createProduct: (data: Pick<Product, 'tenantId' | 'name' | 'description' | 'fragranceNotes' | 'imageUrl' | 'defaultPrice' | 'available'>) => api<Product>('/api/products', { method: 'POST', body: JSON.stringify(data) }),
+  createProduct: (data: Pick<Product, 'tenantId' | 'name' | 'description' | 'fragranceNotes' | 'imageUrl' | 'defaultPrice' | 'bottlePrice' | 'bottleVolumeMl' | 'bottleStock' | 'available'>) => api<Product>('/api/products', { method: 'POST', body: JSON.stringify(data) }),
   setProductAvailability: (id: number, available: boolean) => api<Product>(`/api/products/${id}/availability`, { method: 'PATCH', body: JSON.stringify({ available }) }),
   setProductPrice: (id: number, defaultPrice: number) => api<Product>(`/api/products/${id}/price`, { method: 'PATCH', body: JSON.stringify({ defaultPrice }) }),
   campaigns: (tenantId: number) => api<Campaign[]>(`/api/campaigns${query({ tenantId })}`),
@@ -37,7 +36,6 @@ export const backend = {
   createMachine: (data: Required<MachineInput>) => api<Machine>('/api/machines', { method: 'POST', body: JSON.stringify(data) }),
   updateMachine: (id: number, data: MachineInput) => api<Machine>(`/api/machines/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   controlMachine: (id: number, action: 'ENABLE' | 'DISABLE' | 'ENTER_MAINTENANCE') => api<Machine>(`/api/machines/${id}/control`, { method: 'PATCH', body: JSON.stringify({ action }) }),
-  setMachineRegistration: (id: number, status: 'ACTIVE' | 'REVOKED') => api<Machine>(`/api/machines/${id}/device-registration-status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
   slots: (machineId: number) => api<Slot[]>(`/api/machines/${machineId}/slots`),
   createSlot: (machineId: number, data: Required<SlotInput>) => api<Slot>(`/api/machines/${machineId}/slots`, { method: 'POST', body: JSON.stringify(data) }),
   updateSlot: (machineId: number, id: number, data: SlotInput) => api<Slot>(`/api/machines/${machineId}/slots/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -56,12 +54,12 @@ export const backend = {
   closeMaintenance: (id: number, tenantId: number, closedByActorId: number, closeNote: string) => api<MaintenanceTicket>(`/api/maintenance/tickets/${id}/close`, { method: 'POST', body: JSON.stringify({ tenantId, closedByActorId, closeNote }) }),
   reopenMaintenance: (id: number, tenantId: number, reopenedByActorId: number, reason: string) => api<MaintenanceTicket>(`/api/maintenance/tickets/${id}/reopen`, { method: 'POST', body: JSON.stringify({ tenantId, reopenedByActorId, reason }) }),
   orders: () => api<Order[]>('/api/v1/orders'),
+  payments: () => api<Payment[]>('/api/v1/payments'),
   reviews: () => api<PaymentReview[]>('/api/v1/payments/reviews'),
   resolveReview: (reference: string) => api<PaymentReview>(`/api/v1/payments/reviews/${encodeURIComponent(reference)}/resolve`, { method: 'POST' }),
   transactions: (filters: { reference?: string; orderId?: string; status?: string; startDate?: string; endDate?: string; minAmount?: number; maxAmount?: number; page?: number; size?: number } = {}) => api<PageResponse<Transaction>>(`/api/reporting/transactions${query({ ...filters, size: filters.size ?? 100, direction: 'desc' })}`),
   exportTransactions: (filters: { reference?: string; orderId?: string; status?: string; startDate?: string; endDate?: string; minAmount?: number; maxAmount?: number } = {}) => download(`/api/reporting/export/transactions${query(filters)}`, 'transactions.xlsx'),
   exportRevenue: (startDate: string, endDate: string) => download(`/api/reporting/export/revenue${query({ startDate, endDate })}`, 'revenue-report.xlsx'),
-  transactionSummary: (period: string, startDate?: string, endDate?: string) => api<JsonRecord>(`/api/reporting/transactions/summary${query({ period, startDate, endDate })}`),
   dashboard: (tenantId?: number, period = 'month') => api<Dashboard>(`/api/reporting/dashboard${query({ tenantId, period })}`),
   audit: (tenantId?: number) => api<JsonRecord[]>(`/api/audit/recent${query({ tenantId })}`),
   notifications: (tenantId?: number, page = 0, size = 20) => api<NotificationPage>(`/api/notifications${query({ tenantId, page, size, sortDirection: 'DESC' })}`),

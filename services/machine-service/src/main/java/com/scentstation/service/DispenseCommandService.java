@@ -15,6 +15,7 @@ import com.scentstation.repository.MachineCommandRepository;
 import com.scentstation.repository.MachineRepository;
 import com.scentstation.repository.MachineSlotRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,15 +33,25 @@ public class DispenseCommandService {
     private final MachineSlotRepository slots;
     private final AvailabilityService availabilityService;
     private final Duration commandLifetime;
+    private final boolean simulationEnabled;
 
+    @Autowired
     public DispenseCommandService(MachineCommandRepository commands, MachineRepository machines,
                                   MachineSlotRepository slots, AvailabilityService availabilityService,
-                                  @Value("${machine.commands.lifetime-ms:60000}") long lifetimeMs) {
+                                  @Value("${machine.commands.lifetime-ms:60000}") long lifetimeMs,
+                                  @Value("${machine.commands.simulation.enabled:false}") boolean simulationEnabled) {
         this.commands = commands;
         this.machines = machines;
         this.slots = slots;
         this.availabilityService = availabilityService;
         this.commandLifetime = Duration.ofMillis(lifetimeMs);
+        this.simulationEnabled = simulationEnabled;
+    }
+
+    public DispenseCommandService(MachineCommandRepository commands, MachineRepository machines,
+                                  MachineSlotRepository slots, AvailabilityService availabilityService,
+                                  long lifetimeMs) {
+        this(commands, machines, slots, availabilityService, lifetimeMs, false);
     }
 
     @Transactional
@@ -81,6 +92,11 @@ public class DispenseCommandService {
         MachineCommand command = commands.save(new MachineCommand(request.commandId(), request.tenantId(),
             request.orderId(), request.paymentReference(), machineId, request.slotId(), fingerprint, now,
             now.plus(commandLifetime)));
+        if (simulationEnabled) {
+            command.acknowledge(now);
+            command.complete(true, "Mô phỏng xịt thử thành công trong môi trường local", now);
+            command = commands.save(command);
+        }
         return toResponse(command);
     }
 

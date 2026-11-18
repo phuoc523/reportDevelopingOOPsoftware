@@ -5,6 +5,7 @@ import com.scentstation.order.client.MachineCommandResponse;
 import com.scentstation.order.client.MachineServiceGateway;
 import com.scentstation.order.client.MachineAuthorityGateway;
 import com.scentstation.order.client.MachineSlotSnapshot;
+import com.scentstation.order.client.OperationInventoryGateway;
 import com.scentstation.order.client.CatalogServiceGateway;
 import com.scentstation.order.client.CatalogProductSnapshot;
 import java.math.BigDecimal;
@@ -110,5 +111,11 @@ public class OrderServiceTestConfiguration {
                     machineId == 16 ? "6" : slotId == 22 ? "999" : "3",
                     machineId != 11, slotId != 21, "Unavailable");
         };
+    }
+
+    @Bean
+    @Primary
+    OperationInventoryGateway testOperationInventoryGateway() {
+        return request -> { };
     }
 }

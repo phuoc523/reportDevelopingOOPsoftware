@@ -41,6 +41,16 @@ public class Product {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal defaultPrice;
 
+    @Column(name = "bottle_price", precision = 12, scale = 2)
+    private BigDecimal bottlePrice;
+
+    @Column(name = "bottle_volume_ml")
+    private Integer bottleVolumeMl;
+
+    @Builder.Default
+    @Column(name = "bottle_stock", nullable = false)
+    private Integer bottleStock = 0;
+
     @Builder.Default
     @Column(nullable = false)
     private Boolean available = true;

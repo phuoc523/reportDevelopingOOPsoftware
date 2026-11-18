@@ -35,6 +35,9 @@ public class Order {
     private String machineId;
     @Column(name = "slot_id", nullable = false, length = 100)
     private String slotId;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_type", nullable = false, length = 16)
+    private OrderType orderType;
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @OrderBy("id ASC")
     private List<OrderItem> items = new ArrayList<>();
@@ -70,6 +73,20 @@ public class Order {
             String currency,
             LocalDateTime expiresAt
     ) {
+        this(tenantId, customerId, machineId, slotId, items, totalAmount, currency, expiresAt, OrderType.TRIAL);
+    }
+
+    public Order(
+            String tenantId,
+            Long customerId,
+            String machineId,
+            String slotId,
+            List<OrderItem> items,
+            BigDecimal totalAmount,
+            String currency,
+            LocalDateTime expiresAt,
+            OrderType orderType
+    ) {
         this.tenantId = tenantId;
         this.customerId = customerId;
         this.machineId = machineId;
@@ -79,6 +96,7 @@ public class Order {
         this.totalAmount = totalAmount;
         this.currency = currency;
         this.expiresAt = expiresAt;
+        this.orderType = orderType == null ? OrderType.TRIAL : orderType;
     }
 
     public Long getId() {
@@ -108,6 +126,8 @@ public class Order {
     public String getSlotId() {
         return slotId;
     }
+
+    public OrderType getOrderType() { return orderType; }
 
     public List<OrderItem> getItems() {
         return List.copyOf(items);
@@ -158,6 +178,9 @@ public class Order {
         LocalDateTime now = LocalDateTime.now();
         if (status == null) {
             status = OrderStatus.PENDING;
+        }
+        if (orderType == null) {
+            orderType = OrderType.TRIAL;
         }
         if (createdAt == null) {
             createdAt = now;

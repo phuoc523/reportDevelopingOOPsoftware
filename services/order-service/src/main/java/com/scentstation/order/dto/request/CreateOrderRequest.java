@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Positive;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
+import com.scentstation.order.entity.OrderType;
 
 public record CreateOrderRequest(
         @Schema(description = "ID of the customer placing the order", example = "7")
@@ -19,6 +20,11 @@ public record CreateOrderRequest(
         @Schema(description = "Canonical positive numeric slot ID", example = "20")
         @NotBlank String slotId,
         @Schema(description = "At least one product item is required")
-        @NotEmpty List<@NotNull @Valid OrderItemRequest> items
+        @NotEmpty List<@NotNull @Valid OrderItemRequest> items,
+        @Schema(description = "TRIAL triggers a dispenser after payment; BOTTLE creates a retail sale", example = "TRIAL")
+        OrderType orderType
 ) {
+    public OrderType normalizedOrderType() {
+        return orderType == null ? OrderType.TRIAL : orderType;
+    }
 }

@@ -1,6 +1,7 @@
 package com.scentstation.operation.inventory.consumption.controller;
 
 import com.scentstation.operation.inventory.consumption.dto.request.RecordDispenseRequest;
+import com.scentstation.operation.inventory.consumption.dto.request.RecordInstalledDispenseRequest;
 import com.scentstation.operation.inventory.consumption.dto.response.DispenseConsumptionResponse;
 import com.scentstation.operation.inventory.consumption.service.DispenseConsumptionService;
 import jakarta.validation.Valid;
@@ -27,6 +28,13 @@ public class DispenseConsumptionController {
         return ResponseEntity.ok(
                 dispenseConsumptionService.recordDispense(request)
         );
+    }
+
+    @PostMapping("/installed")
+    public ResponseEntity<DispenseConsumptionResponse> recordInstalledDispense(
+            @Valid @RequestBody RecordInstalledDispenseRequest request
+    ) {
+        return ResponseEntity.ok(dispenseConsumptionService.recordInstalledDispense(request));
     }
 
     // Tra cứu dispense đã xử lý theo command id và tenant.

@@ -66,7 +66,7 @@ public class IdentityIntrospectionClient {
         return principal != null
                 && principal.id() != null && principal.id() > 0
                 && principal.username() != null && !principal.username().isBlank()
-                && principal.tenantId() != null && principal.tenantId() > 0
+                && (principal.tenantId() == null || principal.tenantId() > 0)
                 && validStrings(principal.roles())
                 && validStrings(principal.grants())
                 && validIds(principal.locationIds())

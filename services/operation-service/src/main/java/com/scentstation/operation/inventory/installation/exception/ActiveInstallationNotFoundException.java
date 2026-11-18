@@ -13,4 +13,9 @@ public class ActiveInstallationNotFoundException extends RuntimeException {
                         + tenantId
         );
     }
+
+    public ActiveInstallationNotFoundException(Long tenantId, Long machineId, Long slotId) {
+        super("No active bottle installation found for machine " + machineId
+                + " slot " + slotId + " in tenant " + tenantId);
+    }
 }

@@ -3,6 +3,8 @@ package com.scentstation.catalog.dto.request;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -32,6 +34,16 @@ public class CreateProductRequest {
     @NotNull
     @DecimalMin(value = "0.0", inclusive = true)
     private BigDecimal defaultPrice;
+
+    @DecimalMin(value = "0.0", inclusive = false)
+    private BigDecimal bottlePrice;
+
+    @Positive
+    private Integer bottleVolumeMl;
+
+    @Builder.Default
+    @PositiveOrZero
+    private Integer bottleStock = 0;
 
     @Builder.Default
     private Boolean available = true;

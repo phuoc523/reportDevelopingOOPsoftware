@@ -95,7 +95,7 @@ VALUES
     (91602, 9103, 9103, 9103, NULL, NULL,
      'Kiểm tra kết nối kiosk Dior Đồng Khởi',
      'Thiết bị không gửi heartbeat trong hơn 30 phút.',
-     'CONNECTIVITY', 'HIGH', 'URGENT', 'OPEN', 9202, NULL,
+     'CONNECTIVITY', 'MAJOR', 'URGENT', 'OPEN', 9202, NULL,
      CURRENT_TIMESTAMP(6) + INTERVAL 4 HOUR, 1, CURRENT_TIMESTAMP(6) - INTERVAL 30 MINUTE, CURRENT_TIMESTAMP(6))
 ON DUPLICATE KEY UPDATE
     title = VALUES(title),
