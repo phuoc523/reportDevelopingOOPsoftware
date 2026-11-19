@@ -3,6 +3,7 @@ package com.scentstation.reporting.controller;
 import com.scentstation.reporting.dto.*;
 import com.scentstation.reporting.service.TransactionQueryService;
 import com.scentstation.reporting.service.TransactionService;
+import com.scentstation.reporting.security.ReportingTenantScope;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -42,6 +43,10 @@ public class TransactionController {
         @RequestParam(required = false) LocalDate endDate,
         @RequestParam(required = false) BigDecimal minAmount,
         @RequestParam(required = false) BigDecimal maxAmount,
+        @RequestParam(required = false) Long tenantId,
+        @RequestParam(required = false) String machineId,
+        @RequestParam(required = false) String slotId,
+        @RequestParam(required = false) Long productId,
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size,
         @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -66,18 +71,23 @@ public class TransactionController {
     return queryService.search(
             new TransactionFilterRequest(
                     reference, orderId, status,
-                    startDate, endDate, minAmount, maxAmount),
+                    startDate, endDate, minAmount, maxAmount,
+                    ReportingTenantScope.resolve(tenantId), machineId, slotId, productId),
             PageRequest.of(page, size, sort),
             false);
     }
 
     @GetMapping("/{id}")
     public TransactionResponse getById(@PathVariable Long id) {
-        return queryService.findById(id);
+        TransactionResponse response = queryService.findById(id);
+        ReportingTenantScope.verify(response.tenantId());
+        return response;
     }
 
     @GetMapping("/reference/{reference}")
     public TransactionResponse getByReference(@PathVariable String reference) {
-        return queryService.findByReference(reference);
+        TransactionResponse response = queryService.findByReference(reference);
+        ReportingTenantScope.verify(response.tenantId());
+        return response;
     }
 }

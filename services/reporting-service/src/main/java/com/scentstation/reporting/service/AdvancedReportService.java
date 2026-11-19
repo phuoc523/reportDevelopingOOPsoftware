@@ -31,6 +31,15 @@ public class AdvancedReportService {
                 .toList();
     }
 
+    public List<RevenueDetailResponse> revenueDetails(LocalDate start, LocalDate end,
+            String tenantId, String machineId, Long productId) {
+        validateDates(start, end);
+        return repository.findDailyRevenueScoped(start.atStartOfDay(), end.plusDays(1).atStartOfDay(),
+                tenantId, machineId, productId).stream()
+                .map(row -> new RevenueDetailResponse(row.getReportDate().toLocalDate(),
+                        row.getTransactionCount(), row.getRevenue())).toList();
+    }
+
     public TransactionStatusSummaryResponse statusSummary(LocalDate start, LocalDate end) {
         validateDates(start, end);
         LocalDateTime from = start.atStartOfDay();
@@ -46,6 +55,22 @@ public class AdvancedReportService {
                 rate(expired, total), rate(refunded, total), start, end);
     }
 
+    public TransactionStatusSummaryResponse statusSummary(LocalDate start, LocalDate end,
+            String tenantId, String machineId, Long productId) {
+        validateDates(start, end);
+        LocalDateTime from = start.atStartOfDay();
+        LocalDateTime to = end.plusDays(1).atStartOfDay();
+        long total = repository.countScoped(from, to, null, tenantId, machineId, productId);
+        long paid = repository.countScoped(from, to, "PAID", tenantId, machineId, productId);
+        long pending = repository.countScoped(from, to, "PENDING", tenantId, machineId, productId);
+        long failed = repository.countScoped(from, to, "FAILED", tenantId, machineId, productId);
+        long expired = repository.countScoped(from, to, "EXPIRED", tenantId, machineId, productId);
+        long refunded = repository.countScoped(from, to, "REFUNDED", tenantId, machineId, productId);
+        return new TransactionStatusSummaryResponse(total, paid, pending, failed, expired, refunded,
+                rate(paid, total), rate(pending, total), rate(failed, total), rate(expired, total),
+                rate(refunded, total), start, end);
+    }
+
     public RefundSummaryResponse refundSummary(LocalDate start, LocalDate end) {
         validateDates(start, end);
         LocalDateTime from = start.atStartOfDay();
@@ -53,6 +78,16 @@ public class AdvancedReportService {
         long count = count("REFUNDED", from, to);
         BigDecimal amount = repository.sumRefundAmountBetween(from, to);
         return new RefundSummaryResponse(count, amount, start, end);
+    }
+
+    public RefundSummaryResponse refundSummary(LocalDate start, LocalDate end,
+            String tenantId, String machineId, Long productId) {
+        validateDates(start, end);
+        LocalDateTime from = start.atStartOfDay();
+        LocalDateTime to = end.plusDays(1).atStartOfDay();
+        long count = repository.countScoped(from, to, "REFUNDED", tenantId, machineId, productId);
+        return new RefundSummaryResponse(count,
+                repository.sumRefundAmountScoped(from, to, tenantId, machineId, productId), start, end);
     }
 
     private long count(String status, LocalDateTime from, LocalDateTime to) {

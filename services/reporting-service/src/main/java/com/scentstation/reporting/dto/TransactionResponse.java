@@ -12,7 +12,16 @@ public record TransactionResponse(
         String currency,
         String status,
         LocalDateTime createdAt,
-        LocalDateTime paidAt
+        LocalDateTime paidAt,
+        String tenantId,
+        String machineId,
+        String slotId,
+        Long productId
 ) {
+    public TransactionResponse(Long id, String reference, String orderId, BigDecimal amount,
+            String currency, String status, LocalDateTime createdAt, LocalDateTime paidAt) {
+        this(id, reference, orderId, amount, currency, status, createdAt, paidAt,
+                null, null, null, null);
+    }
 }
 

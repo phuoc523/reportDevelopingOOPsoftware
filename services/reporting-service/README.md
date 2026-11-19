@@ -32,9 +32,10 @@ the script, or pass `-SyncApiKey` to the script. Use `-GatewayUrl` and
   `POST http://localhost:8086/api/reporting/internal/transactions/sync-from-order/{reference}`
   with the `X-Internal-Api-Key` header. Set the same `REPORTING_SYNC_API_KEY`
   for Order and Reporting. The default key in Compose is for local development.
-- The dashboard summarizes all Reporting transactions. Its tenant parameter
-  applies to machines, alerts and inventory. Operation expects a positive numeric
-  tenant ID. Check the dashboard's `upstream` values when a source is unavailable.
+- Payment events carry tenant, machine, slot and product ownership from Order.
+  Brand dashboards and financial APIs always replace the requested tenant with
+  the tenant verified by Identity; only Platform Super Admin may omit or select it.
+  Check the dashboard's `upstream` values when a source is unavailable.
 
 ## Order synchronization guarantees (Kafka + replay)
 
@@ -92,15 +93,12 @@ Compose change was made in this phase.
   an explicit different tenant or multiple tenant parameters returns 403. Accounts
   with location/machine allowlists cannot read whole-tenant aggregates until those
   aggregates support assigned scopes; such requests return 403.
-- Non-platform dashboard responses have `transactions=null` and
-  `upstream.order-service=unsupported-tenant-transaction-schema`; the global
-  transaction repository is not queried. Their Machine/Operation data remains
-  scoped to the verified tenant.
-- Existing transaction/revenue/refund APIs require PLATFORM_REPORT_READ because
-  the Reporting transaction schema has no tenant ownership. Exports require both
-  REPORT_EXPORT and PLATFORM_REPORT_READ. A tenant REPORT_READ/REPORT_EXPORT grant
-  alone cannot authorize cross-tenant financial reports. Global manual transaction
-  creation is limited to the platform permission; other public writes are denied.
+- Non-platform dashboards, transaction/revenue/refund APIs and exports query only
+  the verified tenant. Changing `tenantId` to another tenant returns 403. Direct
+  transaction lookup also verifies row ownership and hides foreign rows as 404.
+- Financial reads require `REPORT_READ`; exports require `REPORT_EXPORT`. Platform
+  Super Admin can request platform-wide or tenant-specific data. Global manual
+  transaction creation remains limited to the platform permission.
 - Missing/invalid/revoked tokens return 401, denied permissions/scopes return 403,
   Identity timeout/outage returns 503, and malformed Identity responses return 502.
   Requests fail closed and tokens/keys are not logged by this integration.
@@ -258,7 +256,8 @@ All date filters use ISO format `YYYY-MM-DD`. Date ranges are inclusive at both 
 `GET /api/reporting/transactions`
 
 Optional query parameters: `reference`, `orderId`, `status`, `startDate`, `endDate`,
-`minAmount`, `maxAmount`, `page` (default 0), `size` (default 20, maximum 200),
+`minAmount`, `maxAmount`, `tenantId`, `machineId`, `slotId`, `productId`,
+`page` (default 0), `size` (default 20, maximum 200),
 `sortBy` (id, createdAt, paidAt, amount, reference, status), `direction` (asc/desc).
 
 Examples:
@@ -291,6 +290,18 @@ This does not model partial refunds or multiple refunds per transaction. The inc
 - `GET /api/reporting/export/revenue?startDate=2026-10-01&endDate=2026-10-31`
 
 Excel exports use `.xlsx` and require the Apache POI dependency added to `pom.xml`.
+
+### Consolidated operational report
+
+`GET /api/reporting/operations?tenantId=1&period=month`
+
+Optional filters: `machineId`, `locationId`, `productId`, `refillThreshold`; use
+`period=custom&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` for a custom range.
+The response combines machine states, successful/failed/unconfirmed customer and
+diagnostic sprays, success rates, most-selected product, stock/consumption/refill
+candidates, alerts, maintenance response/resolution time, downtime approximation,
+high-failure machines and paid orders without a confirmed spray result. Diagnostic
+sprays are reported separately and are never inserted into financial transactions.
 
 ### Database compatibility
 Reporting initializes an empty MySQL database with `schema.sql`.

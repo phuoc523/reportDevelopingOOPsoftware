@@ -2,6 +2,7 @@ package com.scentstation.controller;
 
 import com.scentstation.dto.request.CreateDispenseCommandRequest;
 import com.scentstation.dto.response.DispenseCommandResponse;
+import com.scentstation.dto.response.DispenseCommandReportResponse;
 import com.scentstation.service.DispenseCommandService;
 import com.scentstation.service.InternalServiceKeyVerifier;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -42,5 +43,13 @@ public class DispenseCommandController {
                                        @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
         keyVerifier.verify(serviceKey);
         return service.get(commandId, tenantId);
+    }
+
+    @GetMapping
+    public java.util.List<DispenseCommandReportResponse> listForReporting(
+            @RequestParam("tenantId") String tenantId,
+            @RequestHeader(value = "X-Internal-Service-Key", required = false) String serviceKey) {
+        keyVerifier.verify(serviceKey);
+        return service.listForReporting(tenantId);
     }
 }

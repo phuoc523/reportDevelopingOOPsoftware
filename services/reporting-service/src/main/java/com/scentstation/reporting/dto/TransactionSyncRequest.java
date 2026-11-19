@@ -33,7 +33,16 @@ public record TransactionSyncRequest(
         @NotNull(message = "Created time is required")
         LocalDateTime createdAt,
 
-        LocalDateTime paidAt
+        LocalDateTime paidAt,
+        String tenantId,
+        String machineId,
+        String slotId,
+        Long productId
 
 ) {
+    public TransactionSyncRequest(String reference, String orderId, BigDecimal amount,
+            String currency, String status, LocalDateTime createdAt, LocalDateTime paidAt) {
+        this(reference, orderId, amount, currency, status, createdAt, paidAt,
+                null, null, null, null);
+    }
 }

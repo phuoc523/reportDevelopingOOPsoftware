@@ -76,13 +76,13 @@ class ReportingSecurityTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("access.scope").value("tenant"))
                 .andExpect(jsonPath("access.tenantId").value("12"))
-                .andExpect(jsonPath("access.canReadFinancialReports").value(false))
-                .andExpect(jsonPath("access.canExport").value(false));
+                .andExpect(jsonPath("access.canReadFinancialReports").value(true))
+                .andExpect(jsonPath("access.canExport").value(true));
         verify(dashboard).getDashboard("12", ReportPeriod.DAY, false);
         mvc.perform(get("/api/reporting/transactions/summary").header("Authorization", "Bearer unit-token"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
         mvc.perform(get("/api/reporting/export/transactions").header("Authorization", "Bearer unit-token"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
     }
 
     @Test

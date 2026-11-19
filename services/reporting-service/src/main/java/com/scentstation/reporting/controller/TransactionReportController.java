@@ -5,6 +5,7 @@ import com.scentstation.reporting.dto.TransactionSummaryResponse;
 import com.scentstation.reporting.enumtype.ReportPeriod;
 import com.scentstation.reporting.service.ReportDateRangeValidator;
 import com.scentstation.reporting.service.TransactionReportService;
+import com.scentstation.reporting.security.ReportingTenantScope;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,7 +39,10 @@ public class TransactionReportController {
             LocalDate startDate,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate endDate) {
+            LocalDate endDate,
+            @RequestParam(required = false) Long tenantId,
+            @RequestParam(required = false) String machineId,
+            @RequestParam(required = false) Long productId) {
 
         ReportPeriod reportPeriod;
 
@@ -57,10 +61,11 @@ public class TransactionReportController {
                 reportPeriod, startDate, endDate
         );
 
-        return transactionReportService.getSummary(
-                reportPeriod,
-                startDate,
-                endDate
-        );
+        String scopedTenant = ReportingTenantScope.resolve(tenantId);
+        if (scopedTenant == null && machineId == null && productId == null) {
+            return transactionReportService.getSummary(reportPeriod, startDate, endDate);
+        }
+        return transactionReportService.getSummary(reportPeriod, startDate, endDate,
+                scopedTenant, machineId, productId);
     }
 }

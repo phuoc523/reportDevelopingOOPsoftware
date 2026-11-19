@@ -2,6 +2,7 @@ package com.scentstation.service;
 
 import com.scentstation.dto.request.CreateDispenseCommandRequest;
 import com.scentstation.dto.response.DispenseCommandResponse;
+import com.scentstation.dto.response.DispenseCommandReportResponse;
 import com.scentstation.entity.Machine;
 import com.scentstation.entity.MachineCommand;
 import com.scentstation.entity.MachineCommandStatus;
@@ -109,6 +110,15 @@ public class DispenseCommandService {
             throw new InvalidOperationException("Dispensing command does not belong to the supplied tenant");
         }
         return toResponse(command);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<DispenseCommandReportResponse> listForReporting(String tenantId) {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new InvalidOperationException("tenantId is required");
+        }
+        return commands.findAllByTenantIdOrderByIssuedAtDesc(tenantId.trim()).stream()
+                .map(DispenseCommandReportResponse::from).toList();
     }
 
     private Long parseId(String value, String field) {

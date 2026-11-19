@@ -62,7 +62,8 @@ public class DashboardController {
         }
         DashboardResponse dashboard = dashboardAggregationService.getDashboard(tenantId, reportPeriod, platform);
         return dashboard.withAccess(new DashboardResponse.ReportAccess(platform ? "platform" : "tenant",
-                tenantId == null ? null : tenantId.trim(), platform,
-                platform && ReportingPermissions.has(actor, ReportingPermissions.EXPORT)));
+                tenantId == null ? null : tenantId.trim(),
+                ReportingPermissions.has(actor, ReportingPermissions.READ),
+                ReportingPermissions.has(actor, ReportingPermissions.EXPORT)));
     }
 }

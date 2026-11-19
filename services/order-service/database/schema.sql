@@ -61,6 +61,10 @@ CREATE TABLE IF NOT EXISTS payment_event_outbox (
     event_version INT NOT NULL,
     payment_reference VARCHAR(64) NOT NULL,
     order_id BIGINT NOT NULL,
+    tenant_id VARCHAR(100) NULL,
+    machine_id VARCHAR(100) NULL,
+    slot_id VARCHAR(100) NULL,
+    product_id BIGINT NULL,
     amount DECIMAL(19, 4) NOT NULL,
     currency CHAR(3) NOT NULL,
     payment_status VARCHAR(32) NOT NULL,
@@ -74,6 +78,38 @@ CREATE TABLE IF NOT EXISTS payment_event_outbox (
     CONSTRAINT fk_payment_outbox_payment FOREIGN KEY (payment_reference)
         REFERENCES payments(reference) ON DELETE CASCADE
 );
+
+SET @payment_outbox_tenant_exists = (SELECT COUNT(*) FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'payment_event_outbox' AND column_name = 'tenant_id');
+SET @payment_outbox_tenant_migration = IF(@payment_outbox_tenant_exists = 0,
+    'ALTER TABLE payment_event_outbox ADD COLUMN tenant_id VARCHAR(100) NULL', 'SELECT 1');
+PREPARE payment_outbox_tenant_statement FROM @payment_outbox_tenant_migration;
+EXECUTE payment_outbox_tenant_statement;
+DEALLOCATE PREPARE payment_outbox_tenant_statement;
+
+SET @payment_outbox_machine_exists = (SELECT COUNT(*) FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'payment_event_outbox' AND column_name = 'machine_id');
+SET @payment_outbox_machine_migration = IF(@payment_outbox_machine_exists = 0,
+    'ALTER TABLE payment_event_outbox ADD COLUMN machine_id VARCHAR(100) NULL', 'SELECT 1');
+PREPARE payment_outbox_machine_statement FROM @payment_outbox_machine_migration;
+EXECUTE payment_outbox_machine_statement;
+DEALLOCATE PREPARE payment_outbox_machine_statement;
+
+SET @payment_outbox_slot_exists = (SELECT COUNT(*) FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'payment_event_outbox' AND column_name = 'slot_id');
+SET @payment_outbox_slot_migration = IF(@payment_outbox_slot_exists = 0,
+    'ALTER TABLE payment_event_outbox ADD COLUMN slot_id VARCHAR(100) NULL', 'SELECT 1');
+PREPARE payment_outbox_slot_statement FROM @payment_outbox_slot_migration;
+EXECUTE payment_outbox_slot_statement;
+DEALLOCATE PREPARE payment_outbox_slot_statement;
+
+SET @payment_outbox_product_exists = (SELECT COUNT(*) FROM information_schema.columns
+    WHERE table_schema = DATABASE() AND table_name = 'payment_event_outbox' AND column_name = 'product_id');
+SET @payment_outbox_product_migration = IF(@payment_outbox_product_exists = 0,
+    'ALTER TABLE payment_event_outbox ADD COLUMN product_id BIGINT NULL', 'SELECT 1');
+PREPARE payment_outbox_product_statement FROM @payment_outbox_product_migration;
+EXECUTE payment_outbox_product_statement;
+DEALLOCATE PREPARE payment_outbox_product_statement;
 
 CREATE TABLE IF NOT EXISTS dispensing_commands (
     command_id VARCHAR(36) NOT NULL PRIMARY KEY,

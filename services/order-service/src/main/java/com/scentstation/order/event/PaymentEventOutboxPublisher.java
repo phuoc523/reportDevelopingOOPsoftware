@@ -54,6 +54,7 @@ public class PaymentEventOutboxPublisher {
     private PaymentChangedEvent toEvent(PaymentEventOutbox item) {
         return new PaymentChangedEvent(
             item.getEventVersion(), item.getEventId(), item.getReference(), item.getOrderId(),
+            item.getTenantId(), item.getMachineId(), item.getSlotId(), item.getProductId(),
             item.getAmount(), item.getCurrency(), item.getStatus(), item.getPaymentCreatedAt(),
             item.getPaidAt(), item.getOccurredAt());
     }

@@ -8,6 +8,10 @@ public record PaymentChangedEvent(
         String eventId,
         String reference,
         Long orderId,
+        String tenantId,
+        String machineId,
+        String slotId,
+        Long productId,
         BigDecimal amount,
         String currency,
         String status,
@@ -15,4 +19,10 @@ public record PaymentChangedEvent(
         LocalDateTime paidAt,
         LocalDateTime occurredAt
 ) {
+    public PaymentChangedEvent(int eventVersion, String eventId, String reference, Long orderId,
+            BigDecimal amount, String currency, String status, LocalDateTime createdAt,
+            LocalDateTime paidAt, LocalDateTime occurredAt) {
+        this(eventVersion, eventId, reference, orderId, null, null, null, null,
+                amount, currency, status, createdAt, paidAt, occurredAt);
+    }
 }

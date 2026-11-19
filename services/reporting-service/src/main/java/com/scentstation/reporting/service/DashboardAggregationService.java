@@ -49,9 +49,12 @@ public class DashboardAggregationService {
 
     public DashboardResponse getDashboard(String tenantId, ReportPeriod period, boolean includePlatformTransactions) {
         tenantId = tenantId == null ? null : tenantId.trim();
-        TransactionSummaryResponse transactions = includePlatformTransactions ? transactionReportService.getSummary(period, null, null) : null;
+        TransactionSummaryResponse transactions = includePlatformTransactions
+                ? transactionReportService.getSummary(period, null, null)
+                : (tenantId == null || tenantId.isBlank() ? null
+                        : transactionReportService.getSummary(period, null, null, tenantId, null, null));
         Map<String, String> upstream = new LinkedHashMap<>();
-        upstream.put("order-service", includePlatformTransactions ? "local-copy" : "unsupported-tenant-transaction-schema");
+        upstream.put("order-service", transactions == null ? "skipped-missing-tenant" : "local-copy");
 
         MachineStatusSummary machines = emptyMachines();
         AlertStatusSummary alerts = emptyAlerts();

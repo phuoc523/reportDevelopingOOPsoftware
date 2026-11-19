@@ -27,7 +27,15 @@ public record TransactionRequest(
         String currency,
 
         @NotBlank(message = "Status is required")
-        String status
+        String status,
+        String tenantId,
+        String machineId,
+        String slotId,
+        Long productId
 ) {
+    public TransactionRequest(String reference, String orderId, BigDecimal amount,
+            String currency, String status) {
+        this(reference, orderId, amount, currency, status, null, null, null, null);
+    }
 }
 

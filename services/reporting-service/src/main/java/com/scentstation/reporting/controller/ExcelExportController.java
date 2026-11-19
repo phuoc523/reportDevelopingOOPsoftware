@@ -2,6 +2,7 @@ package com.scentstation.reporting.controller;
 
 import com.scentstation.reporting.dto.TransactionFilterRequest;
 import com.scentstation.reporting.service.ExcelExportService;
+import com.scentstation.reporting.security.ReportingTenantScope;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -30,9 +31,14 @@ public class ExcelExportController {
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
             @RequestParam(required = false) BigDecimal minAmount,
-            @RequestParam(required = false) BigDecimal maxAmount) {
+            @RequestParam(required = false) BigDecimal maxAmount,
+            @RequestParam(required = false) Long tenantId,
+            @RequestParam(required = false) String machineId,
+            @RequestParam(required = false) String slotId,
+            @RequestParam(required = false) Long productId) {
         byte[] file = exportService.exportTransactions(new TransactionFilterRequest(
-                reference, orderId, status, startDate, endDate, minAmount, maxAmount));
+                reference, orderId, status, startDate, endDate, minAmount, maxAmount,
+                ReportingTenantScope.resolve(tenantId), machineId, slotId, productId));
         return ResponseEntity.ok().contentType(XLSX)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=transactions.xlsx")
                 .body(file);
@@ -41,8 +47,12 @@ public class ExcelExportController {
     @GetMapping("/revenue")
     public ResponseEntity<byte[]> exportRevenue(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
-        byte[] file = exportService.exportRevenue(startDate, endDate);
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) Long tenantId,
+            @RequestParam(required = false) String machineId,
+            @RequestParam(required = false) Long productId) {
+        byte[] file = exportService.exportRevenue(startDate, endDate,
+                ReportingTenantScope.resolve(tenantId), machineId, productId);
         return ResponseEntity.ok().contentType(XLSX)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=revenue-report.xlsx")
                 .body(file);

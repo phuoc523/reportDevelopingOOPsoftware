@@ -96,6 +96,9 @@ public class TransactionReportService {
                         startDateTime,
                         endDateTime
                 );
+        BigDecimal refundAmount = zeroIfNull(
+                transactionRepository.sumRefundAmountBetween(startDateTime, endDateTime));
+        revenue = zeroIfNull(revenue);
 
         return new TransactionSummaryResponse(
                 totalTransactions,
@@ -105,10 +108,48 @@ public class TransactionReportService {
                 expired,
                 refunded,
                 revenue,
+                refundAmount,
+                revenue.subtract(refundAmount),
                 period.name().toLowerCase(),
                 startDate,
                 endDate
         );
+    }
+
+    public TransactionSummaryResponse getSummary(ReportPeriod period,
+            LocalDate requestedStartDate, LocalDate requestedEndDate, String tenantId,
+            String machineId, Long productId) {
+        LocalDate today = LocalDate.now();
+        LocalDate startDate;
+        LocalDate endDate;
+        switch (period) {
+            case DAY -> { startDate = today; endDate = today; }
+            case WEEK -> {
+                startDate = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+                endDate = startDate.plusDays(6);
+            }
+            case MONTH -> {
+                startDate = today.withDayOfMonth(1);
+                endDate = today.with(TemporalAdjusters.lastDayOfMonth());
+            }
+            case CUSTOM -> { startDate = requestedStartDate; endDate = requestedEndDate; }
+            default -> throw new IllegalArgumentException("Unsupported report period: " + period);
+        }
+        LocalDateTime start = startDate.atStartOfDay();
+        LocalDateTime end = endDate.plusDays(1).atStartOfDay();
+        BigDecimal revenue = zeroIfNull(transactionRepository.sumPaidAmountScoped(
+                start, end, tenantId, machineId, productId));
+        BigDecimal refunds = zeroIfNull(transactionRepository.sumRefundAmountScoped(
+                start, end, tenantId, machineId, productId));
+        return new TransactionSummaryResponse(
+                transactionRepository.countScoped(start, end, null, tenantId, machineId, productId),
+                transactionRepository.countScoped(start, end, "PAID", tenantId, machineId, productId),
+                transactionRepository.countScoped(start, end, "PENDING", tenantId, machineId, productId),
+                transactionRepository.countScoped(start, end, "FAILED", tenantId, machineId, productId),
+                transactionRepository.countScoped(start, end, "EXPIRED", tenantId, machineId, productId),
+                transactionRepository.countScoped(start, end, "REFUNDED", tenantId, machineId, productId),
+                revenue, refunds, revenue.subtract(refunds),
+                period.name().toLowerCase(), startDate, endDate);
     }
 
     private long countByStatus(
@@ -122,5 +163,9 @@ public class TransactionReportService {
                         endDate,
                         status
                 );
+    }
+
+    private BigDecimal zeroIfNull(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
     }
 }

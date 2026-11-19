@@ -55,8 +55,58 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate);
 
+    @Query(value = """
+            SELECT DATE(paid_at) AS reportDate, COUNT(*) AS transactionCount,
+                   COALESCE(SUM(amount), 0) AS revenue
+            FROM transactions
+            WHERE status = 'PAID' AND paid_at >= :startDate AND paid_at < :endDate
+              AND (:tenantId IS NULL OR tenant_id = :tenantId)
+              AND (:machineId IS NULL OR machine_id = :machineId)
+              AND (:productId IS NULL OR product_id = :productId)
+            GROUP BY DATE(paid_at) ORDER BY DATE(paid_at)
+            """, nativeQuery = true)
+    java.util.List<RevenueDailyProjection> findDailyRevenueScoped(
+            @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
+            @Param("tenantId") String tenantId, @Param("machineId") String machineId,
+            @Param("productId") Long productId);
+
     long countByStatusAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
             String status, LocalDateTime startDate, LocalDateTime endDate);
+
+    @Query("""
+            SELECT COUNT(t) FROM Transaction t
+            WHERE t.createdAt >= :startDate AND t.createdAt < :endDate
+              AND (:status IS NULL OR t.status = :status)
+              AND (:tenantId IS NULL OR t.tenantId = :tenantId)
+              AND (:machineId IS NULL OR t.machineId = :machineId)
+              AND (:productId IS NULL OR t.productId = :productId)
+            """)
+    long countScoped(@Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate, @Param("status") String status,
+            @Param("tenantId") String tenantId, @Param("machineId") String machineId,
+            @Param("productId") Long productId);
+
+    @Query("""
+            SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
+            WHERE t.status = 'PAID' AND t.paidAt >= :startDate AND t.paidAt < :endDate
+              AND (:tenantId IS NULL OR t.tenantId = :tenantId)
+              AND (:machineId IS NULL OR t.machineId = :machineId)
+              AND (:productId IS NULL OR t.productId = :productId)
+            """)
+    BigDecimal sumPaidAmountScoped(@Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate, @Param("tenantId") String tenantId,
+            @Param("machineId") String machineId, @Param("productId") Long productId);
+
+    @Query("""
+            SELECT t.orderId FROM Transaction t
+            WHERE t.status = 'PAID' AND t.paidAt >= :startDate AND t.paidAt < :endDate
+              AND t.tenantId = :tenantId
+              AND (:machineId IS NULL OR t.machineId = :machineId)
+              AND (:productId IS NULL OR t.productId = :productId)
+            """)
+    java.util.List<String> findPaidOrderIds(@Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate, @Param("tenantId") String tenantId,
+            @Param("machineId") String machineId, @Param("productId") Long productId);
 
         @Query("""
             SELECT COALESCE(SUM(t.amount), 0)
@@ -68,6 +118,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
         BigDecimal sumRefundAmountBetween(
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate);
+
+    @Query("""
+            SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t
+            WHERE t.status = 'REFUNDED' AND t.createdAt >= :startDate AND t.createdAt < :endDate
+              AND (:tenantId IS NULL OR t.tenantId = :tenantId)
+              AND (:machineId IS NULL OR t.machineId = :machineId)
+              AND (:productId IS NULL OR t.productId = :productId)
+            """)
+    BigDecimal sumRefundAmountScoped(@Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate, @Param("tenantId") String tenantId,
+            @Param("machineId") String machineId, @Param("productId") Long productId);
 
     interface RevenueDailyProjection {
         java.sql.Date getReportDate();

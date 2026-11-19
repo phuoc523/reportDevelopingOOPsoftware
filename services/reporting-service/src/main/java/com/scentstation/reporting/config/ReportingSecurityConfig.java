@@ -6,7 +6,6 @@ import com.scentstation.reporting.client.IdentityClient;
 import com.scentstation.reporting.security.IdentityAuthenticationFilter;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
-import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -31,9 +30,11 @@ public class ReportingSecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                         .requestMatchers("/api/reporting/internal/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/reporting/dashboard").hasAuthority("REPORT_READ")
-                        .requestMatchers(HttpMethod.GET, "/api/reporting/export/**").access((authentication, context) ->
-                                new AuthorizationDecision(authentication.get().getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("REPORT_EXPORT"))
-                                        && authentication.get().getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("PLATFORM_REPORT_READ"))))
+                        .requestMatchers(HttpMethod.GET, "/api/reporting/operations").hasAuthority("REPORT_READ")
+                        .requestMatchers(HttpMethod.GET, "/api/reporting/export/**").hasAuthority("REPORT_EXPORT")
+                        .requestMatchers(HttpMethod.GET, "/api/reporting/transactions/**",
+                                "/api/reporting/revenue/**", "/api/reporting/refunds/**")
+                                .hasAuthority("REPORT_READ")
                         .requestMatchers(HttpMethod.GET, "/api/reporting/**").hasAuthority("PLATFORM_REPORT_READ")
                         .requestMatchers(HttpMethod.POST, "/api/reporting/transactions").hasAuthority("PLATFORM_REPORT_READ")
                         .anyRequest().denyAll());

@@ -25,7 +25,8 @@ public class PaymentEventKafkaConsumer {
         validate(event);
         transactions.syncTransaction(new TransactionSyncRequest(
             event.reference(), event.orderId().toString(), event.amount(), event.currency(),
-            event.status(), event.createdAt(), event.paidAt()));
+            event.status(), event.createdAt(), event.paidAt(), event.tenantId(), event.machineId(),
+            event.slotId(), event.productId()));
     }
 
     private void validate(PaymentChangedEvent event) {

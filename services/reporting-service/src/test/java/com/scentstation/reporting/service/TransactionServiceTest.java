@@ -264,4 +264,36 @@ class TransactionServiceTest {
                 () -> transactionService.syncTransaction(null)).getStatusCode());
         verifyNoInteractions(transactionRepository);
     }
+
+    @Test
+    void paymentScopeIsStoredAndLateEventsCanEnrichLegacyRows() {
+        existingTransaction.setTenantId(null);
+        existingTransaction.setMachineId(null);
+        when(transactionRepository.findByReferenceForUpdate(reference))
+                .thenReturn(Optional.of(existingTransaction));
+        when(transactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = transactionService.syncTransaction(new TransactionSyncRequest(
+                reference, "2", new BigDecimal("25.50"), "VND", "PAID", createdAt, paidAt,
+                "12", "44", "3", 91L));
+
+        assertEquals("12", response.tenantId());
+        assertEquals("44", response.machineId());
+        assertEquals("3", response.slotId());
+        assertEquals(91L, response.productId());
+        verify(transactionRepository).save(existingTransaction);
+    }
+
+    @Test
+    void conflictingTenantOnDuplicatePaymentIsRejected() {
+        existingTransaction.setTenantId("12");
+        when(transactionRepository.findByReferenceForUpdate(reference))
+                .thenReturn(Optional.of(existingTransaction));
+
+        var request = new TransactionSyncRequest(reference, "2", new BigDecimal("25.50"),
+                "VND", "PAID", createdAt, paidAt, "99", "44", "3", 91L);
+        assertEquals(HttpStatus.CONFLICT, assertThrows(ResponseStatusException.class,
+                () -> transactionService.syncTransaction(request)).getStatusCode());
+        verify(transactionRepository, never()).save(any());
+    }
 }

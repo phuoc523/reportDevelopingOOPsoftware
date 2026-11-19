@@ -99,3 +99,7 @@ integration:
   operation:
     base-url: ${OPERATION_SERVICE_URL:http://localhost:8085}
     zone-id: ${OPERATION_SERVICE_ZONE_ID:UTC}
+
+security:
+  internal:
+    service-key: ${INTERNAL_SERVICE_KEY:}

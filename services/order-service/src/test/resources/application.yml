@@ -6,8 +6,12 @@ spring:
     driver-class-name: org.h2.Driver
   sql:
     init:
-      mode: always
-      schema-locations: classpath:database/schema.sql
+      # Production schema contains MySQL prepared-statement migrations. Let
+      # Hibernate create the isolated H2 schema used only by unit/integration tests.
+      mode: never
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
 
 reporting-service:
   enabled: false

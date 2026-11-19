@@ -62,7 +62,14 @@ public class ExcelExportService {
     }
 
     public byte[] exportRevenue(java.time.LocalDate start, java.time.LocalDate end) {
-        List<RevenueDetailResponse> rows = reportService.revenueDetails(start, end);
+        return exportRevenue(start, end, null, null, null);
+    }
+
+    public byte[] exportRevenue(java.time.LocalDate start, java.time.LocalDate end,
+            String tenantId, String machineId, Long productId) {
+        List<RevenueDetailResponse> rows = tenantId == null && machineId == null && productId == null
+                ? reportService.revenueDetails(start, end)
+                : reportService.revenueDetails(start, end, tenantId, machineId, productId);
         try (Workbook workbook = new XSSFWorkbook();
              ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             Sheet sheet = workbook.createSheet("Revenue");

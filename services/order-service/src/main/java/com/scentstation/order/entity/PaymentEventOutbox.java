@@ -23,6 +23,18 @@ public class PaymentEventOutbox {
     @Column(name = "order_id", nullable = false)
     private Long orderId;
 
+    @Column(name = "tenant_id", length = 100)
+    private String tenantId;
+
+    @Column(name = "machine_id", length = 100)
+    private String machineId;
+
+    @Column(name = "slot_id", length = 100)
+    private String slotId;
+
+    @Column(name = "product_id")
+    private Long productId;
+
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal amount;
 
@@ -54,10 +66,20 @@ public class PaymentEventOutbox {
     }
 
     public PaymentEventOutbox(Payment payment) {
+        this(payment, null);
+    }
+
+    public PaymentEventOutbox(Payment payment, Order order) {
         this.eventId = payment.getReference() + ":" + payment.getStatus().name();
         this.eventVersion = 1;
         this.reference = payment.getReference();
         this.orderId = payment.getOrderId();
+        if (order != null) {
+            this.tenantId = order.getTenantId();
+            this.machineId = order.getMachineId();
+            this.slotId = order.getSlotId();
+            this.productId = order.getItems().isEmpty() ? null : order.getItems().get(0).productId();
+        }
         this.amount = payment.getAmount();
         this.currency = payment.getCurrency();
         this.status = payment.getStatus().name();
@@ -77,6 +99,10 @@ public class PaymentEventOutbox {
     public int getEventVersion() { return eventVersion; }
     public String getReference() { return reference; }
     public Long getOrderId() { return orderId; }
+    public String getTenantId() { return tenantId; }
+    public String getMachineId() { return machineId; }
+    public String getSlotId() { return slotId; }
+    public Long getProductId() { return productId; }
     public BigDecimal getAmount() { return amount; }
     public String getCurrency() { return currency; }
     public String getStatus() { return status; }

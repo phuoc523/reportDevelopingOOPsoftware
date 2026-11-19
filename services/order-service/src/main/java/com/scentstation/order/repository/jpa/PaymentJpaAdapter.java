@@ -86,7 +86,10 @@ public class PaymentJpaAdapter implements PaymentRepository {
     }
 
     private void enqueue(Payment payment) {
-        PaymentEventOutbox event = new PaymentEventOutbox(payment);
+        PaymentEventOutbox event = new PaymentEventOutbox(
+                payment,
+                orders.findById(payment.getOrderId()).orElse(null)
+        );
         if (!paymentOutbox.existsById(event.getEventId())) {
             paymentOutbox.save(event);
         }

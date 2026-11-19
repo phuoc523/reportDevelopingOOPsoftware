@@ -3,7 +3,9 @@ package com.scentstation.reporting.client;
 import com.scentstation.reporting.dto.integration.MachineAlertSnapshot;
 import com.scentstation.reporting.dto.integration.MachineSnapshot;
 import com.scentstation.reporting.dto.integration.LocationSnapshot;
+import com.scentstation.reporting.dto.integration.DispenseCommandSnapshot;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -23,16 +25,26 @@ public class MachineSnapshotClient {
             new ParameterizedTypeReference<>() {};
     private static final ParameterizedTypeReference<List<LocationSnapshot>> LOCATIONS =
             new ParameterizedTypeReference<>() {};
+    private static final ParameterizedTypeReference<List<DispenseCommandSnapshot>> COMMANDS =
+            new ParameterizedTypeReference<>() {};
 
     private final RestClient restClient;
+    private final String internalServiceKey;
 
+    @Autowired
     public MachineSnapshotClient(
             RestClient.Builder restClientBuilder,
-            @Value("${integration.machine.base-url}") String baseUrl) {
+            @Value("${integration.machine.base-url}") String baseUrl,
+            @Value("${security.internal.service-key:}") String internalServiceKey) {
         this.restClient = restClientBuilder
                 .baseUrl(baseUrl)
                 .requestFactory(requestFactory())
                 .build();
+        this.internalServiceKey = internalServiceKey;
+    }
+
+    public MachineSnapshotClient(RestClient.Builder restClientBuilder, String baseUrl) {
+        this(restClientBuilder, baseUrl, "test-internal-key");
     }
 
     public List<MachineSnapshot> listMachines(String tenantId) {
@@ -85,6 +97,28 @@ public class MachineSnapshotClient {
             return checked(locations, location -> hasText(location.locationId())
                     && tenantId.equals(location.tenantId()) && hasText(location.name())
                     && location.active() != null);
+        } catch (RestClientException ex) {
+            throw new UpstreamUnavailableException("machine-service", ex);
+        }
+    }
+
+    public List<DispenseCommandSnapshot> listDispenseCommands(String tenantId) {
+        if (!hasText(tenantId)) {
+            throw new IllegalArgumentException("tenantId is required for dispense commands");
+        }
+        if (!hasText(internalServiceKey)) {
+            throw new UpstreamUnavailableException("machine-service",
+                    new IllegalStateException("Internal service key is not configured"));
+        }
+        try {
+            List<DispenseCommandSnapshot> commands = restClient.get()
+                    .uri(builder -> builder.path("/api/machines/dispense-commands")
+                            .queryParam("tenantId", tenantId).build())
+                    .header("X-Internal-Service-Key", internalServiceKey)
+                    .retrieve().body(COMMANDS);
+            return checked(commands, command -> hasText(command.commandId())
+                    && tenantId.equals(command.tenantId()) && command.machineId() != null
+                    && command.machineId() > 0 && hasText(command.status()) && command.issuedAt() != null);
         } catch (RestClientException ex) {
             throw new UpstreamUnavailableException("machine-service", ex);
         }

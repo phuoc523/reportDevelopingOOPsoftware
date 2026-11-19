@@ -9,8 +9,15 @@ public record BottleSnapshot(
         Long id,
         Long tenantId,
         Long productId,
+        Long batchId,
         String bottleCode,
+        BigDecimal initialQuantity,
         BigDecimal currentQuantity,
+        BigDecimal calibratedConsumptionPerSpray,
         String status
 ) {
+    public BottleSnapshot(Long id, Long tenantId, Long productId, String bottleCode,
+            BigDecimal currentQuantity, String status) {
+        this(id, tenantId, productId, null, bottleCode, null, currentQuantity, null, status);
+    }
 }

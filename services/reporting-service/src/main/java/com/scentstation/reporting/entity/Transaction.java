@@ -12,7 +12,10 @@ import java.time.LocalDateTime;
         @Index(name = "idx_transaction_order_id", columnList = "order_id"),
         @Index(name = "idx_transaction_status", columnList = "status"),
         @Index(name = "idx_transaction_created_at", columnList = "created_at"),
-        @Index(name = "idx_transaction_paid_at", columnList = "paid_at")
+        @Index(name = "idx_transaction_paid_at", columnList = "paid_at"),
+        @Index(name = "idx_transaction_tenant_created", columnList = "tenant_id,created_at"),
+        @Index(name = "idx_transaction_machine", columnList = "machine_id"),
+        @Index(name = "idx_transaction_product", columnList = "product_id")
     }
 )
 public class Transaction {
@@ -26,6 +29,18 @@ public class Transaction {
 
     @Column(name = "order_id", nullable = false, length = 100)
     private String orderId;
+
+    @Column(name = "tenant_id", length = 100)
+    private String tenantId;
+
+    @Column(name = "machine_id", length = 100)
+    private String machineId;
+
+    @Column(name = "slot_id", length = 100)
+    private String slotId;
+
+    @Column(name = "product_id")
+    private Long productId;
 
     @Column(name = "amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
@@ -75,6 +90,15 @@ public class Transaction {
     public void setOrderId(String orderId) {
         this.orderId = orderId;
     }
+
+    public String getTenantId() { return tenantId; }
+    public void setTenantId(String tenantId) { this.tenantId = tenantId; }
+    public String getMachineId() { return machineId; }
+    public void setMachineId(String machineId) { this.machineId = machineId; }
+    public String getSlotId() { return slotId; }
+    public void setSlotId(String slotId) { this.slotId = slotId; }
+    public Long getProductId() { return productId; }
+    public void setProductId(Long productId) { this.productId = productId; }
 
     public BigDecimal getAmount() {
         return amount;

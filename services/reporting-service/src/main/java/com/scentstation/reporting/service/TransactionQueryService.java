@@ -60,6 +60,18 @@ public class TransactionQueryService {
         if (filter.maxAmount() != null) {
             spec = spec.and((r, q, cb) -> cb.lessThanOrEqualTo(r.get("amount"), filter.maxAmount()));
         }
+        if (hasText(filter.tenantId())) {
+            spec = spec.and((r, q, cb) -> cb.equal(r.get("tenantId"), filter.tenantId().trim()));
+        }
+        if (hasText(filter.machineId())) {
+            spec = spec.and((r, q, cb) -> cb.equal(r.get("machineId"), filter.machineId().trim()));
+        }
+        if (hasText(filter.slotId())) {
+            spec = spec.and((r, q, cb) -> cb.equal(r.get("slotId"), filter.slotId().trim()));
+        }
+        if (filter.productId() != null) {
+            spec = spec.and((r, q, cb) -> cb.equal(r.get("productId"), filter.productId()));
+        }
         return repository.findAll(spec, pageable).map(this::toResponse);
     }
 
@@ -89,7 +101,8 @@ public class TransactionQueryService {
 
     private TransactionResponse toResponse(Transaction t) {
         return new TransactionResponse(t.getId(), t.getReference(), t.getOrderId(),
-                t.getAmount(), t.getCurrency(), t.getStatus(), t.getCreatedAt(), t.getPaidAt());
+                t.getAmount(), t.getCurrency(), t.getStatus(), t.getCreatedAt(), t.getPaidAt(),
+                t.getTenantId(), t.getMachineId(), t.getSlotId(), t.getProductId());
     }
 }
 

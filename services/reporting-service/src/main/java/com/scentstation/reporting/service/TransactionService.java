@@ -74,6 +74,7 @@ public class TransactionService {
                 request.currency().trim().toUpperCase(Locale.ROOT)
         );
         transaction.setStatus(status);
+        applyScope(transaction, request.tenantId(), request.machineId(), request.slotId(), request.productId());
 
         if ("PAID".equals(status)) {
             transaction.setPaidAt(
@@ -121,6 +122,7 @@ public class TransactionService {
             transaction.setStatus(status);
             transaction.setCreatedAt(normalizedCreatedAt);
             transaction.setPaidAt(normalizedPaidAt);
+            applyScope(transaction, request.tenantId(), request.machineId(), request.slotId(), request.productId());
 
             try {
                 return toResponse(transactionRepository.saveAndFlush(transaction));
@@ -138,13 +140,20 @@ public class TransactionService {
                 || transaction.getAmount()
                         .compareTo(request.amount()) != 0
                 || !transaction.getCurrency()
-                        .equalsIgnoreCase(currency)) {
+                        .equalsIgnoreCase(currency)
+                || conflicts(transaction.getTenantId(), request.tenantId())
+                || conflicts(transaction.getMachineId(), request.machineId())
+                || conflicts(transaction.getSlotId(), request.slotId())
+                || conflicts(transaction.getProductId(), request.productId())) {
 
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
                     "Transaction data conflicts with existing reference"
             );
         }
+
+        boolean scopeEnriched = applyScope(transaction, request.tenantId(), request.machineId(),
+                request.slotId(), request.productId());
 
         // Case 3: Handle an already-paid transaction.
         if ("PAID".equals(transaction.getStatus())) {
@@ -164,7 +173,7 @@ public class TransactionService {
             }
 
             // Idempotent synchronization.
-            return toResponse(transaction);
+            return toResponse(scopeEnriched ? transactionRepository.save(transaction) : transaction);
         }
 
         // Case 4: Protect terminal transaction statuses.
@@ -177,11 +186,11 @@ public class TransactionService {
                 );
             }
 
-            return toResponse(transaction);
+            return toResponse(scopeEnriched ? transactionRepository.save(transaction) : transaction);
         }
 
         if ("PENDING".equals(status)) {
-            return toResponse(transaction);
+            return toResponse(scopeEnriched ? transactionRepository.save(transaction) : transaction);
         }
 
         // Case 5: Update a pending transaction.
@@ -202,7 +211,33 @@ public class TransactionService {
                 transaction.getCurrency(),
                 transaction.getStatus(),
                 transaction.getCreatedAt(),
-                transaction.getPaidAt()
+                transaction.getPaidAt(),
+                transaction.getTenantId(),
+                transaction.getMachineId(),
+                transaction.getSlotId(),
+                transaction.getProductId()
         );
+    }
+
+    private boolean applyScope(Transaction transaction, String tenantId, String machineId,
+            String slotId, Long productId) {
+        boolean changed = false;
+        if (transaction.getTenantId() == null && tenantId != null && !tenantId.isBlank()) {
+            transaction.setTenantId(tenantId.trim()); changed = true;
+        }
+        if (transaction.getMachineId() == null && machineId != null && !machineId.isBlank()) {
+            transaction.setMachineId(machineId.trim()); changed = true;
+        }
+        if (transaction.getSlotId() == null && slotId != null && !slotId.isBlank()) {
+            transaction.setSlotId(slotId.trim()); changed = true;
+        }
+        if (transaction.getProductId() == null && productId != null) {
+            transaction.setProductId(productId); changed = true;
+        }
+        return changed;
+    }
+
+    private boolean conflicts(Object existing, Object incoming) {
+        return existing != null && incoming != null && !Objects.equals(existing, incoming);
     }
 }

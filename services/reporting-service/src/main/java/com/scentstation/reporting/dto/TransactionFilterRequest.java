@@ -10,6 +10,16 @@ public record TransactionFilterRequest(
         LocalDate startDate,
         LocalDate endDate,
         BigDecimal minAmount,
-        BigDecimal maxAmount
-) {}
+        BigDecimal maxAmount,
+        String tenantId,
+        String machineId,
+        String slotId,
+        Long productId
+) {
+    public TransactionFilterRequest(String reference, String orderId, String status,
+            LocalDate startDate, LocalDate endDate, BigDecimal minAmount, BigDecimal maxAmount) {
+        this(reference, orderId, status, startDate, endDate, minAmount, maxAmount,
+                null, null, null, null);
+    }
+}
 

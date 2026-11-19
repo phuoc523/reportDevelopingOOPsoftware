@@ -178,10 +178,13 @@ class DashboardAggregationServiceTest {
     }
 
     @Test
-    void tenantDashboardNeverQueriesGlobalTransactions() {
+    void tenantDashboardQueriesOnlyItsOwnTransactions() {
+        TransactionSummaryResponse summary = new TransactionSummaryResponse(
+                1, 1, 0, 0, 0, 0, BigDecimal.TEN, "day", LocalDate.now(), LocalDate.now());
+        when(transactionReportService.getSummary(ReportPeriod.DAY, null, null,
+                "12", null, null)).thenReturn(summary);
         var result = dashboardAggregationService.getDashboard("12", ReportPeriod.DAY, false);
-        assertEquals(null, result.transactions());
-        assertEquals("unsupported-tenant-transaction-schema", result.upstream().get("order-service"));
-        verifyNoInteractions(transactionReportService);
+        assertEquals(summary, result.transactions());
+        assertEquals("local-copy", result.upstream().get("order-service"));
     }
 }

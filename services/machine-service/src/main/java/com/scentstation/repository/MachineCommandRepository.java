@@ -15,6 +15,7 @@ import java.util.Optional;
 public interface MachineCommandRepository extends JpaRepository<MachineCommand, Long> {
     boolean existsByCommandId(String commandId);
     Optional<com.scentstation.entity.MachineCommand> findByCommandId(String commandId);
+    java.util.List<com.scentstation.entity.MachineCommand> findAllByTenantIdOrderByIssuedAtDesc(String tenantId);
     boolean existsByOrderIdAndStatusIn(String orderId,
         java.util.Collection<com.scentstation.entity.MachineCommandStatus> statuses);
 
