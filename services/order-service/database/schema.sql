@@ -14,8 +14,22 @@ CREATE TABLE IF NOT EXISTS orders (
     INDEX idx_orders_created_at (created_at)
 );
 
-ALTER TABLE orders
-    ADD COLUMN IF NOT EXISTS order_type VARCHAR(16) NOT NULL DEFAULT 'TRIAL';
+-- Keep this upgrade idempotent on MySQL, which does not support ADD COLUMN IF NOT EXISTS.
+SET @order_type_column_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'orders'
+      AND COLUMN_NAME = 'order_type'
+);
+SET @order_type_upgrade = IF(
+    @order_type_column_exists = 0,
+    'ALTER TABLE orders ADD COLUMN order_type VARCHAR(16) NOT NULL DEFAULT ''TRIAL''',
+    'SELECT 1'
+);
+PREPARE order_type_upgrade_statement FROM @order_type_upgrade;
+EXECUTE order_type_upgrade_statement;
+DEALLOCATE PREPARE order_type_upgrade_statement;
 
 CREATE TABLE IF NOT EXISTS order_items (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,

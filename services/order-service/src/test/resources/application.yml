@@ -18,6 +18,9 @@ reporting-service:
   base-url: http://localhost:8086
   api-key: test-reporting-sync-key
 
+payment:
+  mock-web-base-url: http://mock-payment.example:3000/
+
 integration:
   identity:
     base-url: http://127.0.0.1:1

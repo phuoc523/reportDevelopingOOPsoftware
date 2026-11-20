@@ -70,7 +70,7 @@ class DispensingServiceTest {
                 "PAY-001",
                 order.getId(),
                 new BigDecimal("25.50"),
-                "http://localhost:3000/mock-payment/PAY-001"
+                "{\"type\":\"SCENTSTATION_PAYMENT\",\"paymentReference\":\"PAY-001\"}"
         );
         payment.markPaid();
         when(payments.findByOrderId(1L)).thenReturn(Optional.of(payment));
@@ -145,7 +145,7 @@ class DispensingServiceTest {
                 "PAY-PENDING",
                 order.getId(),
                 new BigDecimal("25.50"),
-                "http://localhost:3000/mock-payment/PAY-PENDING"
+                "{\"type\":\"SCENTSTATION_PAYMENT\",\"paymentReference\":\"PAY-PENDING\"}"
         )));
 
         assertThrows(

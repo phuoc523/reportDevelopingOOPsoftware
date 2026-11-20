@@ -38,6 +38,12 @@ button:disabled {
   cursor: wait;
 }
 
+button.secondary {
+  background: #f5efe7;
+  color: #4a3a29;
+  border: 1px solid #d8cbbc;
+}
+
 button:hover:not(:disabled) {
   transform: translateY(-1px);
 }
@@ -103,6 +109,70 @@ h1 {
 
 .details p {
   margin: 0.4rem 0;
+}
+
+.order-details {
+  margin: 1rem 0;
+  border-top: 1px solid #eee4d8;
+  border-bottom: 1px solid #eee4d8;
+  padding: 0.8rem 0;
+}
+
+.order-details h2 {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+}
+
+.order-item,
+.order-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin: 0.65rem 0;
+}
+
+.order-item div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.order-item span {
+  color: #6e5d4e;
+  font-size: 0.82rem;
+}
+
+.order-total {
+  border-top: 1px dashed #d8cbbc;
+  padding-top: 0.75rem;
+  font-size: 1.05rem;
+}
+
+.actions {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.camera-note {
+  margin: 1rem 0 0;
+  color: #6e5d4e;
+  font-size: 0.85rem;
+}
+
+.hidden {
+  display: none;
+}
+
+.qr-scanner {
+  width: 100%;
+  margin-top: 1rem;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.qr-scanner-idle {
+  height: 0;
+  margin: 0;
 }
 
 .alert {

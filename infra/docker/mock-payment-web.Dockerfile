@@ -1,9 +1,12 @@
 FROM node:20-alpine
 
+ARG VITE_ORDER_SERVICE_URL
+ENV VITE_ORDER_SERVICE_URL=$VITE_ORDER_SERVICE_URL
+
 WORKDIR /app
 
 COPY frontend/mock-payment-web/package*.json ./
-RUN npm install
+RUN npm ci
 
 COPY frontend/mock-payment-web .
 

@@ -50,10 +50,10 @@ sequenceDiagram
     Kiosk->>Gateway: POST /api/v1/orders/{orderId}/payments/qr
     Gateway->>Order: Tạo hoặc trả Payment QR hiện có
     Order-->>Kiosk: reference, qrPayload, amount, expiresAt
-    Kiosk-->>KhachHang: Hiển thị QR
-    KhachHang->>Mock: Mở URL QR và xác nhận thanh toán mô phỏng
-    Mock->>Order: GET /api/v1/payments/public/{reference}
-    Mock->>Order: POST /api/v1/payments/public/{reference}/confirm
+    Kiosk-->>KhachHang: Hiển thị URL chung và QR JSON riêng theo payment
+    KhachHang->>Mock: Mở URL chung, quét QR giao dịch
+    Mock->>Order: POST /api/v1/payments/public/lookup (reference trong body)
+    Mock->>Order: POST /api/v1/payments/public/confirm (dữ liệu callback trong body)
     Order->>Order: Xác thực callback, cập nhật Payment PAID và Order CONFIRMED
     Order->>Machine: POST /api/machines/dispense-commands (chỉ sau PAID)
     Machine-->>Order: command ID và trạng thái ban đầu
@@ -83,8 +83,8 @@ Sau khi Payment là `PAID`, backend yêu cầu xịt ngay trong quá trình xử
 | `POST /api/v1/orders` | Tạo Order sau khi khách xác nhận; server kiểm tra snapshot Catalog và trạng thái máy/slot |
 | `POST /api/v1/orders/{orderId}/payments/qr` | Tạo hoặc lấy lại QR Payment cho Order |
 | `GET /api/v1/payments/{reference}` | Kiosk đọc trạng thái Payment |
-| `GET /api/v1/payments/public/{reference}` | Mock Payment Web đọc giao dịch |
-| `POST /api/v1/payments/public/{reference}/confirm` | Mock Payment Web gửi callback xác nhận có `X-Payment-Callback-Token` |
+| `POST /api/v1/payments/public/lookup` | Mock Payment Web xác minh reference trong body và đọc đúng giao dịch |
+| `POST /api/v1/payments/public/confirm` | Mock Payment Web gửi yêu cầu xác nhận mô phỏng; backend giữ callback secret |
 | `GET /api/v1/orders/{orderId}/dispensing` | Kiosk lấy trạng thái và kết quả xịt |
 
 Order Service gọi API nội bộ Catalog để lấy snapshot giá có hiệu lực và API nội bộ Machine để kiểm tra slot. Sau khi xác nhận PAID, Order Service dùng các API nội bộ tạo và truy vấn dispense command của Machine Service.
