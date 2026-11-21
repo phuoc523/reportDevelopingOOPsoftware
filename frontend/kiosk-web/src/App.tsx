@@ -10,6 +10,33 @@ const configuredMachineId = Number(import.meta.env.VITE_KIOSK_MACHINE_ID || '910
 const money = (value: number, currency = 'VND') => new Intl.NumberFormat('vi-VN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value)
 const readableError = (error: unknown) => error instanceof Error ? error.message : 'Không thể hoàn thành yêu cầu. Vui lòng thử lại.'
 
+function isPaymentQrData(qrPayload: string, reference: string) {
+  try {
+    const data: unknown = JSON.parse(qrPayload)
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false
+    const payload = data as Record<string, unknown>
+    return Object.keys(payload).length === 2
+      && payload.type === 'SCENTSTATION_PAYMENT'
+      && payload.paymentReference === reference
+  } catch {
+    return false
+  }
+}
+
+function getPaymentQrUrl(value: string) {
+  try {
+    const url = new URL(value)
+    const octets = url.hostname.split('.').map(Number)
+    const isIpv4 = octets.length === 4 && octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255)
+    if (url.protocol !== 'http:' || url.port !== '3000' || url.pathname !== '/' || url.search || url.hash
+      || url.username || url.password || !isIpv4 || octets[0] === 0 || octets[0] === 127
+      || (octets[0] === 169 && octets[1] === 254)) return null
+    return url.href
+  } catch {
+    return null
+  }
+}
+
 const availabilityText = (slot: Slot, machineReady: boolean, product: Product, machine: Machine | null) => {
   if (!machineReady) return 'Máy đang ngoại tuyến hoặc chưa sẵn sàng'
   if (!product.available) return 'Sản phẩm đang tạm ngừng phục vụ'
@@ -52,6 +79,8 @@ function App() {
   const creatingRef = useRef(false)
   const paymentReference = payment?.reference
   const paymentStatus = payment?.status
+  const paymentQrUrl = payment ? getPaymentQrUrl(payment.qrUrl) : null
+  const paymentQrDataValid = payment ? isPaymentQrData(payment.qrPayload, payment.reference) : false
 
   const machineReady = machine?.deviceRegistrationStatus === 'ACTIVE'
     && machine.operationalStatus === 'ONLINE'
@@ -278,7 +307,7 @@ function App() {
 
     {screen === 'payment' && payment && <section className="flow-card payment-card">
       <p className="step">BƯỚC 2 / 3 · THANH TOÁN</p>
-      <h1 className="flow-title">Quét mã để thanh toán</h1>
+      <h1 className="flow-title">Mở trang thanh toán rồi quét đơn hàng</h1>
       <div className="flow-product-summary payment-product-summary">
         {selected?.product.imageUrl ? <img src={selected.product.imageUrl} alt={selected.product.name} /> : <div className="flow-product-placeholder">S.</div>}
         <div className="flow-product-copy">
@@ -287,15 +316,28 @@ function App() {
           <p>Đơn hàng #{payment.orderId}</p>
         </div>
       </div>
-      <div className="qr-wrap" aria-label="Mã QR thanh toán">
-        <QRCodeSVG value={payment.qrPayload} size={260} level="M" title={`QR thanh toán cho đơn hàng ${payment.orderId}`} />
-        <span className="pulse-dot" aria-hidden="true"/>
-      </div>
+      {paymentQrUrl && paymentQrDataValid ? <div className="qr-grid">
+        <article className="qr-card">
+          <h2>1. Mở Mock Payment trên điện thoại</h2>
+          <div className="qr-wrap" aria-label="QR URL trang chủ Mock Payment">
+            <QRCodeSVG value={paymentQrUrl} size={220} level="M" title="Mở trang chủ Mock Payment" />
+          </div>
+          <a className="payment-root-url" href={paymentQrUrl}>{paymentQrUrl}</a>
+        </article>
+        <article className="qr-card">
+          <h2>2. Dùng nút Quét mã QR trên điện thoại</h2>
+          <div className="qr-wrap" aria-label="QR dữ liệu thanh toán riêng của đơn hàng">
+            <QRCodeSVG value={payment.qrPayload} size={220} level="M" title="QR dữ liệu thanh toán của đơn hàng" />
+            <span className="pulse-dot" aria-hidden="true"/>
+          </div>
+          <p>Giữ trang thanh toán mở và đưa camera điện thoại vào mã này.</p>
+        </article>
+      </div> : <p className="error-box" role="alert">Dữ liệu URL hoặc QR thanh toán không hợp lệ. Vui lòng tải lại giao dịch.</p>}
       <strong className="payment-amount">{money(payment.amount, payment.currency)}</strong>
       <div className="payment-details">
-        <p><span>Mã giao dịch</span><code>{payment.reference}</code></p>
         <p><span>Hết hạn lúc</span><strong>{new Date(payment.expiresAt).toLocaleTimeString('vi-VN')}</strong></p>
       </div>
+      <small className="payment-hint">QR thứ nhất luôn mở cùng một địa chỉ trang chủ. QR thứ hai chỉ chứa dữ liệu định danh riêng của giao dịch; không hiển thị mã thanh toán cho khách.</small>
       <div className={`payment-status status-${payment.status.toLowerCase()}`} role="status">
         {payment.status === 'PENDING' && <div className="spinner"/>}
         <span>{payment.status === 'PENDING' ? 'Đang chờ backend xác nhận thanh toán…' : payment.status === 'PAID' ? 'Thanh toán thành công' : payment.status === 'FAILED' ? 'Thanh toán thất bại' : 'Giao dịch đã hết hạn'}</span>
@@ -307,11 +349,11 @@ function App() {
 
     {screen === 'dispensing' && <section className="flow-card dispensing-card"><p className="step">BƯỚC 3 / 3 · XỊT NƯỚC HOA</p><div className="spray-animation">✦</div><h1>Thanh toán đã được xác nhận</h1><p>Backend đang gửi lệnh hợp lệ đến {selected?.slot.slotCode}. Vui lòng đưa cổ tay đến vị trí đầu phun.</p><div className="waiting"><div className="spinner"/>{dispensing ? `Trạng thái: ${dispensing.status}` : 'Đang chờ máy nhận lệnh…'}</div>{error && <div className="error-box">{error}</div>}</section>}
 
-    {screen === 'result' && order?.orderType === 'BOTTLE' && payment?.status === 'PAID' && <section className="flow-card result-card success"><div className="result-icon">✓</div><p className="step">ĐẶT CHAI THÀNH CÔNG</p><h1>Đơn mua chai đã được xác nhận</h1><p>Thanh toán đã hoàn tất và tồn kho chai đã được backend cập nhật. Vui lòng nhận sản phẩm tại quầy hỗ trợ của kiosk.</p><div className="receipt"><span>Đơn hàng #{order.id}</span><span>{payment.reference}</span><strong>{money(order.totalAmount, order.currency)}</strong></div><div className="flow-actions"><button className="primary large" onClick={resetTransaction}>Tiếp tục khám phá</button></div></section>}
+    {screen === 'result' && order?.orderType === 'BOTTLE' && payment?.status === 'PAID' && <section className="flow-card result-card success"><div className="result-icon">✓</div><p className="step">ĐẶT CHAI THÀNH CÔNG</p><h1>Đơn mua chai đã được xác nhận</h1><p>Thanh toán đã hoàn tất và tồn kho chai đã được backend cập nhật. Vui lòng nhận sản phẩm tại quầy hỗ trợ của kiosk.</p><div className="receipt"><span>Đơn hàng #{order.id}</span><strong>{money(order.totalAmount, order.currency)}</strong></div><div className="flow-actions"><button className="primary large" onClick={resetTransaction}>Tiếp tục khám phá</button></div></section>}
 
     {screen === 'result' && order?.orderType === 'BOTTLE' && payment?.status !== 'PAID' && <section className="flow-card result-card failure"><div className="result-icon">!</div><p className="step">KẾT QUẢ ĐƠN MUA CHAI</p><h1>{payment?.status === 'EXPIRED' ? 'Giao dịch đã hết hạn' : 'Thanh toán chưa thành công'}</h1><p>{error || 'Tồn kho chai chưa bị trừ. Bạn có thể quay lại danh mục và thực hiện một đơn mới.'}</p><div className="flow-actions"><button className="primary large" onClick={resetTransaction}>Quay lại danh mục</button></div></section>}
 
-    {screen === 'result' && order?.orderType !== 'BOTTLE' && <section className={`flow-card result-card ${dispensing?.status === 'DISPENSED' ? 'success' : 'failure'}`}><div className="result-icon">{dispensing?.status === 'DISPENSED' ? '✓' : '!'}</div><p className="step">KẾT QUẢ GIAO DỊCH</p><h1>{dispensing?.status === 'DISPENSED' ? 'Bạn có thích mùi hương này?' : payment?.status === 'FAILED' ? 'Thanh toán thất bại' : payment?.status === 'EXPIRED' ? 'Giao dịch đã hết hạn' : 'Chưa thể hoàn tất lượt xịt'}</h1><p>{dispensing?.manualReviewReason || error || (dispensing?.status === 'DISPENSED' ? 'Lượt thử đã hoàn tất. Bạn có thể chọn mua chai hoặc tiếp tục khám phá mùi khác.' : dispensing?.status === 'FAILED' ? 'Máy báo lỗi khi thực hiện lệnh xịt.' : 'Vui lòng liên hệ nhân viên hỗ trợ nếu tiền đã được trừ.')}</p>{order && <div className="receipt"><span>Đơn hàng #{order.id}</span><span>{payment?.reference}</span><strong>{money(order.totalAmount, order.currency)}</strong></div>}<div className="flow-actions">{dispensing?.status === 'DISPENSED' && <button className="secondary large" onClick={() => { setTransactionType('BOTTLE'); setOrder(null); setPayment(null); setDispensing(null); setScreen('purchase') }}>Tôi muốn mua chai</button>}<button className="primary large" onClick={resetTransaction}>{dispensing?.status === 'DISPENSED' ? 'Khám phá mùi khác' : 'Bắt đầu lượt mới'}</button></div></section>}
+    {screen === 'result' && order?.orderType !== 'BOTTLE' && <section className={`flow-card result-card ${dispensing?.status === 'DISPENSED' ? 'success' : 'failure'}`}><div className="result-icon">{dispensing?.status === 'DISPENSED' ? '✓' : '!'}</div><p className="step">KẾT QUẢ GIAO DỊCH</p><h1>{dispensing?.status === 'DISPENSED' ? 'Bạn có thích mùi hương này?' : payment?.status === 'FAILED' ? 'Thanh toán thất bại' : payment?.status === 'EXPIRED' ? 'Giao dịch đã hết hạn' : 'Chưa thể hoàn tất lượt xịt'}</h1><p>{dispensing?.manualReviewReason || error || (dispensing?.status === 'DISPENSED' ? 'Lượt thử đã hoàn tất. Bạn có thể chọn mua chai hoặc tiếp tục khám phá mùi khác.' : dispensing?.status === 'FAILED' ? 'Máy báo lỗi khi thực hiện lệnh xịt.' : 'Vui lòng liên hệ nhân viên hỗ trợ nếu tiền đã được trừ.')}</p>{order && <div className="receipt"><span>Đơn hàng #{order.id}</span><strong>{money(order.totalAmount, order.currency)}</strong></div>}<div className="flow-actions">{dispensing?.status === 'DISPENSED' && <button className="secondary large" onClick={() => { setTransactionType('BOTTLE'); setOrder(null); setPayment(null); setDispensing(null); setScreen('purchase') }}>Tôi muốn mua chai</button>}<button className="primary large" onClick={resetTransaction}>{dispensing?.status === 'DISPENSED' ? 'Khám phá mùi khác' : 'Bắt đầu lượt mới'}</button></div></section>}
 
     {screen === 'purchase' && selected && <section className="flow-card purchase-card">
       <p className="step">MUA SẢN PHẨM</p>

@@ -42,7 +42,7 @@ server:
 payment:
   qr-expiration: ${PAYMENT_QR_EXPIRATION:PT15M}
   callback-token: ${PAYMENT_CALLBACK_TOKEN:local-mock-callback-token}
-  mock-web-base-url: ${PAYMENT_MOCK_WEB_BASE_URL:http://localhost:3000/mock-payment}
+  mock-web-base-url: ${PAYMENT_MOCK_WEB_BASE_URL}
 
 order:
   expiration: ${ORDER_EXPIRATION:PT15M}

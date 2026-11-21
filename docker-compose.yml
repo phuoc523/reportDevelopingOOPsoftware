@@ -29,7 +29,7 @@ services:
       args:
         SERVICE: api-gateway
     ports:
-      - "127.0.0.1:8080:8080"
+      - "8080:8080"
     environment:
       REDIS_HOST: redis
       REDIS_PORT: "${REDIS_PORT:-6379}"
@@ -51,6 +51,8 @@ services:
       CORS_ALLOWED_ORIGIN_2: http://127.0.0.1:7514
       CORS_ALLOWED_ORIGIN_3: http://localhost:7515
       CORS_ALLOWED_ORIGIN_4: http://127.0.0.1:7515
+      CORS_ALLOWED_ORIGIN_5: "http://${LAN_HOST:?Set LAN_HOST in .env to the Windows Wi-Fi IPv4 address}:3000"
+      CORS_ALLOWED_ORIGIN_6: "http://${LAN_HOST:?Set LAN_HOST in .env to the Windows Wi-Fi IPv4 address}:7515"
       NOTIFICATION_SERVICE_URL: http://notification-service:8087
     depends_on:
       redis:
@@ -170,7 +172,7 @@ services:
       DB_PASSWORD: "order_local_password"
       MACHINE_SERVICE_BASE_URL: "http://machine-service:8084"
       CATALOG_SERVICE_BASE_URL: "http://catalog-service:8082"
-      PAYMENT_MOCK_WEB_BASE_URL: "${PAYMENT_MOCK_WEB_BASE_URL:-http://localhost:3000/mock-payment}"
+      PAYMENT_MOCK_WEB_BASE_URL: "${PAYMENT_MOCK_WEB_BASE_URL:?Run scripts/Start-LanPayment.ps1 to configure LAN_HOST}"
       PAYMENT_CALLBACK_TOKEN: "${PAYMENT_CALLBACK_TOKEN:-local-mock-callback-token}"
       JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Ho_Chi_Minh"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
@@ -202,11 +204,9 @@ services:
       context: .
       dockerfile: infra/docker/mock-payment-web.Dockerfile
     environment:
-      VITE_ORDER_SERVICE_URL: "${ORDER_SERVICE_URL:-http://localhost:8083}"
-      VITE_PAYMENT_CALLBACK_TOKEN: "${PAYMENT_CALLBACK_TOKEN:-local-mock-callback-token}"
-      VITE_MOCK_PAYMENT_WEB_BASE_URL: "${PAYMENT_MOCK_WEB_BASE_URL:-http://localhost:3000/mock-payment}"
+      VITE_ORDER_SERVICE_URL: "http://${LAN_HOST:?Set LAN_HOST in .env to the Windows Wi-Fi IPv4 address}:8080"
     ports:
-      - "${MOCK_PAYMENT_WEB_PORT:-3000}:3000"
+      - "3000:3000"
     depends_on:
       - order-service
 

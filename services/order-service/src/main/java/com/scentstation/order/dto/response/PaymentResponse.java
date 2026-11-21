@@ -11,6 +11,7 @@ public record PaymentResponse(
         BigDecimal amount,
         String currency,
         PaymentStatus status,
+        String qrUrl,
         String qrPayload,
         LocalDateTime createdAt,
         LocalDateTime expiresAt,
