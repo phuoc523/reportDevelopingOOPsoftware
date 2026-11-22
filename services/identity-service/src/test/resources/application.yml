@@ -3,4 +3,4 @@ identity:
     enabled: false
 security:
   jwt:
-    secret: dGVzdC1qd3Qta2V5LXRlc3Qtand0LWtleS10ZXN0LXNlY3JldA==
+    secret: dGVzdC1qd3Qta2V5LXRlc3Qtand0LWtleS10ZXN0LXNlY3JldA== # gitleaks:allow -- fixed test-only JWT value

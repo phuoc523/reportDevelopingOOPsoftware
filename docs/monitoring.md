@@ -9,7 +9,7 @@ datasource and the `ScentStation Backend Services` dashboard.
 
 | Component | Metrics target |
 |---|---|
-| API Gateway | `api-gateway:8080/actuator/prometheus` |
+| API Gateway | `api-gateway:8080/actuator/prometheus` | <!-- gitleaks:allow -- documented metrics endpoint example -->
 | Identity Service | `identity-service:8081/actuator/prometheus` |
 | Catalog Service | `catalog-service:8082/actuator/prometheus` |
 | Order Service | `order-service:8083/actuator/prometheus` |
