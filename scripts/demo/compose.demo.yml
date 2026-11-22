@@ -1,0 +1,105 @@
+services:
+  identity-db:
+    environment:
+      MYSQL_PASSWORD: ${DEMO_IDENTITY_DB_PASSWORD:?Run Prepare-LocalEnv}
+      MYSQL_ROOT_PASSWORD: ${DEMO_IDENTITY_DB_ROOT_PASSWORD:?Run Prepare-LocalEnv}
+  identity-service:
+    environment:
+      DB_PASSWORD: ${DEMO_IDENTITY_DB_PASSWORD:?Run Prepare-LocalEnv}
+  catalog-db:
+    environment:
+      MYSQL_PASSWORD: ${DEMO_CATALOG_DB_PASSWORD:?Run Prepare-LocalEnv}
+      MYSQL_ROOT_PASSWORD: ${DEMO_CATALOG_DB_ROOT_PASSWORD:?Run Prepare-LocalEnv}
+  catalog-service:
+    environment:
+      CATALOG_DB_PASSWORD: ${DEMO_CATALOG_DB_PASSWORD:?Run Prepare-LocalEnv}
+  order-db:
+    environment:
+      MYSQL_PASSWORD: ${DEMO_ORDER_DB_PASSWORD:?Run Prepare-LocalEnv}
+      MYSQL_ROOT_PASSWORD: ${DEMO_ORDER_DB_ROOT_PASSWORD:?Run Prepare-LocalEnv}
+  machine-db:
+    environment:
+      MYSQL_PASSWORD: ${DEMO_MACHINE_DB_PASSWORD:?Run Prepare-LocalEnv}
+      MYSQL_ROOT_PASSWORD: ${DEMO_MACHINE_DB_ROOT_PASSWORD:?Run Prepare-LocalEnv}
+  machine-service:
+    environment:
+      MACHINE_DB_PASSWORD: ${DEMO_MACHINE_DB_PASSWORD:?Run Prepare-LocalEnv}
+  notification-db:
+    environment:
+      MYSQL_PASSWORD: ${DEMO_NOTIFICATION_DB_PASSWORD:?Run Prepare-LocalEnv}
+      MYSQL_ROOT_PASSWORD: ${DEMO_NOTIFICATION_DB_ROOT_PASSWORD:?Run Prepare-LocalEnv}
+  operation-db:
+    environment:
+      MYSQL_PASSWORD: ${DEMO_OPERATION_DB_PASSWORD:?Run Prepare-LocalEnv}
+      MYSQL_ROOT_PASSWORD: ${DEMO_OPERATION_DB_ROOT_PASSWORD:?Run Prepare-LocalEnv}
+  operation-service:
+    environment:
+      OPERATION_DB_PASSWORD: ${DEMO_OPERATION_DB_PASSWORD:?Run Prepare-LocalEnv}
+  reporting-db:
+    environment:
+      MYSQL_PASSWORD: ${DEMO_REPORTING_DB_PASSWORD:?Run Prepare-LocalEnv}
+      MYSQL_ROOT_PASSWORD: ${DEMO_REPORTING_DB_ROOT_PASSWORD:?Run Prepare-LocalEnv}
+  api-gateway:
+    networks:
+      - ingress
+    environment:
+      CORS_ALLOWED_ORIGIN_1: http://127.0.0.1:3000
+  mock-payment-web:
+    networks:
+      - ingress
+    build:
+      dockerfile: infra/docker/demo-frontend.Dockerfile
+      args:
+        APP: mock-payment-web
+    environment:
+      VITE_ORDER_SERVICE_URL: http://127.0.0.1:8080
+    ports: !override
+      - "127.0.0.1:3000:3000"
+  admin-web:
+    networks:
+      - ingress
+    build:
+      context: .
+      dockerfile: infra/docker/demo-frontend.Dockerfile
+      args:
+        APP: admin-web
+    environment:
+      VITE_GATEWAY_URL: http://api-gateway:8080
+    ports:
+      - "127.0.0.1:7514:7514"
+  kiosk-web:
+    networks:
+      - ingress
+    build:
+      context: .
+      dockerfile: infra/docker/demo-frontend.Dockerfile
+      args:
+        APP: kiosk-web
+    environment:
+      VITE_GATEWAY_URL: http://api-gateway:8080
+    ports:
+      - "127.0.0.1:7515:7515"
+  kafka:
+    ports: !reset []
+  reporting-service:
+    ports: !reset []
+    environment:
+      DB_PASSWORD: ${DEMO_REPORTING_DB_PASSWORD:?Run Prepare-LocalEnv}
+  order-service:
+    environment:
+      DB_PASSWORD: ${DEMO_ORDER_DB_PASSWORD:?Run Prepare-LocalEnv}
+      PAYMENT_MOCK_WEB_BASE_URL: http://127.0.0.1:3000/mock-payment
+      MACHINE_SERVICE_BASE_URL: http://machine-service:8084
+  notification-service:
+    ports: !reset []
+    environment:
+      NOTIFICATION_DB_PASSWORD: ${DEMO_NOTIFICATION_DB_PASSWORD:?Run Prepare-LocalEnv}
+      NOTIFICATION_FIREBASE_ENABLED: "false"
+networks:
+  ingress: {}
+  default:
+    name: ${DEMO_PROJECT:?Run Prepare-LocalEnv}_backend
+    internal: true
+  redis-internal:
+    name: ${DEMO_PROJECT:?Run Prepare-LocalEnv}_redis
+    internal: true
