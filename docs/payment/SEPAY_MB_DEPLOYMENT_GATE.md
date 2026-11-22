@@ -5,7 +5,7 @@ Branch: `feature/phung-sepay-mb-real-payment`
 ## Confirmed prerequisites
 - SePay account is connected to personal MB account **55785111**.
 - SePay dashboard reports successful API linking and detected a first **0 VND** event. This is **not** proof of a positive-value payment.
-- The existing Order Service currently implements **mock** QR payments. Do not enable real payments until the gates below pass.
+- `PAYMENT_PROVIDER` remains **MOCK** by default. SePay VietQR and HMAC settlement are implemented for trial orders, but have not been verified with a positive-value live payment. Do not enable live payments until the gates below pass.
 
 ## Production requirements
 1. Preserve mock mode; isolate real-payment mode using an explicit provider discriminator.
@@ -33,7 +33,7 @@ Branch: `feature/phung-sepay-mb-real-payment`
 ## Status
 - Git branch created.
 - Trial checkout, HMAC settlement, and an opt-in 24-hour API v2 missed-webhook reconciliation job are implemented. The job is disabled by default.
-- GitHub Actions for commit `17df5cbd4a93c068e65dcd9101cb10cc4e9ad40d` passed all five jobs, including Order Service `clean verify` and the new reconciliation test. Maven Central DNS prevented a duplicate local run in this workspace.
+- GitHub Actions for latest branch commit `d69b696a5a9f1324fb8f2b375ce91763bec561a0` passed all five jobs, including Order Service `clean verify` and the reconciliation test. Maven Central DNS prevented a duplicate local run in this workspace.
 - Live API token, bank-account UUID, existing-MySQL migration, public HTTPS, and positive-value payment verification remain deployment tasks.
 - Order Service and Kiosk builds passed. See [test evidence](SEPAY_TEST_REPORT.md).
 - Live bank payment: **NOT VERIFIED**.

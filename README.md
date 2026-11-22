@@ -33,7 +33,7 @@ are documented in [Kafka integration](docs/kafka-integration.md).
 - Redis for cache and distributed rate limiting
 - Apache Kafka for machine alerts, durable payment projections and inventory-consumption events
 - Firebase Cloud Messaging as an optional notification delivery adapter
-- Mock QR payment web for the local payment flow
+- Mock QR payment web for local simulation; optional SePay VietQR for trial orders
 - Prometheus, Alertmanager and Grafana for opt-in observability
 - Apache NiFi for the documented Order-to-Reporting ETL workflow
 
@@ -44,7 +44,7 @@ are documented in [Kafka integration](docs/kafka-integration.md).
 | `api-gateway` | Single backend entry point and routing boundary | TBD |
 | `identity-service` | Authentication, user administration, roles and audit | TBD |
 | `catalog-service` | Products, availability, pricing and campaigns | TBD |
-| `order-service` | Orders, simulated QR payments and dispensing requests | TBD |
+| `order-service` | Orders, mock or SePay VietQR payments for trial orders, and dispensing requests | TBD |
 | `machine-service` | Machines, locations, slots, alerts and dispensing commands | TBD |
 | `operation-service` | Inventory and maintenance | TBD |
 | `reporting-service` | Transactions, dashboards and Excel exports | TBD |
@@ -68,7 +68,7 @@ Frontend applications must call backend capabilities through the API Gateway.
 | Redis | Running for caches and rate limits |
 | Kafka | Running for machine alerts, Order-to-Reporting payment events, and Order-to-Operation dispense events; retries and DLTs are configured |
 | Firebase Cloud Messaging | Implemented; enabled only when local credentials are supplied |
-| QR payment | Implemented with the local Mock Payment Web, not a real provider |
+| QR payment | Mock flow remains the default; SePay VietQR/HMAC settlement is implemented for trial orders but has not been live-verified |
 | Prometheus/Alertmanager/Grafana | Metrics, dashboard and authenticated alerts to Notification Service through the opt-in `monitoring` profile |
 | MQTT/Mosquitto | Not implemented; no broker or device adapter runs in Compose |
 | Apache NiFi | Runtime container and JDBC integration available; flow setup is currently manual |
@@ -97,6 +97,6 @@ When hardware integration is implemented, Machine Service remains the only backe
 
 ## Not Implemented Yet
 
-- Real payment-provider integration
+- Live verification of SePay payments, public HTTPS webhook delivery, and reconciliation credentials
 - MQTT/device execution and telemetry
 - Automatically versioned/provisioned NiFi flow definition
