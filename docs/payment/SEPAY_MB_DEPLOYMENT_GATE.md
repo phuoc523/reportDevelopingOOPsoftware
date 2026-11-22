@@ -33,7 +33,8 @@ Branch: `feature/phung-sepay-mb-real-payment`
 ## Status
 - Git branch created.
 - Trial checkout, HMAC settlement, and an opt-in 24-hour API v2 missed-webhook reconciliation job are implemented. The job is disabled by default.
-- Reconciliation test verification is pending in this workspace because Maven Central DNS is unavailable; the live API token and bank-account UUID are not configured here.
+- GitHub Actions for commit `17df5cbd4a93c068e65dcd9101cb10cc4e9ad40d` passed all five jobs, including Order Service `clean verify` and the new reconciliation test. Maven Central DNS prevented a duplicate local run in this workspace.
+- Live API token, bank-account UUID, existing-MySQL migration, public HTTPS, and positive-value payment verification remain deployment tasks.
 - Order Service and Kiosk builds passed. See [test evidence](SEPAY_TEST_REPORT.md).
 - Live bank payment: **NOT VERIFIED**.
 

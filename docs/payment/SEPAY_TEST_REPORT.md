@@ -18,4 +18,4 @@ Kết quả ở môi trường test chỉ xác minh hành vi với dữ liệu k
 
 - Đã thêm job đối soát giao dịch tiền vào trong cửa sổ 24 giờ gần nhất, mặc định tắt và chỉ chạy khi bật cấu hình cùng API token và UUID tài khoản MB.
 - Đã mở rộng khóa giao dịch audit từ `BIGINT` sang UUID dạng chuỗi; database cũ cần backup và chạy migration có hướng dẫn thủ công trước khi triển khai.
-- Bộ test mới cho phân trang và lọc tiền vào/đúng tài khoản đã được thêm nhưng chưa chạy được trong workspace này: Maven Central không phân giải DNS để tải Spring Boot parent. Đây chưa phải kết quả PASS.
+- Bộ test mới cho phân trang và lọc tiền vào/đúng tài khoản đã chạy trong GitHub Actions và PASS ở commit `17df5cbd4a93c068e65dcd9101cb10cc4e9ad40d`, workflow [44986845744](https://github.com/phuoc523/reportDevelopingOOPsoftware/actions/runs/44986845744). Cả 5 job đều thành công. Maven Central không phân giải DNS nên workspace này không chạy lặp lại được.
