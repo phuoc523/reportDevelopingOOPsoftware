@@ -72,4 +72,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run Gitleaks against checked-out source
-        run: docker run --rm -v "$GITHUB_WORKSPACE:/repo" ghcr.io/gitleaks/gitleaks:v8.24.3 detect --source=/repo --no-git --redact --exit-code=1
+        shell: bash
+        run: |
+          set +e
+          docker run --rm -v "$GITHUB_WORKSPACE:/repo" ghcr.io/gitleaks/gitleaks:v8.24.3 detect --source=/repo --no-git --redact=100 --exit-code=1 --report-format=json --report-path=/repo/gitleaks-report.json
+          scan_status=$?
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report = Path("gitleaks-report.json")
+          if report.exists():
+              for finding in json.loads(report.read_text()):
+                  print(f"{finding.get('File')}:{finding.get('StartLine')} rule={finding.get('RuleID')}")
+              report.unlink()
+          PY
+          exit "$scan_status"
