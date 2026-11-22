@@ -1,0 +1,9 @@
+{
+  "firmwareVersion": "simulator-1.0.0",
+  "slots": [
+    { "slotId": "91001", "productId": "91001", "doseMl": 0.12, "remainingMl": 50.0, "emptyBottleWeightGrams": 18.0, "densityGramsPerMl": 0.85, "sensorStatus": "NORMAL" },
+    { "slotId": "91006", "productId": "91006", "doseMl": 0.12, "remainingMl": 50.0, "emptyBottleWeightGrams": 18.0, "densityGramsPerMl": 0.85, "sensorStatus": "NORMAL" },
+    { "slotId": "91007", "productId": "91007", "doseMl": 0.12, "remainingMl": 50.0, "emptyBottleWeightGrams": 18.0, "densityGramsPerMl": 0.85, "sensorStatus": "NORMAL" },
+    { "slotId": "91008", "productId": "91008", "doseMl": 0.12, "remainingMl": 50.0, "emptyBottleWeightGrams": 18.0, "densityGramsPerMl": 0.85, "sensorStatus": "NORMAL" }
+  ]
+}
