@@ -14,6 +14,8 @@ public record PaymentResponse(
         String qrPayload,
         LocalDateTime createdAt,
         LocalDateTime expiresAt,
-        LocalDateTime paidAt
+        LocalDateTime paidAt,
+        String provider,
+        String accountHolder
 ) {
 }

@@ -65,19 +65,31 @@ public class DispensingService {
                 throw new PaymentNotAvailableException(orderId);
             }
 
-            DispensingCommand command = dispensingRepository.saveIfAbsent(new DispensingCommand(
-                    UUID.randomUUID().toString(),
-                    orderId,
-                    payment.getReference(),
-                    order.getMachineId(),
-                    order.getSlotId()
-            ));
+            DispensingCommand command = prepareConfirmedTrial(order, payment);
             if (!command.getStatus().equals(DispensingStatus.REQUESTED)) {
                 return toResponse(command);
             }
 
             submit(order, command);
             return toResponse(command);
+        }
+    }
+
+    DispensingCommand prepareConfirmedTrial(Order order, Payment payment) {
+        return dispensingRepository.saveIfAbsent(new DispensingCommand(
+                UUID.randomUUID().toString(),
+                order.getId(),
+                payment.getReference(),
+                order.getMachineId(),
+                order.getSlotId()
+        ));
+    }
+
+    void dispatchPreparedTrial(long orderId) {
+        Order order = findOrder(orderId);
+        DispensingCommand command = dispensingRepository.findByOrderId(orderId).orElseThrow();
+        if (order.getStatus() == OrderStatus.CONFIRMED && command.getStatus() == DispensingStatus.REQUESTED) {
+            submit(order, command);
         }
     }
 

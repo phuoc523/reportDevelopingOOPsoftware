@@ -31,8 +31,8 @@ Branch: `feature/phung-sepay-mb-real-payment`
 
 ## Status
 - Git branch created.
-- Implementation: **NOT COMPLETE**.
-- Automated tests: **NOT RUN**.
+- Trial checkout and HMAC settlement implemented. Automatic missed-webhook reconciliation remains a deployment gate.
+- Order Service and Kiosk builds passed. See [test evidence](SEPAY_TEST_REPORT.md).
 - Live bank payment: **NOT VERIFIED**.
 
 This document is a safety gate, not a claim that the real-payment integration is operational.

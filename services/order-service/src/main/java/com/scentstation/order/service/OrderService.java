@@ -28,6 +28,7 @@ import com.scentstation.order.entity.OrderType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -239,16 +240,21 @@ public class OrderService {
         return orderMapper.toStatusResponse(order);
     }
 
+    @Transactional
     public OrderStatusResponse updateOrderStatus(Long id, UpdateOrderStatusRequest request) {
-        return updateOrderStatus(findOrderById(id), request);
+        return updateOrderStatus(findOrderForUpdate(id), request);
     }
 
+    @Transactional
     public OrderStatusResponse updateOrderStatus(
             Long id,
             UpdateOrderStatusRequest request,
             IdentityPrincipal actor
     ) {
-        Order order = findOrderForActor(id, actor);
+        Order order = findOrderForUpdate(id);
+        if (!authorization.isPlatform(actor) && !authorization.tenant(actor).equals(order.getTenantId())) {
+            throw new OrderNotFoundException(id);
+        }
         authorization.requireReview(actor, order);
         return updateOrderStatus(order, request);
     }
@@ -311,6 +317,11 @@ public class OrderService {
         }
     }
 
+    private Order findOrderForUpdate(Long id) {
+        return expireIfNecessary(orderRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new OrderNotFoundException(id)));
+    }
+
     private OrderStatusResponse updateOrderStatus(Order order, UpdateOrderStatusRequest request) {
         Long id = order.getId();
         synchronized (order) {
@@ -340,8 +351,7 @@ public class OrderService {
         if (order.getStatus() == OrderStatus.PENDING
                 && order.getExpiresAt() != null
                 && !LocalDateTime.now().isBefore(order.getExpiresAt())) {
-            order.setStatus(OrderStatus.EXPIRED);
-            return orderRepository.save(order);
+            return orderRepository.expirePending(order);
         }
         return order;
     }

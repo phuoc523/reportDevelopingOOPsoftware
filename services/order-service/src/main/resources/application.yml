@@ -22,7 +22,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:database/schema.sql
+      schema-locations: classpath:database/schema.sql,classpath:database/sepay-credit-events.sql
   jpa:
     hibernate:
       ddl-auto: validate
@@ -40,6 +40,11 @@ server:
   port: ${ORDER_SERVICE_PORT:8083}
 
 payment:
+  provider: ${PAYMENT_PROVIDER:MOCK}
+  sepay:
+    account: ${PAYMENT_BANK_ACCOUNT:}
+    holder: ${PAYMENT_BANK_ACCOUNT_NAME:}
+    webhook-secret: ${SEPAY_WEBHOOK_SECRET:}
   qr-expiration: ${PAYMENT_QR_EXPIRATION:PT15M}
   callback-token: ${PAYMENT_CALLBACK_TOKEN:local-mock-callback-token}
   mock-web-base-url: ${PAYMENT_MOCK_WEB_BASE_URL:http://localhost:3000/mock-payment}

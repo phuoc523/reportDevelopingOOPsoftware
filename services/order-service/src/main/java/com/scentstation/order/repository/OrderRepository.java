@@ -11,6 +11,10 @@ public interface OrderRepository {
 
     Optional<Order> findById(Long id);
 
+    Optional<Order> findByIdForUpdate(Long id);
+
+    Order expirePending(Order order);
+
     Optional<Order> findByIdAndTenantId(Long id, String tenantId);
 
     List<Order> findAll();

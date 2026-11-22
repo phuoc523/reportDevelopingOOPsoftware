@@ -1,6 +1,10 @@
 package com.scentstation.order.repository.jpa;
 
 import com.scentstation.order.entity.Order;
+import com.scentstation.order.entity.OrderStatus;
+import jakarta.persistence.EntityManager;
+import org.springframework.transaction.annotation.Transactional;
+import java.time.LocalDateTime;
 import com.scentstation.order.repository.OrderRepository;
 import org.springframework.stereotype.Repository;
 
@@ -12,8 +16,11 @@ public class OrderJpaAdapter implements OrderRepository {
 
     private final SpringDataOrderRepository repository;
 
-    public OrderJpaAdapter(SpringDataOrderRepository repository) {
+    private final EntityManager entityManager;
+
+    public OrderJpaAdapter(SpringDataOrderRepository repository, EntityManager entityManager) {
         this.repository = repository;
+        this.entityManager = entityManager;
     }
 
     @Override
@@ -24,6 +31,22 @@ public class OrderJpaAdapter implements OrderRepository {
     @Override
     public Optional<Order> findById(Long id) {
         return repository.findById(id);
+    }
+
+    @Override
+    public Optional<Order> findByIdForUpdate(Long id) {
+        return repository.findByIdForUpdate(id);
+    }
+
+    @Override
+    @Transactional
+    public Order expirePending(Order order) {
+        repository.expirePending(order.getId(), OrderStatus.PENDING, OrderStatus.EXPIRED, LocalDateTime.now());
+        if (entityManager.contains(order)) {
+            entityManager.refresh(order);
+            return order;
+        }
+        return repository.findById(order.getId()).orElseThrow();
     }
 
     @Override

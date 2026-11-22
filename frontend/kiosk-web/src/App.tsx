@@ -278,7 +278,7 @@ function App() {
 
     {screen === 'payment' && payment && <section className="flow-card payment-card">
       <p className="step">BƯỚC 2 / 3 · THANH TOÁN</p>
-      <h1 className="flow-title">Quét mã để thanh toán</h1>
+      <h1 className="flow-title">{payment.provider === 'SEPAY' ? 'Quét VietQR để chuyển khoản' : 'Quét mã giao dịch mô phỏng'}</h1>
       <div className="flow-product-summary payment-product-summary">
         {selected?.product.imageUrl ? <img src={selected.product.imageUrl} alt={selected.product.name} /> : <div className="flow-product-placeholder">S.</div>}
         <div className="flow-product-copy">
@@ -288,12 +288,15 @@ function App() {
         </div>
       </div>
       <div className="qr-wrap" aria-label="Mã QR thanh toán">
-        <QRCodeSVG value={payment.qrPayload} size={260} level="M" title={`QR thanh toán cho đơn hàng ${payment.orderId}`} />
+        {payment.status === 'PENDING' && (payment.provider === 'SEPAY'
+          ? <img src={payment.qrPayload} width={260} height={260} alt="VietQR MB Bank" referrerPolicy="no-referrer" />
+          : <QRCodeSVG value={payment.qrPayload} size={260} level="M" title={`QR mô phỏng cho đơn hàng ${payment.orderId}`} />)}
         <span className="pulse-dot" aria-hidden="true"/>
       </div>
       <strong className="payment-amount">{money(payment.amount, payment.currency)}</strong>
       <div className="payment-details">
-        <p><span>Mã giao dịch</span><code>{payment.reference}</code></p>
+        {payment.provider === 'SEPAY' && <p><span>Người nhận MB Bank</span><strong>{payment.accountHolder}</strong></p>}
+        <p><span>{payment.provider === 'SEPAY' ? 'Nội dung chuyển khoản' : 'Mã giao dịch'}</span><code>{payment.reference}</code></p>
         <p><span>Hết hạn lúc</span><strong>{new Date(payment.expiresAt).toLocaleTimeString('vi-VN')}</strong></p>
       </div>
       <div className={`payment-status status-${payment.status.toLowerCase()}`} role="status">
@@ -302,7 +305,7 @@ function App() {
       </div>
       {error && <div className="error-box" role="alert">{error}</div>}
       <div className="flow-actions payment-actions"><button className="secondary large" onClick={() => { setError(''); setScreen(order?.orderType === 'BOTTLE' ? 'purchase' : 'confirm') }}>← Quay lại xác nhận</button></div>
-      <small className="payment-hint">Mã QR vẫn có hiệu lực đến thời gian hết hạn. Khi quay lại, Kiosk sẽ dừng kiểm tra tạm thời và không tạo thêm đơn mới.</small>
+      <small className="payment-hint">{payment.provider === 'SEPAY' ? 'Nếu đã chuyển tiền nhưng đơn hết hạn, hãy giữ mã giao dịch và liên hệ nhân viên để đối soát.' : 'Quay lại để tiếp tục giao dịch mô phỏng trước khi mã hết hạn.'}</small>
     </section>}
 
     {screen === 'dispensing' && <section className="flow-card dispensing-card"><p className="step">BƯỚC 3 / 3 · XỊT NƯỚC HOA</p><div className="spray-animation">✦</div><h1>Thanh toán đã được xác nhận</h1><p>Backend đang gửi lệnh hợp lệ đến {selected?.slot.slotCode}. Vui lòng đưa cổ tay đến vị trí đầu phun.</p><div className="waiting"><div className="spinner"/>{dispensing ? `Trạng thái: ${dispensing.status}` : 'Đang chờ máy nhận lệnh…'}</div>{error && <div className="error-box">{error}</div>}</section>}

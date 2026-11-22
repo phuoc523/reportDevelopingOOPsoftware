@@ -56,7 +56,7 @@ spring:
         - id: order-service
           uri: ${ORDER_SERVICE_URL:http://localhost:8083}
           predicates:
-            - Path=/api/v1/orders/**,/api/v1/payments/**
+            - Path=/api/v1/orders/**,/api/v1/payments/**,/api/v1/webhooks/sepay
 
         - id: machine-service
           uri: ${MACHINE_SERVICE_URL:http://localhost:8084}

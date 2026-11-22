@@ -34,6 +34,7 @@ public class PaymentService {
     private final OrderService orderService;
     private final DispensingService dispensingService;
     private final Duration qrExpiration;
+    private final SepaySettings sepay;
     private final String callbackToken;
     private final String mockPaymentWebBaseUrl;
 
@@ -41,6 +42,7 @@ public class PaymentService {
             PaymentRepository paymentRepository,
             OrderService orderService,
             DispensingService dispensingService,
+            SepaySettings sepay,
             @Value("${payment.qr-expiration:PT15M}") Duration qrExpiration,
             @Value("${payment.callback-token:local-mock-callback-token}") String callbackToken,
             @Value("${payment.mock-web-base-url:http://localhost:3000/mock-payment}") String mockPaymentWebBaseUrl
@@ -51,6 +53,7 @@ public class PaymentService {
         if (callbackToken.isBlank()) {
             throw new IllegalArgumentException("Payment callback token must not be blank");
         }
+        this.sepay = sepay;
         this.paymentRepository = paymentRepository;
         this.orderService = orderService;
         this.dispensingService = dispensingService;
@@ -67,6 +70,10 @@ public class PaymentService {
         }
         Payment existingPayment = paymentRepository.findByOrderId(orderId).orElse(null);
         if (existingPayment != null) {
+            if (existingPayment.getStatus() == PaymentStatus.PENDING
+                    && SepaySettings.isSepayReference(existingPayment.getReference()) != sepay.enabled()) {
+                throw new PaymentNotAvailableException(orderId);
+            }
             expireIfNecessary(existingPayment);
             if (existingPayment.getStatus() == PaymentStatus.PAID || order.status() == OrderStatus.PENDING) {
                 return toResponse(existingPayment);
@@ -78,8 +85,19 @@ public class PaymentService {
             throw new PaymentNotAvailableException(orderId);
         }
 
-        String reference = "PAY-" + UUID.randomUUID().toString().replace("-", "").toUpperCase();
+        String random = UUID.randomUUID().toString().replace("-", "").toUpperCase(java.util.Locale.ROOT);
+        String reference = sepay.enabled() ? "SS" + random.substring(0, 20) : "PAY-" + random;
         String qrPayload = mockPaymentWebBaseUrl + "/" + reference;
+        if (sepay.enabled()) {
+            if (order.orderType() != com.scentstation.order.entity.OrderType.TRIAL) {
+                throw new PaymentVerificationException(HttpStatus.CONFLICT, "VietQR currently supports trial orders");
+            }
+            try {
+                qrPayload = sepay.qrImage(reference, order.totalAmount());
+            } catch (IllegalArgumentException | ArithmeticException exception) {
+                throw new PaymentVerificationException(HttpStatus.CONFLICT, "VietQR requires a positive whole VND amount");
+            }
+        }
         LocalDateTime createdAt = LocalDateTime.now();
         LocalDateTime expiresAt = createdAt.plus(qrExpiration);
         if (order.expiresAt() != null && expiresAt.isAfter(order.expiresAt())) {
@@ -94,7 +112,11 @@ public class PaymentService {
                 createdAt,
                 expiresAt
         );
-        return toResponse(paymentRepository.saveIfAbsent(payment));
+        Payment stored = paymentRepository.saveIfAbsent(payment);
+        if (SepaySettings.isSepayReference(stored.getReference()) != sepay.enabled()) {
+            throw new PaymentNotAvailableException(orderId);
+        }
+        return toResponse(stored);
     }
 
     public PaymentResponse createOrGetQr(Long orderId, IdentityPrincipal actor) {
@@ -103,6 +125,7 @@ public class PaymentService {
     }
 
     public PaymentResponse getPayment(String reference) {
+        if (SepaySettings.isSepayReference(reference)) throw new PaymentNotFoundException(reference);
         Payment payment = findPayment(reference);
         expireIfNecessary(payment);
         return toResponse(payment);
@@ -166,6 +189,9 @@ public class PaymentService {
 
     @Transactional(noRollbackFor = PaymentVerificationException.class)
     public synchronized PaymentResponse processCallback(PaymentCallbackRequest request, String suppliedToken) {
+        if (sepay.enabled() || SepaySettings.isSepayReference(request.reference())) {
+            throw new PaymentVerificationException(HttpStatus.FORBIDDEN, "Mock callback is unavailable for this payment");
+        }
         verifyCallbackToken(suppliedToken);
 
         PaymentCallbackEvent previousEvent = paymentRepository.findCallbackEvent(request.eventId()).orElse(null);
@@ -250,16 +276,20 @@ public class PaymentService {
 
     private PaymentResponse toResponse(Payment payment) {
         synchronized (payment) {
+            boolean live = SepaySettings.isSepayReference(payment.getReference());
+            PaymentStatus status = live && payment.isExpiredAt(LocalDateTime.now()) ? PaymentStatus.EXPIRED : payment.getStatus();
             return new PaymentResponse(
                     payment.getReference(),
                     payment.getOrderId(),
                     payment.getAmount(),
                     payment.getCurrency(),
-                    payment.getStatus(),
+                    status,
                     payment.getQrPayload(),
                     payment.getCreatedAt(),
                     payment.getExpiresAt(),
-                    payment.getPaidAt()
+                    payment.getPaidAt(),
+                    live ? "SEPAY" : "MOCK",
+                    live ? sepay.holder() : null
             );
         }
     }
@@ -307,6 +337,7 @@ public class PaymentService {
     }
 
     private void expireIfNecessary(Payment payment) {
+        if (SepaySettings.isSepayReference(payment.getReference())) return;
         synchronized (payment) {
             if (payment.isExpiredAt(LocalDateTime.now())) {
                 payment.markExpired();

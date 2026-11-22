@@ -118,6 +118,8 @@ export interface PaymentResponse {
   amount: number
   currency: string
   status: 'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED'
+  provider?: 'SEPAY' | 'MOCK'
+  accountHolder?: string
   qrPayload: string
   createdAt: string
   expiresAt: string
