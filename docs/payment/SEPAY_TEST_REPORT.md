@@ -4,7 +4,7 @@ Chạy `mvn verify` tại `services/order-service` bằng JDK 21 và `npm run bu
 
 `SepayWebhookIntegrationTest` gọi API qua MockMvc, dùng schema H2 độc lập, kết nối Identity và Machine mô phỏng. Các trường hợp gồm tạo QR, sai khóa webhook, vòng đời đơn, sai tài khoản/số tiền/mã chuyển khoản, giao dịch ghi nợ, khóa trùng và webhook đồng thời.
 
-Kết quả ở môi trường test chỉ xác minh hành vi với dữ liệu kiểm soát. Kiểm thử MySQL thật, restart, kết nối SePay live và ghi có thật cần được chạy ở môi trường được duyệt. Quy trình đối soát callback thiếu hiện dùng giao diện SePay và bảng audit.
+Kết quả ở môi trường test chỉ xác minh hành vi với dữ liệu kiểm soát. Kiểm thử MySQL thật, restart, kết nối SePay live và ghi có thật cần được chạy ở môi trường được duyệt.
 
 ## Kết quả ngày 22/11/2026
 
@@ -13,3 +13,9 @@ Kết quả ở môi trường test chỉ xác minh hành vi với dữ liệu k
 - Kiosk Web `npm run build`: thành công.
 - VietQR được xác minh theo URL và tham số sinh bởi backend. Chưa quét bằng ứng dụng ngân hàng.
 - Webhook công khai, MySQL triển khai, khởi động lại, thanh toán thật và máy xịt thật: chưa kiểm chứng.
+
+## Cập nhật đối soát API v2
+
+- Đã thêm job đối soát giao dịch tiền vào trong cửa sổ 24 giờ gần nhất, mặc định tắt và chỉ chạy khi bật cấu hình cùng API token và UUID tài khoản MB.
+- Đã mở rộng khóa giao dịch audit từ `BIGINT` sang UUID dạng chuỗi; database cũ cần backup và chạy migration có hướng dẫn thủ công trước khi triển khai.
+- Bộ test mới cho phân trang và lọc tiền vào/đúng tài khoản đã được thêm nhưng chưa chạy được trong workspace này: Maven Central không phân giải DNS để tải Spring Boot parent. Đây chưa phải kết quả PASS.

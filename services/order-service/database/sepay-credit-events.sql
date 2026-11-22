@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS sepay_credit_events (
-    transaction_id BIGINT NOT NULL PRIMARY KEY,
+    event_id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    transaction_id VARCHAR(64) NOT NULL,
     account_number VARCHAR(20) NOT NULL,
     bank_reference VARCHAR(64) NULL,
     transfer_code VARCHAR(64) NULL,
@@ -11,5 +12,6 @@ CREATE TABLE IF NOT EXISTS sepay_credit_events (
     raw_payload TEXT NOT NULL,
     outcome VARCHAR(32) NOT NULL,
     received_at DATETIME(6) NOT NULL,
+    CONSTRAINT uq_sepay_transaction_id UNIQUE (transaction_id),
     CONSTRAINT uq_sepay_bank_reference UNIQUE (account_number, bank_reference)
 );

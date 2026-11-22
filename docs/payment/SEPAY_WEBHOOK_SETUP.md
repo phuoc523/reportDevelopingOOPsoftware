@@ -8,5 +8,7 @@
 
 SePay cần HTTP 200 cùng `{"success":true}`. Order Service chỉ trả kết quả đó sau khi ghi bền vững hoặc xác nhận giao dịch đã ghi trước đó. Các giao dịch đã nhận nhưng không khớp được lưu với lý do. Dùng lịch sử giao dịch SePay và bảng sự kiện để tìm callback bị thiếu. Nếu giao dịch còn trong hạn và đủ điều kiện, dùng chức năng phát lại chính sự kiện phía SePay. Giao dịch quá hạn cần đối soát thủ công.
 
+Để tự khôi phục webhook bị lỡ, cấu hình API v2 reconciliation sau khi lấy API token và UUID tài khoản MB trong SePay. Bật `SEPAY_RECONCILIATION_ENABLED=true`; job quét 24 giờ gần nhất mỗi 15 phút, chống trùng bằng UUID giao dịch và chỉ chuyển các giao dịch đủ điều kiện qua cùng luồng thanh toán. Giữ tắt cho tới khi token, tài khoản, backup/migration và kiểm thử môi trường triển khai hoàn tất.
+
 - [Hướng dẫn tích hợp Webhook của SePay](https://docs.sepay.vn/tich-hop-webhooks.html)
 - [Mô phỏng và phát lại giao dịch](https://developer.sepay.vn/vi/tien-ich-khac/test-mode/mo-phong-giao-dich)

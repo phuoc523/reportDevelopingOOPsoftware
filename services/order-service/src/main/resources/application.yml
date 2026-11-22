@@ -45,6 +45,11 @@ payment:
     account: ${PAYMENT_BANK_ACCOUNT:}
     holder: ${PAYMENT_BANK_ACCOUNT_NAME:}
     webhook-secret: ${SEPAY_WEBHOOK_SECRET:}
+    reconciliation:
+      enabled: ${SEPAY_RECONCILIATION_ENABLED:false}
+      api-token: ${SEPAY_API_TOKEN:}
+      bank-account-id: ${SEPAY_BANK_ACCOUNT_ID:}
+      interval-ms: ${SEPAY_RECONCILIATION_INTERVAL_MS:900000}
   qr-expiration: ${PAYMENT_QR_EXPIRATION:PT15M}
   callback-token: ${PAYMENT_CALLBACK_TOKEN:local-mock-callback-token}
   mock-web-base-url: ${PAYMENT_MOCK_WEB_BASE_URL:http://localhost:3000/mock-payment}
