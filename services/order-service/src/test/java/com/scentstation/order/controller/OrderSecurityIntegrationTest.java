@@ -204,6 +204,16 @@ class OrderSecurityIntegrationTest {
         mockMvc.perform(post("/api/v1/payments/{reference}/simulate", reference)
                         .header("Authorization", "Bearer staff-read"))
                 .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/payments/{reference}", reference)
+                        .header("Authorization", "Bearer tenant-2"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/v1/payments/{reference}/simulate", reference)
+                        .header("Authorization", "Bearer tenant-2"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/v1/payments/{reference}", reference)
+                        .header("Authorization", "Bearer customer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"));
     }
 
     @Test
