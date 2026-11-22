@@ -217,6 +217,27 @@ class OrderSecurityIntegrationTest {
     }
 
     @Test
+    void paymentListOnlyReturnsPaymentsForTheAuthenticatedTenant() throws Exception {
+        long ownOrder = createOrder("customer", 7, "1");
+        long otherOrder = createOrder("tenant-2", 30, "2");
+        mockMvc.perform(post("/api/v1/orders/{id}/payments/qr", ownOrder)
+                        .header("Authorization", "Bearer customer"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/v1/orders/{id}/payments/qr", otherOrder)
+                        .header("Authorization", "Bearer tenant-2"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/payments").header("Authorization", "Bearer staff-read"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].orderId").value(ownOrder));
+        mockMvc.perform(get("/api/v1/payments").header("Authorization", "Bearer tenant-2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].orderId").value(otherOrder));
+    }
+
+    @Test
     void callbackKeepsSeparateProviderAuthenticationAndNoBearerRequirement() throws Exception {
         long orderId = createOrder("customer", 7, "1");
         MvcResult qr = mockMvc.perform(post("/api/v1/orders/{id}/payments/qr", orderId)
@@ -239,6 +260,20 @@ class OrderSecurityIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content(callback))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PAID"));
+        MvcResult stored = mockMvc.perform(get("/api/v1/payments/{reference}", payment.get("reference").asText())
+                        .header("Authorization", "Bearer customer"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String paidAt = objectMapper.readTree(stored.getResponse().getContentAsString()).get("paidAt").asText();
+
+        mockMvc.perform(post("/api/v1/payments/callback")
+                        .header("Authorization", "")
+                        .header("X-Payment-Callback-Token", "local-mock-callback-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(callback.replace("security-callback", "security-callback-retry")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAID"))
+                .andExpect(jsonPath("$.paidAt").value(paidAt));
     }
 
     private long createOrder(String token, long customerId, String tenantId) throws Exception {
