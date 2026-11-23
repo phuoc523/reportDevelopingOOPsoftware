@@ -34,11 +34,16 @@ public class IdentityAuthenticationFilter extends OncePerRequestFilter {
                 response.sendError(401, "Bearer token required"); return;
             }
             var actor = identity.verify(header.substring(7));
-            if (path(request).equals("/api/reporting/dashboard")
-                    && !ReportingPermissions.has(actor, ReportingPermissions.PLATFORM)) {
+            if (!ReportingPermissions.has(actor, ReportingPermissions.PLATFORM)) {
                 String[] tenants = request.getParameterValues("tenantId");
-                if (actor.tenantId() == null || !actor.locationIds().isEmpty() || !actor.machineIds().isEmpty()
-                        || (tenants != null && (tenants.length != 1 || !actor.tenantId().toString().equals(tenants[0].trim())))) {
+                if (tenants != null && (tenants.length > 1
+                        || (tenants.length == 1 && !tenants[0].isBlank()
+                                && (actor.tenantId() == null
+                                        || !actor.tenantId().toString().equals(tenants[0].trim()))))) {
+                    response.sendError(403, "Tenant or assigned scope is not supported by this report"); return;
+                }
+                if (path(request).equals("/api/reporting/dashboard")
+                        && (actor.tenantId() == null || !actor.locationIds().isEmpty() || !actor.machineIds().isEmpty())) {
                     response.sendError(403, "Tenant or assigned scope is not supported by this report"); return;
                 }
             }

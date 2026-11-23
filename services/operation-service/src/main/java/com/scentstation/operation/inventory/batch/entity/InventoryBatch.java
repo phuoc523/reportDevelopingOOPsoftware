@@ -1,5 +1,6 @@
 package com.scentstation.operation.inventory.batch.entity;
 
+import com.scentstation.operation.inventory.batch.enums.InventoryBatchStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -45,6 +46,16 @@ public class InventoryBatch {
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 30)
+    private InventoryBatchStatus status;
+
+    @Column(name = "cancel_reason", length = 500)
+    private String cancelReason;
+
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Setter(AccessLevel.NONE)
     private LocalDateTime createdAt;
@@ -59,6 +70,9 @@ public class InventoryBatch {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         updatedAt = now;
+        if (status == null) {
+            status = InventoryBatchStatus.ACTIVE;
+        }
     }
 
     @PreUpdate

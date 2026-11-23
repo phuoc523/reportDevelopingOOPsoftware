@@ -296,4 +296,45 @@ class TransactionServiceTest {
                 () -> transactionService.syncTransaction(request)).getStatusCode());
         verify(transactionRepository, never()).save(any());
     }
+
+    @Test
+    void paidTransactionCanTransitionToRefundedAndPreservesPaidAt() {
+        when(transactionRepository.findByReferenceForUpdate(reference))
+                .thenReturn(Optional.of(existingTransaction));
+        when(transactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = transactionService.syncTransaction(createRequest(
+                "REFUNDED", new BigDecimal("25.50"), paidAt));
+
+        assertEquals(8L, response.id());
+        assertEquals("REFUNDED", response.status());
+        assertEquals(paidAt, response.paidAt());
+        verify(transactionRepository).save(existingTransaction);
+    }
+
+    @Test
+    void paidTransactionCanTransitionToRefundedWhenRefundEventOmitsPaidAt() {
+        when(transactionRepository.findByReferenceForUpdate(reference))
+                .thenReturn(Optional.of(existingTransaction));
+        when(transactionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = transactionService.syncTransaction(createRequest(
+                "REFUNDED", new BigDecimal("25.50"), null));
+
+        assertEquals("REFUNDED", response.status());
+        assertEquals(paidAt, response.paidAt());
+        verify(transactionRepository).save(existingTransaction);
+    }
+
+    @Test
+    void paidTransactionToRefundedWithMismatchedPaidAtReturns409() {
+        when(transactionRepository.findByReferenceForUpdate(reference))
+                .thenReturn(Optional.of(existingTransaction));
+
+        assertEquals(HttpStatus.CONFLICT, assertThrows(ResponseStatusException.class,
+                () -> transactionService.syncTransaction(createRequest(
+                        "REFUNDED", new BigDecimal("25.50"), paidAt.plusMinutes(2))))
+                .getStatusCode());
+        verify(transactionRepository, never()).save(any());
+    }
 }

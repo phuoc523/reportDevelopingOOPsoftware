@@ -14,8 +14,21 @@ CREATE TABLE IF NOT EXISTS orders (
     INDEX idx_orders_created_at (created_at)
 );
 
-ALTER TABLE orders
-    ADD COLUMN IF NOT EXISTS order_type VARCHAR(16) NOT NULL DEFAULT 'TRIAL';
+SET @order_type_exists = (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'orders'
+      AND column_name = 'order_type'
+);
+SET @order_type_migration = IF(
+    @order_type_exists = 0,
+    'ALTER TABLE orders ADD COLUMN order_type VARCHAR(16) NOT NULL DEFAULT ''TRIAL''',
+    'SELECT 1'
+);
+PREPARE order_type_statement FROM @order_type_migration;
+EXECUTE order_type_statement;
+DEALLOCATE PREPARE order_type_statement;
 
 CREATE TABLE IF NOT EXISTS order_items (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,

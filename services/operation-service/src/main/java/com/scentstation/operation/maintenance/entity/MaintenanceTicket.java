@@ -95,7 +95,16 @@ public class MaintenanceTicket {
     private Long locationId;
 
     @Column(name = "critical", nullable = false)
-    private boolean critical;    
+    private boolean critical;
+
+    @Column(name = "approved", nullable = false)
+    private boolean approved;
+
+    @Column(name = "approved_by_actor_id")
+    private Long approvedByActorId;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;    
     // Khởi tạo trạng thái và timestamp mặc định khi tạo maintenance ticket mới.
     @PrePersist
     protected void onCreate() {

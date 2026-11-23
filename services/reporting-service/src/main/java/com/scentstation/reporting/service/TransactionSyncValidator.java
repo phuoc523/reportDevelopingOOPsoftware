@@ -30,7 +30,7 @@ final class TransactionSyncValidator {
         String status = request.status().trim().toUpperCase(Locale.ROOT);
         if (!STATUSES.contains(status)
                 || ("PAID".equals(status) && request.paidAt() == null)
-                || (!"PAID".equals(status) && request.paidAt() != null)
+                || (!"PAID".equals(status) && !"REFUNDED".equals(status) && request.paidAt() != null)
                 || (request.paidAt() != null && request.paidAt().isBefore(request.createdAt()))) {
             throw new ResponseStatusException(errorStatus, "Invalid transaction status or timestamps");
         }

@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.scentstation.catalog.dto.request.UpdateProductAvailabilityRequest;
 import com.scentstation.catalog.dto.request.UpdateProductPriceRequest;
+import com.scentstation.catalog.dto.request.UpdateProductRequest;
 import com.scentstation.catalog.dto.request.ProductSearchCriteria;
 
 import java.util.List;
@@ -65,6 +66,15 @@ public class ProductController {
             @Valid @RequestBody UpdateProductPriceRequest request
     ) {
         return ResponseEntity.ok(productService.updatePrice(id, request));
+    }
+
+    // Cập nhật đầy đủ thông tin sản phẩm thuộc tenant đã xác minh.
+    @PutMapping("/{id}")
+    public ResponseEntity<ProductResponse> updateProduct(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateProductRequest request
+    ) {
+        return ResponseEntity.ok(productService.updateProduct(id, request));
     }
 
     // Tìm kiếm và lọc catalog theo tenant, keyword, availability và khoảng giá.

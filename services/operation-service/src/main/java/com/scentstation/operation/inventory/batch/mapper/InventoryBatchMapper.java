@@ -33,6 +33,9 @@ public class InventoryBatchMapper {
                 .receivedAt(batch.getReceivedAt())
                 .expiryDate(batch.getExpiryDate())
                 .expired(isExpired(batch))
+                .status(batch.getStatus() != null ? batch.getStatus().name() : "ACTIVE")
+                .cancelReason(batch.getCancelReason())
+                .cancelledAt(batch.getCancelledAt())
                 .createdAt(batch.getCreatedAt())
                 .updatedAt(batch.getUpdatedAt())
                 .build();

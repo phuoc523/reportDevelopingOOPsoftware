@@ -92,6 +92,12 @@ class ReportingSecurityTest {
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/reporting/dashboard").param("tenantId", "12", "99").header("Authorization", "Bearer unit-token"))
                 .andExpect(status().isForbidden());
+        mvc.perform(get("/api/reporting/transactions/summary").param("tenantId", "12", "99")
+                        .header("Authorization", "Bearer unit-token"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/reporting/transactions/summary").param("tenantId", "")
+                        .header("Authorization", "Bearer unit-token"))
+                .andExpect(status().isOk());
         verifyNoInteractions(dashboard);
     }
 

@@ -3,6 +3,7 @@ package com.scentstation.operation.maintenance.enums;
 public enum MaintenanceAuditAction {
     TICKET_CREATED,
     TICKET_UPDATED,
+    TICKET_APPROVED,
     TECHNICIAN_ASSIGNED,
     TECHNICIAN_REASSIGNED,
     ASSIGNMENT_ACKNOWLEDGED,

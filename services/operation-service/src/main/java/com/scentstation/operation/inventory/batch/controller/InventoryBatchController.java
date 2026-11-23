@@ -1,6 +1,7 @@
 package com.scentstation.operation.inventory.batch.controller;
 
 import com.scentstation.operation.inventory.batch.dto.request.CreateInventoryBatchRequest;
+import com.scentstation.operation.inventory.batch.dto.request.DisposeInventoryBatchRequest;
 import com.scentstation.operation.inventory.batch.dto.response.InventoryBatchResponse;
 import com.scentstation.operation.inventory.batch.service.InventoryBatchService;
 import jakarta.validation.Valid;
@@ -66,6 +67,17 @@ public class InventoryBatchController {
                         tenantId,
                         id
                 )
+        );
+    }
+
+    // Hủy lô hàng bị lỗi kèm lý do.
+    @PostMapping("/{id}/dispose")
+    public ResponseEntity<InventoryBatchResponse> disposeBatch(
+            @PathVariable @Positive Long id,
+            @Valid @RequestBody DisposeInventoryBatchRequest request
+    ) {
+        return ResponseEntity.ok(
+                inventoryBatchService.disposeBatch(id, request)
         );
     }
 }

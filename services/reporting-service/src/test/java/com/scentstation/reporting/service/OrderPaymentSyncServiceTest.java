@@ -109,4 +109,30 @@ class OrderPaymentSyncServiceTest {
                 () -> orderPaymentSyncService.syncFromOrder("PAY-1")).getStatusCode());
         verifyNoInteractions(transactionService);
     }
+
+    @Test
+    void syncFromOrderForwardsOptionalScopeFieldsWhenPresent() {
+        LocalDateTime createdAt = LocalDateTime.of(2026, 11, 13, 10, 0, 0);
+        LocalDateTime paidAt = LocalDateTime.of(2026, 11, 13, 10, 1, 0);
+        OrderPaymentResponse payment = new OrderPaymentResponse(
+                "PAY-2", 9L, new BigDecimal("25.50"), "VND", "PAID",
+                "qr", createdAt, createdAt.plusMinutes(15), paidAt,
+                "12", "44", "3", 91L);
+        TransactionResponse expected = new TransactionResponse(
+                2L, "PAY-2", "9", new BigDecimal("25.50"), "VND", "PAID", createdAt, paidAt,
+                "12", "44", "3", 91L);
+        when(orderPaymentClient.getPayment("PAY-2")).thenReturn(payment);
+        when(transactionService.syncTransaction(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(expected);
+
+        TransactionResponse actual = orderPaymentSyncService.syncFromOrder("PAY-2");
+
+        assertEquals(expected, actual);
+        ArgumentCaptor<TransactionSyncRequest> captor = ArgumentCaptor.forClass(TransactionSyncRequest.class);
+        verify(transactionService).syncTransaction(captor.capture());
+        assertEquals("12", captor.getValue().tenantId());
+        assertEquals("44", captor.getValue().machineId());
+        assertEquals("3", captor.getValue().slotId());
+        assertEquals(91L, captor.getValue().productId());
+    }
 }

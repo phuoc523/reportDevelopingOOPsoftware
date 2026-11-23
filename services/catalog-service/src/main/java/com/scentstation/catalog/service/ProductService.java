@@ -14,6 +14,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.scentstation.catalog.dto.request.UpdateProductAvailabilityRequest;
 import com.scentstation.catalog.dto.request.UpdateProductPriceRequest;
+import com.scentstation.catalog.dto.request.UpdateProductRequest;
 import com.scentstation.catalog.dto.request.ProductSearchCriteria;
 import com.scentstation.catalog.specification.ProductSpecification;
 import com.scentstation.catalog.exception.InvalidProductSearchCriteriaException;
@@ -99,6 +100,25 @@ public class ProductService {
         evictProductListAfterCommit(product.getTenantId());
 
         return productMapper.toResponse(updatedProduct);
+    }
+
+    // Cập nhật toàn bộ dữ liệu catalog nhưng luôn khóa phạm vi theo tenant từ phiên đăng nhập.
+    @Transactional
+    public ProductResponse updateProduct(Long id, UpdateProductRequest request) {
+        currentActorContext.requirePermission(CatalogPermissions.MANAGE);
+        Product product = findProductForCurrentTenant(id);
+        product.setName(request.getName().trim());
+        product.setDescription(request.getDescription());
+        product.setFragranceNotes(request.getFragranceNotes());
+        product.setImageUrl(request.getImageUrl());
+        product.setDefaultPrice(request.getDefaultPrice());
+        product.setBottlePrice(request.getBottlePrice());
+        product.setBottleVolumeMl(request.getBottleVolumeMl());
+        product.setBottleStock(request.getBottleStock());
+        product.setAvailable(request.getAvailable());
+        Product updated = productRepository.save(product);
+        evictProductListAfterCommit(product.getTenantId());
+        return productMapper.toResponse(updated);
     }
 
     // Tìm sản phẩm theo id và trusted tenant, đồng thời che resource tenant khác bằng 404.

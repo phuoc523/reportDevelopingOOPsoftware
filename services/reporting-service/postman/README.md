@@ -43,11 +43,12 @@ collection, xóa các giá trị credential/token/key đã nhập tại máy.
 | Request | Điều kiện |
 |---|---|
 | Health | Công khai |
-| Dashboard tenant | REPORT_READ, đúng tenant, chưa hỗ trợ account có allowlist máy/vị trí |
-| Dashboard platform | REPORT_READ; có PLATFORM_REPORT_READ mới kèm tài chính toàn hệ thống |
-| Search/summary/revenue/refunds | PLATFORM_REPORT_READ |
-| Export | REPORT_EXPORT và PLATFORM_REPORT_READ |
-| Replay nội bộ | X-Internal-Api-Key, không cần Bearer; Gateway không route endpoint này |
+| Dashboard tenant | `REPORT_READ`, đúng tenant, chưa hỗ trợ account có allowlist máy/vị trí |
+| Dashboard platform | `REPORT_READ`; có `PLATFORM_REPORT_READ` mới kèm tài chính toàn nền tảng |
+| Operations (`/api/reporting/operations`) | `REPORT_READ`; tự lọc theo `tenantId`, `machineIds`, `locationIds` của tài khoản |
+| Search/summary/revenue/breakdown/refunds | `REPORT_READ` (tự khóa theo tenant của tài khoản; `PLATFORM_REPORT_READ` xem được toàn nền tảng) |
+| Export (`/export/transactions`, `/revenue`, `/operations`, hỗ trợ `format=xlsx\|csv`) | `REPORT_EXPORT` (tự khóa theo phạm vi tenant/máy/vị trí) |
+| Replay nội bộ | `X-Internal-Api-Key`, không cần Bearer; Gateway chặn đường dẫn `/internal/**` (`403`) |
 
 CUSTOMER được tạo bằng public registration không tự có quyền đọc báo cáo.
 Không dùng role selector hoặc tự thêm `X-Verified-*` để cấp quyền. Cần member Identity

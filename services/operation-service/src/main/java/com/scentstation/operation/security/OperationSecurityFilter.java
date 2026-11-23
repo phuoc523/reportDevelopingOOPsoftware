@@ -34,7 +34,7 @@ public class OperationSecurityFilter extends OncePerRequestFilter {
     );
     private static final Set<String> ACTOR_FIELDS = Set.of(
             "actorId", "reportedByActorId", "diagnosedByActorId", "requestedByActorId",
-            "reopenedByActorId", "completedByActorId", "closedByActorId", "assignedByActorId"
+            "reopenedByActorId", "completedByActorId", "closedByActorId", "assignedByActorId", "approvedByActorId"
     );
     private static final Pattern TICKET_PATH = Pattern.compile("^/api/maintenance/(?:tickets/)?(\\d+)(?:/|$)");
     private static final Pattern MACHINE_HISTORY = Pattern.compile("^/api/maintenance/machines/(\\d+)/history$");

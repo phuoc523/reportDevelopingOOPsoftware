@@ -33,6 +33,16 @@ public class AdvancedReportController {
                 ReportingTenantScope.resolve(tenantId), machineId, productId);
     }
 
+    @GetMapping("/revenue/breakdown")
+    public RevenueBreakdownResponse revenueBreakdown(
+            @RequestParam LocalDate startDate, @RequestParam LocalDate endDate,
+            @RequestParam(required = false) Long tenantId,
+            @RequestParam(required = false) String machineId,
+            @RequestParam(required = false) Long productId) {
+        return reportService.revenueBreakdown(startDate, endDate,
+                ReportingTenantScope.resolve(tenantId), machineId, productId);
+    }
+
     @GetMapping("/transactions/status-summary")
     public TransactionStatusSummaryResponse statusSummary(
             @RequestParam LocalDate startDate, @RequestParam LocalDate endDate,

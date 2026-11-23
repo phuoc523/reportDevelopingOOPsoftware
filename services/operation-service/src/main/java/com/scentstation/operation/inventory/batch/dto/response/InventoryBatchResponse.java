@@ -24,6 +24,9 @@ public class InventoryBatchResponse {
     private LocalDate receivedAt;
     private LocalDate expiryDate;
     private Boolean expired;
+    private String status;
+    private String cancelReason;
+    private LocalDateTime cancelledAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

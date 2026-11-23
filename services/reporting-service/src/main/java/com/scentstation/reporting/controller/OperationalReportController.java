@@ -39,7 +39,7 @@ public class OperationalReportController {
         var actor = ReportingPermissions.current();
         boolean platform = ReportingPermissions.has(actor, ReportingPermissions.PLATFORM);
         if (!platform) {
-            if (actor.tenantId() == null || (tenantId != null
+            if (actor.tenantId() == null || (tenantId != null && !tenantId.isBlank()
                     && !actor.tenantId().toString().equals(tenantId.trim()))) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Tenant access is not allowed");
             }
@@ -62,7 +62,9 @@ public class OperationalReportController {
         LocalDate[] range = range(period, startDate, endDate);
         try {
             return service.report(tenantId.trim(), range[0], range[1], machineId,
-                    locationId, productId, refillThreshold);
+                    locationId, productId, refillThreshold,
+                    platform ? java.util.Set.<Long>of() : actor.machineIds(),
+                    platform ? java.util.Set.<Long>of() : actor.locationIds());
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
         }

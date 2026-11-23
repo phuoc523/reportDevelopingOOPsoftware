@@ -4,22 +4,38 @@ import com.scentstation.reporting.dto.TransactionSummaryResponse;
 import com.scentstation.reporting.enumtype.ReportPeriod;
 import com.scentstation.reporting.repository.TransactionRepository;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 
 @Service
 public class TransactionReportService {
 
     private final TransactionRepository transactionRepository;
+    private final Clock clock;
 
+    @Autowired
     public TransactionReportService(
-            TransactionRepository transactionRepository) {
+            TransactionRepository transactionRepository,
+            @Value("${reporting.zone-id:Asia/Ho_Chi_Minh}") String reportingZoneId) {
+        this(transactionRepository, Clock.system(ZoneId.of(reportingZoneId)));
+    }
+
+    public TransactionReportService(TransactionRepository transactionRepository) {
+        this(transactionRepository, Clock.systemDefaultZone());
+    }
+
+    TransactionReportService(TransactionRepository transactionRepository, Clock clock) {
         this.transactionRepository = transactionRepository;
+        this.clock = clock;
     }
 
     public TransactionSummaryResponse getSummary(
@@ -30,7 +46,7 @@ public class TransactionReportService {
         LocalDate startDate;
         LocalDate endDate;
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
 
         switch (period) {
             case DAY -> {
@@ -119,7 +135,7 @@ public class TransactionReportService {
     public TransactionSummaryResponse getSummary(ReportPeriod period,
             LocalDate requestedStartDate, LocalDate requestedEndDate, String tenantId,
             String machineId, Long productId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(clock);
         LocalDate startDate;
         LocalDate endDate;
         switch (period) {

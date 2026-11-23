@@ -1,0 +1,4 @@
+ALTER TABLE inventory_batches
+    ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+    ADD COLUMN cancel_reason VARCHAR(500) NULL,
+    ADD COLUMN cancelled_at DATETIME(6) NULL;

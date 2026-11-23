@@ -161,6 +161,17 @@ public class TransactionService {
             LocalDateTime existingPaidAt =
                     normalizeToSecond(transaction.getPaidAt());
 
+            if ("REFUNDED".equals(status)) {
+                if (normalizedPaidAt != null && !Objects.equals(existingPaidAt, normalizedPaidAt)) {
+                    throw new ResponseStatusException(
+                            HttpStatus.CONFLICT,
+                            "Paid transaction cannot be changed"
+                    );
+                }
+                transaction.setStatus("REFUNDED");
+                return toResponse(transactionRepository.save(transaction));
+            }
+
             if (!"PAID".equals(status)
                     || !Objects.equals(
                             existingPaidAt,

@@ -10,8 +10,18 @@ import type {
   Slot,
 } from '../types/api'
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+const env = (import.meta as { env?: Record<string, string | undefined> }).env ?? {}
+const API_BASE_URL = (env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 const TOKEN_KEY = 'scentstation.kiosk.access-token'
+const CATALOG_CACHE_TTL_MS = 5_000
+
+const getCache = new Map<string, { expiresAt: number; data: unknown }>()
+const inFlightGets = new Map<string, Promise<unknown>>()
+
+export function clearKioskCache() {
+  getCache.clear()
+  inFlightGets.clear()
+}
 
 export class ApiError extends Error {
   readonly status: number
@@ -31,8 +41,16 @@ export class ApiError extends Error {
 
 export const authToken = {
   get: () => sessionStorage.getItem(TOKEN_KEY),
-  set: (token: string) => sessionStorage.setItem(TOKEN_KEY, token),
-  clear: () => sessionStorage.removeItem(TOKEN_KEY),
+  set: (token: string) => { clearKioskCache(); sessionStorage.setItem(TOKEN_KEY, token) },
+  clear: () => { clearKioskCache(); sessionStorage.removeItem(TOKEN_KEY) },
+}
+
+function isCacheableCatalogGet(path: string, method: string): boolean {
+  return method === 'GET' && (
+    path.startsWith('/api/machines/')
+    || path.startsWith('/api/products')
+    || path.startsWith('/api/pricing/')
+  )
 }
 
 function errorMessage(status: number, body: unknown) {
@@ -50,26 +68,72 @@ function errorMessage(status: number, body: unknown) {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method ?? 'GET').toUpperCase()
   const token = authToken.get()
-  const headers = new Headers(init.headers)
-  headers.set('Accept', 'application/json')
-  if (init.body) headers.set('Content-Type', 'application/json')
-  if (token) headers.set('Authorization', `Bearer ${token}`)
+  const cacheable = isCacheableCatalogGet(path, method)
+  const cacheKey = `${token ?? ''}:${path}`
 
-  let response: Response
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
-  } catch (error) {
-    throw new ApiError(0, 'Không thể kết nối đến hệ thống ScentStation.', error)
+  if (method !== 'GET') {
+    getCache.clear()
   }
 
-  const text = await response.text()
-  let body: unknown
-  if (text) {
-    try { body = JSON.parse(text) } catch { body = text }
+  if (cacheable) {
+    const cached = getCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data as T
+    }
   }
-  if (!response.ok) throw new ApiError(response.status, errorMessage(response.status, body), body)
-  return body as T
+  if (method === 'GET') {
+    const existing = inFlightGets.get(cacheKey)
+    if (existing) {
+      return existing as Promise<T>
+    }
+  }
+
+  const run = (async (): Promise<T> => {
+    const headers = new Headers(init.headers)
+    headers.set('Accept', 'application/json')
+    if (init.body) headers.set('Content-Type', 'application/json')
+    if (token) headers.set('Authorization', `Bearer ${token}`)
+
+    let response: Response
+    try {
+      response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new ApiError(408, 'Hết thời gian chờ phản hồi từ hệ thống. Vui lòng kiểm tra lại trạng thái giao dịch.', error)
+      }
+      throw new ApiError(0, 'Không thể kết nối đến hệ thống ScentStation.', error)
+    }
+
+    const text = await response.text()
+    let body: unknown
+    if (text) {
+      try { body = JSON.parse(text) } catch { body = text }
+    }
+    if (!response.ok) {
+      const message = errorMessage(response.status, body)
+      if (response.status === 401 && path !== '/api/auth/login') {
+        authToken.clear()
+        window.dispatchEvent(new CustomEvent('scentstation:kiosk-unauthorized', { detail: message }))
+      }
+      throw new ApiError(response.status, message, body)
+    }
+    if (cacheable) {
+      getCache.set(cacheKey, { expiresAt: Date.now() + CATALOG_CACHE_TTL_MS, data: body })
+    }
+    return body as T
+  })()
+
+  if (method === 'GET') {
+    inFlightGets.set(cacheKey, run)
+    try {
+      return await run
+    } finally {
+      inFlightGets.delete(cacheKey)
+    }
+  }
+  return run
 }
 
 export const kioskApi = {

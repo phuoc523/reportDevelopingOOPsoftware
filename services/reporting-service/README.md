@@ -266,10 +266,11 @@ Examples:
 - `GET /api/reporting/transactions/1`
 - `GET /api/reporting/transactions/reference/TXN-20261030-001`
 
-### Detailed revenue report
-`GET /api/reporting/revenue/details?startDate=2026-10-01&endDate=2026-10-31`
-
-Returns daily successful transaction counts and revenue. Revenue includes only PAID transactions and is grouped by `paid_at`.
+### Detailed revenue & breakdown reports
+- `GET /api/reporting/revenue/details?startDate=2026-10-01&endDate=2026-10-31`
+  Returns daily successful transaction counts and revenue. Revenue includes only PAID transactions and is grouped by `paid_at`.
+- `GET /api/reporting/revenue/breakdown?startDate=2026-10-01&endDate=2026-10-31`
+  Returns paid transaction count and revenue grouped by tenant (`byTenant`), machine (`byMachine`), and product (`byProduct`).
 
 ### Transaction status report
 `GET /api/reporting/transactions/status-summary?startDate=2026-10-01&endDate=2026-10-31`
@@ -281,15 +282,15 @@ The reporting period is based on `created_at`.
 - `GET /api/reporting/refunds/summary?startDate=2026-10-01&endDate=2026-10-31`
 - `GET /api/reporting/refunds?startDate=2026-10-01&endDate=2026-10-31&page=0&size=20`
 
-**Current basic refund convention:** the existing database schema has no separate refund amount/date columns.
+`PAID` transactions can transition to `REFUNDED` through Kafka/sync while preserving `paid_at`.
 A transaction with status `REFUNDED` is counted as refunded, and its `amount` is treated as the recorded refund amount.
-This does not model partial refunds or multiple refunds per transaction. The incoming transaction API accepts `REFUNDED` as a status so this basic reporting path can be tested; actual payment-provider integration remains separate.
 
-### Excel export
-- `GET /api/reporting/export/transactions` supports the same filters as transaction search (without pagination).
-- `GET /api/reporting/export/revenue?startDate=2026-10-01&endDate=2026-10-31`
+### Excel & CSV export
+- `GET /api/reporting/export/transactions?format=xlsx|csv` supports the same filters as transaction search (without pagination) and includes tenant, machine, slot and product columns.
+- `GET /api/reporting/export/revenue?startDate=2026-10-01&endDate=2026-10-31&format=xlsx|csv`
+- `GET /api/reporting/export/operations?tenantId=1&period=month&format=xlsx|csv` exports machine performance and machine/slot inventory sheets (`.xlsx`) or machine summary (`.csv`).
 
-Excel exports use `.xlsx` and require the Apache POI dependency added to `pom.xml`.
+Default format is `xlsx` (Apache POI). OpenAPI 3.0 contract: [contracts/openapi/reporting-service.yaml](../../contracts/openapi/reporting-service.yaml).
 
 ### Consolidated operational report
 
@@ -298,10 +299,12 @@ Excel exports use `.xlsx` and require the Apache POI dependency added to `pom.xm
 Optional filters: `machineId`, `locationId`, `productId`, `refillThreshold`; use
 `period=custom&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` for a custom range.
 The response combines machine states, successful/failed/unconfirmed customer and
-diagnostic sprays, success rates, most-selected product, stock/consumption/refill
-candidates, alerts, maintenance response/resolution time, downtime approximation,
-high-failure machines and paid orders without a confirmed spray result. Diagnostic
-sprays are reported separately and are never inserted into financial transactions.
+diagnostic sprays, success rates by machine/location/day, most-selected product,
+stock by machine/slot, daily consumption, adjustment history, abnormal consumption
+detection, refill candidates, alerts, overdue maintenance tickets, maintenance/alert
+resolution times by machine/location, downtime, high-failure machines and paid order
+IDs without a confirmed spray result. Diagnostic sprays are reported separately and
+are never inserted into financial transactions.
 
 ### Database compatibility
 Reporting initializes an empty MySQL database with `schema.sql`.

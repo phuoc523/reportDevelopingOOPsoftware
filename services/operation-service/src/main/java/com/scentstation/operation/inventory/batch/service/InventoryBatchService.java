@@ -4,24 +4,42 @@ import com.scentstation.operation.inventory.audit.entity.InventoryAuditEvent;
 import com.scentstation.operation.inventory.audit.enums.InventoryAuditAction;
 import com.scentstation.operation.inventory.audit.service.InventoryAuditService;
 import com.scentstation.operation.inventory.batch.dto.request.CreateInventoryBatchRequest;
+import com.scentstation.operation.inventory.batch.dto.request.DisposeInventoryBatchRequest;
 import com.scentstation.operation.inventory.batch.dto.response.InventoryBatchResponse;
 import com.scentstation.operation.inventory.batch.entity.InventoryBatch;
+import com.scentstation.operation.inventory.batch.enums.InventoryBatchStatus;
 import com.scentstation.operation.inventory.batch.exception.InvalidInventoryBatchDateException;
 import com.scentstation.operation.inventory.batch.exception.InventoryBatchAlreadyExistsException;
 import com.scentstation.operation.inventory.batch.mapper.InventoryBatchMapper;
 import com.scentstation.operation.inventory.batch.repository.InventoryBatchRepository;
 import com.scentstation.operation.inventory.batch.exception.InventoryBatchNotFoundException;
+import com.scentstation.operation.inventory.bottle.entity.Bottle;
+import com.scentstation.operation.inventory.bottle.enums.BottleStatus;
+import com.scentstation.operation.inventory.bottle.repository.BottleRepository;
+import com.scentstation.operation.inventory.installation.entity.BottleInstallation;
+import com.scentstation.operation.inventory.installation.repository.BottleInstallationRepository;
+import com.scentstation.operation.inventory.movement.entity.BottleMovement;
+import com.scentstation.operation.inventory.movement.enums.BottleMovementType;
+import com.scentstation.operation.inventory.movement.repository.BottleMovementRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class InventoryBatchService {
 
     private final InventoryBatchRepository inventoryBatchRepository;
+    private final BottleRepository bottleRepository;
+    private final BottleInstallationRepository installationRepository;
+    private final BottleMovementRepository movementRepository;
     private final InventoryBatchMapper inventoryBatchMapper;
     private final InventoryAuditService auditService;
 
@@ -82,6 +100,79 @@ public class InventoryBatchService {
                 .findByIdAndTenantId(id, tenantId)
                 .orElseThrow(() -> new InventoryBatchNotFoundException(tenantId, id));
         return inventoryBatchMapper.toResponse(batch);
+    }
+
+    // Hủy lô hàng bị lỗi và tự động hủy các chai chưa bị hủy thuộc lô đó.
+    @Transactional
+    public InventoryBatchResponse disposeBatch(Long id, DisposeInventoryBatchRequest request) {
+        InventoryBatch batch = inventoryBatchRepository
+                .findByIdAndTenantId(id, request.getTenantId())
+                .orElseThrow(() -> new InventoryBatchNotFoundException(request.getTenantId(), id));
+
+        if (batch.getStatus() == InventoryBatchStatus.CANCELLED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Lô hàng này đã được hủy trước đó.");
+        }
+
+        String trimmedReason = request.getReason().trim();
+        batch.setStatus(InventoryBatchStatus.CANCELLED);
+        batch.setCancelReason(trimmedReason);
+        batch.setCancelledAt(LocalDateTime.now());
+        InventoryBatch savedBatch = inventoryBatchRepository.save(batch);
+
+        List<Bottle> bottles = bottleRepository.findAllByTenantIdAndBatchId(request.getTenantId(), id);
+        for (Bottle bottle : bottles) {
+            if ((bottle.getStatus() == BottleStatus.DAMAGED || bottle.getStatus() == BottleStatus.EXPIRED)
+                    && bottle.getCurrentQuantity().compareTo(BigDecimal.ZERO) == 0) {
+                continue;
+            }
+            BigDecimal quantityBefore = bottle.getCurrentQuantity();
+            Optional<BottleInstallation> activeInstallation = installationRepository
+                    .findByTenantIdAndBottleIdAndActiveTrue(request.getTenantId(), bottle.getId());
+            Long machineId = null;
+            Long slotId = null;
+            if (activeInstallation.isPresent()) {
+                BottleInstallation installation = activeInstallation.get();
+                machineId = installation.getMachineId();
+                slotId = installation.getSlotId();
+                installation.setActive(null);
+                installation.setRemovedBy(request.getActorId());
+                installation.setRemovedAt(LocalDateTime.now());
+                installation.setQuantityAfterRemoval(BigDecimal.ZERO);
+                installationRepository.save(installation);
+            }
+            bottle.setStatus(BottleStatus.DAMAGED);
+            bottle.setCurrentQuantity(BigDecimal.ZERO);
+            bottleRepository.save(bottle);
+
+            movementRepository.save(
+                    BottleMovement.builder()
+                            .tenantId(request.getTenantId())
+                            .bottleId(bottle.getId())
+                            .movementType(BottleMovementType.DISPOSE)
+                            .machineId(machineId)
+                            .slotId(slotId)
+                            .quantityBefore(quantityBefore)
+                            .quantityAfter(BigDecimal.ZERO)
+                            .actorId(request.getActorId())
+                            .reason("Hủy lô " + batch.getBatchCode() + ": " + trimmedReason)
+                            .build()
+            );
+        }
+
+        auditService.record(
+                InventoryAuditEvent.builder()
+                        .tenantId(request.getTenantId())
+                        .actorId(request.getActorId())
+                        .action(InventoryAuditAction.BATCH_CANCELLED)
+                        .entityType("BATCH")
+                        .entityId(savedBatch.getId())
+                        .beforeValue("ACTIVE")
+                        .afterValue("CANCELLED")
+                        .reason(trimmedReason)
+                        .build()
+        );
+
+        return inventoryBatchMapper.toResponse(savedBatch);
     }
     // Bảo đảm mã lô không bị trùng trong cùng tenant.
     private void validateBatchCodeUniqueness(

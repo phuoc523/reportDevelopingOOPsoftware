@@ -44,6 +44,12 @@ public class MaintenanceTicketResponse {
 
     private boolean critical;
 
+    private boolean approved;
+
+    private Long approvedByActorId;
+
+    private LocalDateTime approvedAt;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

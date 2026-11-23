@@ -74,9 +74,9 @@ public class MachineAlertController {
     public MachineAlertResponse acknowledge(@PathVariable Long alertId,
             @RequestParam String tenantId, @Valid @RequestBody AlertActionRequest request) {
         var actor = actors.principal();
-        authorization.require(actor, MachineAuthorization.ALERT_MANAGE);
         authorization.requireTenant(actor, tenantId);
-        authorization.requireAlert(actor, alerts.get(alertId, tenantId), MachineAuthorization.ALERT_MANAGE);
+        MachineAlert alert = alerts.get(alertId, tenantId);
+        requireAlertAction(actor, alert, true);
         return new MachineAlertResponse(alerts.acknowledge(alertId, tenantId, actor.id().toString()));
     }
 
@@ -94,11 +94,31 @@ public class MachineAlertController {
     public MachineAlertResponse resolve(@PathVariable Long alertId,
             @RequestParam String tenantId, @Valid @RequestBody AlertActionRequest request) {
         var actor = actors.principal();
-        authorization.require(actor, MachineAuthorization.ALERT_MANAGE);
         authorization.requireTenant(actor, tenantId);
-        authorization.requireAlert(actor, alerts.get(alertId, tenantId), MachineAuthorization.ALERT_MANAGE);
+        MachineAlert alert = alerts.get(alertId, tenantId);
+        requireAlertAction(actor, alert, true);
         return new MachineAlertResponse(alerts.resolve(alertId, tenantId,
             actor.id().toString(), request.getNotes()));
+    }
+
+    private void requireAlertAction(com.scentstation.integration.identity.dto.IdentityPrincipal actor,
+                                    MachineAlert alert, boolean allowTechnician) {
+        if (actor.grants().contains(MachineAuthorization.ALERT_MANAGE)) {
+            authorization.requireAlert(actor, alert, MachineAuthorization.ALERT_MANAGE);
+            return;
+        }
+        if (allowTechnician && actor.roles().contains("TECHNICIAN")
+                && actor.grants().contains(MachineAuthorization.ALERT_READ)) {
+            authorization.requireAlert(actor, alert, MachineAuthorization.ALERT_READ);
+            boolean machineIssue = alert.getType() == null || !"LOW_STOCK".equalsIgnoreCase(alert.getType().name());
+            boolean assignedToSelf = actor.id() != null && actor.id().toString().equals(alert.getAssignedTo());
+            if (machineIssue || assignedToSelf) {
+                return;
+            }
+            throw new org.springframework.web.server.ResponseStatusException(
+                HttpStatus.FORBIDDEN, "Technician can only handle machine issue alerts or assigned alerts");
+        }
+        authorization.require(actor, MachineAuthorization.ALERT_MANAGE);
     }
 
     @PostMapping("/{alertId}/reopen")

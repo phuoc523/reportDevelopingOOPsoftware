@@ -1,6 +1,7 @@
 package com.scentstation.operation.inventory.bottle.controller;
 
 import com.scentstation.operation.inventory.bottle.dto.request.CreateBottleRequest;
+import com.scentstation.operation.inventory.bottle.dto.request.DisposeBottleRequest;
 import com.scentstation.operation.inventory.bottle.dto.response.BottleResponse;
 import com.scentstation.operation.inventory.bottle.service.BottleService;
 import jakarta.validation.Valid;
@@ -75,6 +76,17 @@ public class BottleController {
                         tenantId,
                         id
                 )
+        );
+    }
+
+    // Hủy / báo hư một chai nước hoa với lý do cụ thể.
+    @PostMapping("/{id}/dispose")
+    public ResponseEntity<BottleResponse> disposeBottle(
+            @PathVariable @Positive Long id,
+            @Valid @RequestBody DisposeBottleRequest request
+    ) {
+        return ResponseEntity.ok(
+                bottleService.disposeBottle(id, request)
         );
     }
 }

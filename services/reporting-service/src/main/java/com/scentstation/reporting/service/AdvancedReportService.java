@@ -40,6 +40,32 @@ public class AdvancedReportService {
                         row.getTransactionCount(), row.getRevenue())).toList();
     }
 
+    public RevenueBreakdownResponse revenueBreakdown(LocalDate start, LocalDate end,
+            String tenantId, String machineId, Long productId) {
+        validateDates(start, end);
+        LocalDateTime from = start.atStartOfDay();
+        LocalDateTime to = end.plusDays(1).atStartOfDay();
+        var byTenant = mapDimensions(repository.findRevenueByTenant(from, to, tenantId, machineId, productId));
+        var byMachine = mapDimensions(repository.findRevenueByMachine(from, to, tenantId, machineId, productId));
+        var byProduct = mapDimensions(repository.findRevenueByProduct(from, to, tenantId, machineId, productId));
+        long totalPaid = byTenant.stream().mapToLong(RevenueBreakdownResponse.RevenueDimensionItem::transactionCount).sum();
+        BigDecimal totalRevenue = byTenant.stream()
+                .map(RevenueBreakdownResponse.RevenueDimensionItem::revenue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new RevenueBreakdownResponse(start, end, totalPaid, totalRevenue, byTenant, byMachine, byProduct);
+    }
+
+    private List<RevenueBreakdownResponse.RevenueDimensionItem> mapDimensions(
+            List<TransactionRepository.RevenueDimensionProjection> rows) {
+        if (rows == null) return List.of();
+        return rows.stream()
+                .map(row -> new RevenueBreakdownResponse.RevenueDimensionItem(
+                        row.getDimensionKey(),
+                        row.getTransactionCount() == null ? 0L : row.getTransactionCount(),
+                        row.getRevenue() == null ? BigDecimal.ZERO : row.getRevenue()))
+                .toList();
+    }
+
     public TransactionStatusSummaryResponse statusSummary(LocalDate start, LocalDate end) {
         validateDates(start, end);
         LocalDateTime from = start.atStartOfDay();

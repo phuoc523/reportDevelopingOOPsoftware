@@ -202,7 +202,10 @@ services:
       context: .
       dockerfile: infra/docker/mock-payment-web.Dockerfile
     environment:
-      VITE_ORDER_SERVICE_URL: "${ORDER_SERVICE_URL:-http://localhost:8083}"
+      # Keep browser requests on localhost:3000 and proxy them to the Gateway
+      # inside Docker. This avoids exposing Order Service or relying on CORS.
+      VITE_ORDER_SERVICE_URL: ""
+      MOCK_PAYMENT_PROXY_TARGET: "http://api-gateway:8080"
       VITE_PAYMENT_CALLBACK_TOKEN: "${PAYMENT_CALLBACK_TOKEN:-local-mock-callback-token}"
       VITE_MOCK_PAYMENT_WEB_BASE_URL: "${PAYMENT_MOCK_WEB_BASE_URL:-http://localhost:3000/mock-payment}"
     ports:

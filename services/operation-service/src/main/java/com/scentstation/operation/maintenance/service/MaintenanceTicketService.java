@@ -1,5 +1,6 @@
 package com.scentstation.operation.maintenance.service;
 
+import com.scentstation.operation.maintenance.dto.request.ApproveMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.request.CloseMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.request.CreateMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.request.ReopenMaintenanceTicketRequest;
@@ -134,6 +135,33 @@ public class MaintenanceTicketService {
                 ticketMetadata(saved)
         );
 
+        return maintenanceTicketMapper.toResponse(saved);
+    }
+
+    // Chấp nhận / duyệt phiếu bảo trì để đưa vào triển khai.
+    @Transactional
+    public MaintenanceTicketResponse approveTicket(
+            Long ticketId,
+            ApproveMaintenanceTicketRequest request
+    ) {
+        MaintenanceTicket ticket = findTicketForTenant(request.getTenantId(), ticketId);
+        if (ticket.getStatus() == MaintenanceStatus.COMPLETED || ticket.getStatus() == MaintenanceStatus.CANCELLED) {
+            throw new InvalidMaintenanceTicketException("Cannot approve a completed or cancelled maintenance ticket");
+        }
+        if (ticket.isApproved()) {
+            return maintenanceTicketMapper.toResponse(ticket);
+        }
+        ticket.setApproved(true);
+        ticket.setApprovedByActorId(request.getApprovedByActorId());
+        ticket.setApprovedAt(LocalDateTime.now());
+        MaintenanceTicket saved = maintenanceTicketRepository.save(ticket);
+        recordTicketAudit(
+                saved,
+                MaintenanceAuditAction.TICKET_APPROVED,
+                request.getApprovedByActorId(),
+                "approved=false",
+                "approved=true" + (request.getNote() != null && !request.getNote().isBlank() ? ";note=" + request.getNote().trim() : "")
+        );
         return maintenanceTicketMapper.toResponse(saved);
     }
 

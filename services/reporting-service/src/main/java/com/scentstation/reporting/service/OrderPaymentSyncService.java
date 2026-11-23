@@ -57,7 +57,11 @@ public class OrderPaymentSyncService {
                 payment.currency(),
                 payment.status(),
                 payment.createdAt(),
-                payment.paidAt()
+                payment.paidAt(),
+                payment.tenantId(),
+                payment.machineId(),
+                payment.slotId(),
+                payment.productId()
         );
 
         TransactionSyncValidator.validate(request, HttpStatus.BAD_GATEWAY);

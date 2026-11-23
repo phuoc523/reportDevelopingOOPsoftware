@@ -108,6 +108,18 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("endDate") LocalDateTime endDate, @Param("tenantId") String tenantId,
             @Param("machineId") String machineId, @Param("productId") Long productId);
 
+    @Query("""
+            SELECT t.orderId FROM Transaction t
+            WHERE t.status = 'PAID' AND t.paidAt >= :startDate AND t.paidAt < :endDate
+              AND t.tenantId = :tenantId
+              AND t.machineId IN :machineIds
+              AND (:productId IS NULL OR t.productId = :productId)
+            """)
+    java.util.List<String> findPaidOrderIdsInMachines(@Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate, @Param("tenantId") String tenantId,
+            @Param("machineIds") java.util.Collection<String> machineIds,
+            @Param("productId") Long productId);
+
         @Query("""
             SELECT COALESCE(SUM(t.amount), 0)
             FROM Transaction t
@@ -132,6 +144,63 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
 
     interface RevenueDailyProjection {
         java.sql.Date getReportDate();
+        Long getTransactionCount();
+        BigDecimal getRevenue();
+    }
+
+    @Query(value = """
+            SELECT COALESCE(tenant_id, 'UNASSIGNED') AS dimensionKey,
+                   COUNT(*) AS transactionCount,
+                   COALESCE(SUM(amount), 0) AS revenue
+            FROM transactions
+            WHERE status = 'PAID' AND paid_at >= :startDate AND paid_at < :endDate
+              AND (:tenantId IS NULL OR tenant_id = :tenantId)
+              AND (:machineId IS NULL OR machine_id = :machineId)
+              AND (:productId IS NULL OR product_id = :productId)
+            GROUP BY COALESCE(tenant_id, 'UNASSIGNED')
+            ORDER BY revenue DESC
+            """, nativeQuery = true)
+    java.util.List<RevenueDimensionProjection> findRevenueByTenant(
+            @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
+            @Param("tenantId") String tenantId, @Param("machineId") String machineId,
+            @Param("productId") Long productId);
+
+    @Query(value = """
+            SELECT COALESCE(machine_id, 'UNASSIGNED') AS dimensionKey,
+                   COUNT(*) AS transactionCount,
+                   COALESCE(SUM(amount), 0) AS revenue
+            FROM transactions
+            WHERE status = 'PAID' AND paid_at >= :startDate AND paid_at < :endDate
+              AND (:tenantId IS NULL OR tenant_id = :tenantId)
+              AND (:machineId IS NULL OR machine_id = :machineId)
+              AND (:productId IS NULL OR product_id = :productId)
+            GROUP BY COALESCE(machine_id, 'UNASSIGNED')
+            ORDER BY revenue DESC
+            """, nativeQuery = true)
+    java.util.List<RevenueDimensionProjection> findRevenueByMachine(
+            @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
+            @Param("tenantId") String tenantId, @Param("machineId") String machineId,
+            @Param("productId") Long productId);
+
+    @Query(value = """
+            SELECT COALESCE(CAST(product_id AS CHAR), 'UNASSIGNED') AS dimensionKey,
+                   COUNT(*) AS transactionCount,
+                   COALESCE(SUM(amount), 0) AS revenue
+            FROM transactions
+            WHERE status = 'PAID' AND paid_at >= :startDate AND paid_at < :endDate
+              AND (:tenantId IS NULL OR tenant_id = :tenantId)
+              AND (:machineId IS NULL OR machine_id = :machineId)
+              AND (:productId IS NULL OR product_id = :productId)
+            GROUP BY COALESCE(CAST(product_id AS CHAR), 'UNASSIGNED')
+            ORDER BY revenue DESC
+            """, nativeQuery = true)
+    java.util.List<RevenueDimensionProjection> findRevenueByProduct(
+            @Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate,
+            @Param("tenantId") String tenantId, @Param("machineId") String machineId,
+            @Param("productId") Long productId);
+
+    interface RevenueDimensionProjection {
+        String getDimensionKey();
         Long getTransactionCount();
         BigDecimal getRevenue();
     }

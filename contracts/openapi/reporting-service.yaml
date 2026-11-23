@@ -1,0 +1,506 @@
+openapi: 3.0.3
+info:
+  title: ScentStation Reporting Service API
+  version: 1.0.0
+  description: >
+    REST API cho Reporting Service (P5.19–P5.24). Tất cả API nghiệp vụ công khai
+    yêu cầu Bearer JWT hợp lệ được xác minh qua Identity Service (`/api/auth/me`)
+    và tự động áp dụng phạm vi tenant / machine / location ở phía server.
+servers:
+  - url: http://localhost:8080
+    description: API Gateway (khuyến nghị cho Admin Web)
+  - url: http://localhost:8086
+    description: Reporting Service trực tiếp (dùng cho nội bộ / debug)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    InternalApiKey:
+      type: apiKey
+      in: header
+      name: X-Internal-Api-Key
+
+  parameters:
+    TenantIdParam:
+      name: tenantId
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int64
+      description: >
+        Mã thương hiệu. Với tài khoản tenant (non-platform), server tự lấy từ hồ sơ
+        Identity; truyền `tenantId` khác hoặc nhiều `tenantId` sẽ trả 403.
+    StartDateParam:
+      name: startDate
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+      example: "2026-11-01"
+    EndDateParam:
+      name: endDate
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+      example: "2026-11-30"
+    MachineIdStringParam:
+      name: machineId
+      in: query
+      required: false
+      schema:
+        type: string
+    ProductIdParam:
+      name: productId
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int64
+    ExportFormatParam:
+      name: format
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [xlsx, csv]
+        default: xlsx
+
+  responses:
+    BadRequest:
+      description: Tham số hoặc khoảng thời gian không hợp lệ
+    Unauthorized:
+      description: Thiếu hoặc sai Bearer token / API key
+    Forbidden:
+      description: Không đủ quyền hoặc truy cập ngoài phạm vi tenant/máy/vị trí
+    NotFound:
+      description: Không tìm thấy tài nguyên trong phạm vi quyền
+
+paths:
+  /api/reporting/health:
+    get:
+      summary: Kiểm tra liveness của Reporting Service
+      tags: [Health]
+      responses:
+        "200":
+          description: Service đang hoạt động
+
+  /api/reporting/dashboard:
+    get:
+      summary: Dữ liệu tổng hợp cho Dashboard vận hành
+      tags: [Dashboard]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month]
+            default: month
+      responses:
+        "200":
+          description: Trả về `transactions`, `machines`, `alerts`, `inventory`, `machineLocations`, `operations`, `upstream`, `access`
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          description: Vượt quá giới hạn tần suất (Redis rate limit)
+
+  /api/reporting/operations:
+    get:
+      summary: Báo cáo tổng hợp hiệu suất máy, phun, tồn kho, cảnh báo & bảo trì
+      tags: [Operations]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tenantId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [day, week, month, custom]
+            default: month
+        - name: startDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: machineId
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int64
+        - name: locationId
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: "#/components/parameters/ProductIdParam"
+        - name: refillThreshold
+          in: query
+          required: false
+          schema:
+            type: number
+            default: 10
+      responses:
+        "200":
+          description: >
+            Trả về `machines`, `sprays` (kèm `paidOrderIdsWithoutSprayConfirmation`,
+            `successRateByLocation`, `dailyTrend`), `inventory` (kèm `stockByMachineSlot`,
+            `dailyConsumption`, `adjustmentHistory`, `abnormalConsumptions`, `refillCandidates`),
+            `incidents` (kèm `overdueMaintenanceTickets`, MTTR theo máy/vị trí, `alertDowntimeHours`)
+            và `upstream`.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/reporting/transactions:
+    get:
+      summary: Tìm kiếm giao dịch có phân trang và bộ lọc
+      tags: [Transactions & Revenue]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: reference
+          in: query
+          schema: { type: string }
+        - name: orderId
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, enum: [PENDING, PAID, FAILED, EXPIRED, REFUNDED] }
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+        - name: minAmount
+          in: query
+          schema: { type: number }
+        - name: maxAmount
+          in: query
+          schema: { type: number }
+        - $ref: "#/components/parameters/TenantIdParam"
+        - $ref: "#/components/parameters/MachineIdStringParam"
+        - name: slotId
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/ProductIdParam"
+        - name: page
+          in: query
+          schema: { type: integer, default: 0, minimum: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20, minimum: 1, maximum: 200 }
+        - name: sortBy
+          in: query
+          schema: { type: string, enum: [id, createdAt, paidAt, amount, reference, status], default: createdAt }
+        - name: direction
+          in: query
+          schema: { type: string, enum: [asc, desc], default: desc }
+      responses:
+        "200":
+          description: Trang danh sách giao dịch
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/reporting/transactions/{id}:
+    get:
+      summary: Xem chi tiết giao dịch theo ID (ẩn giao dịch ngoài tenant dưới dạng 404)
+      tags: [Transactions & Revenue]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64 }
+      responses:
+        "200": { description: Chi tiết giao dịch }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/reporting/transactions/reference/{reference}:
+    get:
+      summary: Xem chi tiết giao dịch theo mã payment reference
+      tags: [Transactions & Revenue]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: reference
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Chi tiết giao dịch }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/reporting/transactions/summary:
+    get:
+      summary: Thống kê tổng quan giao dịch, doanh thu, hoàn tiền và doanh thu thuần
+      tags: [Transactions & Revenue]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema: { type: string, enum: [day, week, month, custom], default: month }
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+        - $ref: "#/components/parameters/TenantIdParam"
+        - $ref: "#/components/parameters/MachineIdStringParam"
+        - $ref: "#/components/parameters/ProductIdParam"
+      responses:
+        "200": { description: Tổng hợp giao dịch và doanh thu thuần }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/reporting/transactions/status-summary:
+    get:
+      summary: Thống kê số lượng và tỷ lệ % theo từng trạng thái giao dịch
+      tags: [Transactions & Revenue]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StartDateParam"
+        - $ref: "#/components/parameters/EndDateParam"
+        - $ref: "#/components/parameters/TenantIdParam"
+        - $ref: "#/components/parameters/MachineIdStringParam"
+        - $ref: "#/components/parameters/ProductIdParam"
+      responses:
+        "200": { description: Tóm tắt trạng thái giao dịch }
+        "400": { $ref: "#/components/responses/BadRequest" }
+
+  /api/reporting/revenue/details:
+    get:
+      summary: Doanh thu chi tiết từng ngày (chỉ tính PAID theo paid_at)
+      tags: [Transactions & Revenue]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StartDateParam"
+        - $ref: "#/components/parameters/EndDateParam"
+        - $ref: "#/components/parameters/TenantIdParam"
+        - $ref: "#/components/parameters/MachineIdStringParam"
+        - $ref: "#/components/parameters/ProductIdParam"
+      responses:
+        "200": { description: Danh sách doanh thu theo ngày }
+
+  /api/reporting/revenue/breakdown:
+    get:
+      summary: Phân bổ doanh thu theo thương hiệu, máy và sản phẩm
+      tags: [Transactions & Revenue]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StartDateParam"
+        - $ref: "#/components/parameters/EndDateParam"
+        - $ref: "#/components/parameters/TenantIdParam"
+        - $ref: "#/components/parameters/MachineIdStringParam"
+        - $ref: "#/components/parameters/ProductIdParam"
+      responses:
+        "200": { description: Phân bổ doanh thu `byTenant`, `byMachine`, `byProduct` }
+
+  /api/reporting/refunds/summary:
+    get:
+      summary: Thống kê tổng số lượng và tổng tiền hoàn
+      tags: [Refunds]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StartDateParam"
+        - $ref: "#/components/parameters/EndDateParam"
+        - $ref: "#/components/parameters/TenantIdParam"
+        - $ref: "#/components/parameters/MachineIdStringParam"
+        - $ref: "#/components/parameters/ProductIdParam"
+      responses:
+        "200": { description: Tổng hợp hoàn tiền }
+
+  /api/reporting/refunds:
+    get:
+      summary: Danh sách giao dịch hoàn tiền có phân trang
+      tags: [Refunds]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+        - $ref: "#/components/parameters/TenantIdParam"
+        - $ref: "#/components/parameters/MachineIdStringParam"
+        - $ref: "#/components/parameters/ProductIdParam"
+        - name: page
+          in: query
+          schema: { type: integer, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, default: 20, maximum: 200 }
+      responses:
+        "200": { description: Trang danh sách giao dịch REFUNDED }
+
+  /api/reporting/export/transactions:
+    get:
+      summary: Xuất danh sách giao dịch ra Excel (.xlsx) hoặc CSV (.csv)
+      tags: [Export]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: reference
+          in: query
+          schema: { type: string }
+        - name: orderId
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+        - name: minAmount
+          in: query
+          schema: { type: number }
+        - name: maxAmount
+          in: query
+          schema: { type: number }
+        - $ref: "#/components/parameters/TenantIdParam"
+        - $ref: "#/components/parameters/MachineIdStringParam"
+        - name: slotId
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/ProductIdParam"
+        - $ref: "#/components/parameters/ExportFormatParam"
+      responses:
+        "200": { description: Tệp `transactions.xlsx` hoặc `transactions.csv` }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/reporting/export/revenue:
+    get:
+      summary: Xuất báo cáo doanh thu theo ngày ra Excel (.xlsx) hoặc CSV (.csv)
+      tags: [Export]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/StartDateParam"
+        - $ref: "#/components/parameters/EndDateParam"
+        - $ref: "#/components/parameters/TenantIdParam"
+        - $ref: "#/components/parameters/MachineIdStringParam"
+        - $ref: "#/components/parameters/ProductIdParam"
+        - $ref: "#/components/parameters/ExportFormatParam"
+      responses:
+        "200": { description: Tệp `revenue-report.xlsx` hoặc `revenue-report.csv` }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/reporting/export/operations:
+    get:
+      summary: Xuất báo cáo vận hành (máy & tồn kho) ra Excel (.xlsx) hoặc CSV (.csv)
+      tags: [Export]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tenantId
+          in: query
+          schema: { type: string }
+        - name: period
+          in: query
+          schema: { type: string, enum: [day, week, month, custom], default: month }
+        - name: startDate
+          in: query
+          schema: { type: string, format: date }
+        - name: endDate
+          in: query
+          schema: { type: string, format: date }
+        - name: machineId
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: locationId
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/ProductIdParam"
+        - name: refillThreshold
+          in: query
+          schema: { type: number, default: 10 }
+        - $ref: "#/components/parameters/ExportFormatParam"
+      responses:
+        "200": { description: Tệp `operations-report.xlsx` hoặc `operations-report.csv` }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/reporting/internal/transactions/sync:
+    post:
+      summary: Đồng bộ giao dịch nội bộ (chỉ gọi trực tiếp, bị chặn ở API Gateway)
+      tags: [Internal Sync]
+      security:
+        - InternalApiKey: []
+      responses:
+        "200": { description: Giao dịch đã đồng bộ (idempotent) }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "409": { description: Xung đột dữ liệu hoặc tranh chấp đồng bộ }
+
+  /api/reporting/internal/transactions/sync-from-order/{reference}:
+    post:
+      summary: Replay một payment theo reference từ Order Service (chỉ gọi nội bộ)
+      tags: [Internal Sync]
+      security:
+        - InternalApiKey: []
+      parameters:
+        - name: reference
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Giao dịch đã được đồng bộ lại }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "502": { description: Order Service không phản hồi hoặc payload không hợp lệ }

@@ -1,5 +1,6 @@
 package com.scentstation.operation.maintenance.controller;
 
+import com.scentstation.operation.maintenance.dto.request.ApproveMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.request.CloseMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.request.CreateMaintenanceTicketRequest;
 import com.scentstation.operation.maintenance.dto.request.ReopenMaintenanceTicketRequest;
@@ -91,6 +92,17 @@ public class MaintenanceTicketController {
                                 ticketId,
                                 request
                         )
+        );
+    }
+
+    // Chấp nhận / duyệt phiếu bảo trì.
+    @PostMapping("/{ticketId}/approve")
+    public ResponseEntity<MaintenanceTicketResponse> approveTicket(
+            @PathVariable @Positive Long ticketId,
+            @Valid @RequestBody ApproveMaintenanceTicketRequest request
+    ) {
+        return ResponseEntity.ok(
+                maintenanceTicketService.approveTicket(ticketId, request)
         );
     }
 
