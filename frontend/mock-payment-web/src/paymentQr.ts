@@ -1,7 +1,16 @@
 export function parsePaymentQrData(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) {
+    throw new Error('Mã QR không đúng định dạng thanh toán ScentStation.')
+  }
+
+  if (/^PAY-[A-Z0-9-]{1,124}$/i.test(trimmed)) {
+    return trimmed.toUpperCase()
+  }
+
   let value: unknown
   try {
-    value = JSON.parse(raw)
+    value = JSON.parse(trimmed)
   } catch {
     throw new Error('Mã QR không đúng định dạng thanh toán ScentStation.')
   }
@@ -21,5 +30,5 @@ export function parsePaymentQrData(raw: string): string {
     throw new Error('Mã QR không đúng định dạng thanh toán ScentStation.')
   }
 
-  return reference
+  return reference.toUpperCase()
 }

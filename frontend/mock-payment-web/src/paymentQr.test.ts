@@ -9,6 +9,14 @@ describe('parsePaymentQrData', () => {
     }))).toBe('PAY-ORDER-A')
   })
 
+  it('accepts a plain payment reference for compatibility', () => {
+    expect(parsePaymentQrData('  PAY-ORDER-B  ')).toBe('PAY-ORDER-B')
+  })
+
+  it('keeps different payment references distinct', () => {
+    expect(parsePaymentQrData('PAY-ORDER-A')).not.toBe(parsePaymentQrData('PAY-ORDER-B'))
+  })
+
   it('rejects malformed, unrelated, or URL-bearing QR data', () => {
     const invalidPayloads = [
       '{invalid',

@@ -310,7 +310,7 @@ public class PaymentService {
         }
         java.net.URI uri = java.net.URI.create(baseUrl.trim());
         String host = uri.getHost();
-        if (!"http".equals(uri.getScheme())
+        if (!(("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())))
                 || uri.getHost() == null
                 || "localhost".equalsIgnoreCase(host)
                 || host.toLowerCase(java.util.Locale.ROOT).endsWith(".localhost")
@@ -322,7 +322,7 @@ public class PaymentService {
                 || uri.getQuery() != null
                 || uri.getFragment() != null
                 || uri.getUserInfo() != null) {
-            throw new IllegalArgumentException("Mock payment web base URL must be an HTTP origin root on a reachable host");
+            throw new IllegalArgumentException("Mock payment web base URL must be an HTTP/HTTPS origin root on a reachable host");
         }
         return uri.getScheme() + "://" + uri.getRawAuthority() + "/";
     }

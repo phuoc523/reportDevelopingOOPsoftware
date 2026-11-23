@@ -40,10 +40,9 @@ type PublicPaymentDetails = {
 }
 
 const scannerElementId = 'mock-payment-qr-reader'
-const lanHost = window.location.hostname
 const orderServiceUrl = (
   import.meta.env.VITE_ORDER_SERVICE_URL ||
-  `${window.location.protocol}//${lanHost}:8080`
+  ''
 ).replace(/\/$/, '')
 
 function formatMoney(amount: number, currency: string) {
@@ -61,6 +60,7 @@ export default function App() {
   const [payment, setPayment] = useState<PaymentRecord | null>(null)
   const [order, setOrder] = useState<OrderRecord | null>(null)
   const [loading, setLoading] = useState(false)
+  const [scannerStatus, setScannerStatus] = useState<'idle' | 'starting' | 'scanning' | 'identified' | 'lookup'>('idle')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState('')
@@ -69,6 +69,7 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const scanHandledRef = useRef(false)
   const scannerStartRequestedRef = useRef(false)
+  const lastScannedPayloadRef = useRef('')
   const paymentFlowVersionRef = useRef(0)
 
   async function stopScanner() {
@@ -83,6 +84,7 @@ export default function App() {
     scanner.clear()
     scannerRef.current = null
     setScanning(false)
+    setScannerStatus((status) => status === 'scanning' ? 'idle' : status)
   }
 
   useEffect(() => () => {
@@ -98,7 +100,7 @@ export default function App() {
   }, [])
 
   async function loadPayment(requestedReference: string) {
-    setLoading(true)
+    setScannerStatus('lookup')
     setError('')
     setPayment(null)
     setOrder(null)
@@ -121,72 +123,98 @@ export default function App() {
       }
       setPayment(data.payment)
       setOrder(data.order)
+      setScannerStatus('idle')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không thể tải thông tin thanh toán.')
-    } finally {
-      setLoading(false)
+      setScannerStatus('idle')
     }
   }
 
   async function handleQrPayload(raw: string) {
+    if (scanHandledRef.current || lastScannedPayloadRef.current === raw) return
+    scanHandledRef.current = true
+    lastScannedPayloadRef.current = raw
+    setScannerStatus('identified')
+
     try {
       const requestedReference = parsePaymentQrData(raw)
       await stopScanner()
+      setScannerStatus('lookup')
       await loadPayment(requestedReference)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Không thể đọc mã QR.')
-    } finally {
       scanHandledRef.current = false
+      setScannerStatus('idle')
+      setError(cause instanceof Error ? cause.message : 'Không thể đọc mã QR.')
     }
   }
 
   async function startScanner() {
+    if (scannerStartRequestedRef.current || scannerRef.current) return
+    scanHandledRef.current = false
+    lastScannedPayloadRef.current = ''
     setError('')
 
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-      setError('Trình duyệt không cho phép camera trực tiếp trên HTTP LAN. Hãy dùng camera hệ thống để chụp mã QR, nếu trình duyệt hỗ trợ.')
-      fileInputRef.current?.click()
+      setScannerStatus('idle')
+      setError('Camera trực tiếp cần HTTPS hoặc localhost. Trang đang chạy trên HTTP LAN nên một số điện thoại chặn getUserMedia. Dùng nút chụp QR bằng camera hệ thống hoặc mở trang trên HTTPS.')
       return
     }
 
     try {
       scannerStartRequestedRef.current = true
       setScanning(true)
+      setScannerStatus('starting')
       await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
       if (!scannerStartRequestedRef.current) return
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode')
+      const cameras = await Html5Qrcode.getCameras()
+      if (!cameras.length) throw new DOMException('No camera found', 'NotFoundError')
+      const cameraId = cameras.find((camera) =>
+        /back|rear|environment|sau|ngoài/i.test(`${camera.label} ${camera.id}`)
+      )?.id || cameras[0].id
+      if (!scannerStartRequestedRef.current) return
       const scanner = new Html5Qrcode(scannerElementId, {
         formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
         verbose: false,
       })
       scannerRef.current = scanner
       await scanner.start(
-        { facingMode: 'environment' },
+        cameraId ? { deviceId: { exact: cameraId } } : { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 240, height: 240 } },
         (decodedText) => {
-          if (scanHandledRef.current) return
-          scanHandledRef.current = true
           void handleQrPayload(decodedText)
         },
         () => undefined,
       )
       setScanning(true)
+      setScannerStatus('scanning')
     } catch (cause) {
       const scanner = scannerRef.current
       if (scanner && !scanner.isScanning) scanner.clear()
       scannerRef.current = null
       scannerStartRequestedRef.current = false
       setScanning(false)
-      setError(cause instanceof Error
-        ? `Không thể mở camera trực tiếp: ${cause.message}. Có thể thử chụp ảnh QR bằng camera hệ thống.`
-        : 'Không thể mở camera trực tiếp. Có thể thử chụp ảnh QR bằng camera hệ thống.')
+      setScannerStatus('idle')
+      const name = cause instanceof DOMException ? cause.name : cause instanceof Error ? cause.name : ''
+      const message = name === 'NotAllowedError' || name === 'PermissionDeniedError'
+        ? 'Bạn đã từ chối hoặc chưa cấp quyền camera. Hãy cho phép Camera trong trình duyệt rồi nhấn thử lại.'
+        : name === 'NotFoundError'
+          ? 'Không tìm thấy camera phù hợp trên thiết bị.'
+          : name === 'NotReadableError'
+            ? 'Camera đang được ứng dụng khác sử dụng. Hãy đóng ứng dụng khác rồi thử lại.'
+            : name === 'SecurityError'
+              ? 'Trình duyệt chặn camera trên môi trường HTTP LAN. Hãy dùng HTTPS hoặc localhost.'
+              : cause instanceof Error
+                ? `Không thể mở camera: ${cause.message}`
+                : 'Không thể mở camera trực tiếp.'
+      setError(`${message} Có thể thử chụp QR bằng camera hệ thống.`)
     }
   }
 
   async function scanCapturedImage(file: File | undefined) {
     if (!file) return
     setError('')
-    setLoading(true)
+    setScannerStatus('identified')
 
     try {
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode')
@@ -194,15 +222,25 @@ export default function App() {
         formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
         verbose: false,
       })
-      const decodedText = await imageScanner.scanFile(file, false)
-      await imageScanner.clear()
+      let decodedText: string
+      try {
+        decodedText = await imageScanner.scanFile(file, false)
+      } finally {
+        await imageScanner.clear()
+      }
       await handleQrPayload(decodedText)
     } catch (cause) {
-      setError(cause instanceof Error
-        ? `Không đọc được mã QR trong ảnh: ${cause.message}`
-        : 'Không đọc được mã QR trong ảnh.')
-    } finally {
-      setLoading(false)
+      setScannerStatus('idle')
+      scanHandledRef.current = false
+      lastScannedPayloadRef.current = ''
+      const message = cause instanceof Error
+        ? cause.message
+        : 'Không xác định được mã QR.'
+      if (/not found|no qrcode|qr code not found|notfoundexception|no multi.?format readers/i.test(message)) {
+        setError('Ảnh không chứa mã QR rõ ràng hoặc ảnh bị mờ. Hãy chụp lại gần và đủ sáng.')
+      } else {
+        setError(`Không đọc được mã QR trong ảnh: ${message}`)
+      }
     }
   }
 
@@ -259,6 +297,8 @@ export default function App() {
     setResult('')
     setSubmitting(false)
     scanHandledRef.current = false
+    lastScannedPayloadRef.current = ''
+    setScannerStatus('idle')
   }
 
   if (loading) {
@@ -273,6 +313,10 @@ export default function App() {
           <h1>Quét mã QR</h1>
           <p>Dùng camera để quét mã giao dịch đang hiển thị trên kiosk. Không cần nhập mã thanh toán.</p>
           {error && <div className="alert error" role="alert">{error}</div>}
+          {scannerStatus === 'starting' && <div className="alert" role="status">Đang yêu cầu quyền camera…</div>}
+          {scannerStatus === 'scanning' && <div className="alert" role="status">Đang quét mã QR đơn hàng…</div>}
+          {scannerStatus === 'identified' && <div className="alert" role="status">Đã nhận diện QR. Đang kiểm tra dữ liệu…</div>}
+          {scannerStatus === 'lookup' && <div className="alert" role="status">Đã nhận diện QR. Đang tra cứu đơn hàng…</div>}
           <div className="actions">
             <button type="button" onClick={() => void startScanner()} disabled={scanning}>QUÉT MÃ QR</button>
             <button className="secondary" type="button" onClick={() => fileInputRef.current?.click()} disabled={scanning}>
@@ -297,7 +341,9 @@ export default function App() {
           />
           <div id={scannerElementId} className={scanning ? 'qr-scanner' : 'qr-scanner qr-scanner-idle'} />
           <p className="camera-note">
-            Trên HTTP bằng địa chỉ IP LAN, trình duyệt thường chặn camera trực tiếp (`getUserMedia`). Nút camera hệ thống dùng tính năng chụp ảnh của trình duyệt; khả năng bật camera tùy thiết bị và cần kiểm thử thực tế.
+            {window.isSecureContext
+              ? 'Trang đang chạy trong secure context. Nhấn QUÉT MÃ QR và cấp quyền camera khi trình duyệt hỏi; camera sau sẽ được ưu tiên.'
+              : 'Trên HTTP bằng địa chỉ IP LAN, trình duyệt thường chặn camera trực tiếp (getUserMedia). Hãy mở trang bằng HTTPS; nút chụp ảnh chỉ là phương án dự phòng.'}
           </p>
         </section>
       </main>

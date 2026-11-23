@@ -28,9 +28,12 @@ function getPaymentQrUrl(value: string) {
     const url = new URL(value)
     const octets = url.hostname.split('.').map(Number)
     const isIpv4 = octets.length === 4 && octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255)
-    if (url.protocol !== 'http:' || url.port !== '3000' || url.pathname !== '/' || url.search || url.hash
-      || url.username || url.password || !isIpv4 || octets[0] === 0 || octets[0] === 127
-      || (octets[0] === 169 && octets[1] === 254)) return null
+    const isHttpLan = url.protocol === 'http:' && (url.port === '3000' || url.port === '') && isIpv4
+      && octets[0] !== 0 && octets[0] !== 127 && !(octets[0] === 169 && octets[1] === 254)
+    const isHttpsOrigin = url.protocol === 'https:' && (url.port === '' || url.port === '3443')
+      && (isIpv4 || url.hostname.includes('.'))
+    if (!isHttpLan && !isHttpsOrigin) return null
+    if (url.pathname !== '/' || url.search || url.hash || url.username || url.password) return null
     return url.href
   } catch {
     return null
@@ -176,7 +179,7 @@ function App() {
   const resumablePayment = Boolean(payment?.status === 'PENDING' && order && selected && String(order.slotId) === String(selected.slot.id))
 
   async function submitLogin(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError('')
+    event.preventDefault(); authToken.clear(); setBusy(true); setError('')
     try {
       await kioskApi.login(username.trim(), password)
       const actor = await kioskApi.me()
@@ -194,9 +197,27 @@ function App() {
 
   async function startPayment(type: 'TRIAL' | 'BOTTLE' = transactionType) {
     if (!principal || !selected || creatingRef.current) return
-    if (resumablePayment) {
+    if (resumablePayment && payment) {
+      setBusy(true)
       setError('')
-      setScreen('payment')
+      try {
+        const currentPayment = await kioskApi.payment(payment.reference)
+        setPayment(currentPayment)
+        if (currentPayment.status === 'PAID') {
+          setScreen(order?.orderType === 'BOTTLE' ? 'result' : 'dispensing')
+        } else if (currentPayment.status === 'FAILED' || currentPayment.status === 'EXPIRED') {
+          setError(currentPayment.status === 'EXPIRED'
+            ? 'Giao dịch đã hết hạn. Vui lòng tạo đơn mới.'
+            : 'Thanh toán thất bại. Vui lòng tạo đơn mới.')
+          setScreen('result')
+        } else {
+          setScreen('payment')
+        }
+      } catch (reason) {
+        setError(readableError(reason))
+      } finally {
+        setBusy(false)
+      }
       return
     }
     creatingRef.current = true; setBusy(true); setError('')
@@ -227,7 +248,17 @@ function App() {
       else if (qr.status === 'EXPIRED') { setError('Giao dịch đã hết hạn. Hệ thống không gửi lệnh xịt.'); setScreen('result') }
       else setScreen('payment')
     } catch (reason) {
-      setError(readableError(reason)); await refresh()
+      if (reason instanceof ApiError && reason.status === 401) {
+        authToken.clear()
+        setPrincipal(null)
+        setSelected(null)
+        setOrder(null)
+        setPayment(null)
+        setScreen('catalog')
+        setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+      } else {
+        setError(readableError(reason)); await refresh()
+      }
     } finally { creatingRef.current = false; setBusy(false) }
   }
 

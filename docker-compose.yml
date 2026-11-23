@@ -53,6 +53,7 @@ services:
       CORS_ALLOWED_ORIGIN_4: http://127.0.0.1:7515
       CORS_ALLOWED_ORIGIN_5: "http://${LAN_HOST:?Set LAN_HOST in .env to the Windows Wi-Fi IPv4 address}:3000"
       CORS_ALLOWED_ORIGIN_6: "http://${LAN_HOST:?Set LAN_HOST in .env to the Windows Wi-Fi IPv4 address}:7515"
+      CORS_ALLOWED_ORIGIN_7: "${MOCK_PAYMENT_HTTPS_ORIGIN:-https://localhost:3443}"
       NOTIFICATION_SERVICE_URL: http://notification-service:8087
     depends_on:
       redis:
@@ -203,12 +204,30 @@ services:
     build:
       context: .
       dockerfile: infra/docker/mock-payment-web.Dockerfile
+      args:
+        VITE_ORDER_SERVICE_URL: ""
     environment:
-      VITE_ORDER_SERVICE_URL: "http://${LAN_HOST:?Set LAN_HOST in .env to the Windows Wi-Fi IPv4 address}:8080"
+      VITE_ORDER_SERVICE_URL: ""
     ports:
       - "3000:3000"
     depends_on:
       - order-service
+      - api-gateway
+
+  mock-payment-web-https:
+    profiles: ["https"]
+    build:
+      context: .
+      dockerfile: infra/docker/mock-payment-web-https.Dockerfile
+      args:
+        VITE_ORDER_SERVICE_URL: ""
+    ports:
+      - "3443:3443"
+    volumes:
+      - ./infra/docker/tls:/etc/nginx/certs:ro
+    depends_on:
+      - order-service
+      - api-gateway
 
   machine-service:
     build:

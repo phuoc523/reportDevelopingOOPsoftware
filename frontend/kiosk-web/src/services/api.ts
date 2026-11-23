@@ -49,12 +49,12 @@ function errorMessage(status: number, body: unknown) {
   return `Yêu cầu thất bại (HTTP ${status}).`
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}, includeAuth = true): Promise<T> {
   const token = authToken.get()
   const headers = new Headers(init.headers)
   headers.set('Accept', 'application/json')
   if (init.body) headers.set('Content-Type', 'application/json')
-  if (token) headers.set('Authorization', `Bearer ${token}`)
+  if (includeAuth && token) headers.set('Authorization', `Bearer ${token}`)
 
   let response: Response
   try {
@@ -68,16 +68,20 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (text) {
     try { body = JSON.parse(text) } catch { body = text }
   }
-  if (!response.ok) throw new ApiError(response.status, errorMessage(response.status, body), body)
+  if (!response.ok) {
+    if (includeAuth && response.status === 401) authToken.clear()
+    throw new ApiError(response.status, errorMessage(response.status, body), body)
+  }
   return body as T
 }
 
 export const kioskApi = {
   async login(username: string, password: string) {
+    authToken.clear()
     const response = await request<AuthResponse>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
-    })
+    }, false)
     authToken.set(response.token)
     return response
   },
