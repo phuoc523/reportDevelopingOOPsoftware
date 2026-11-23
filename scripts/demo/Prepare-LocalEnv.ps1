@@ -1,11 +1,12 @@
 [CmdletBinding()]
-param()
+param([switch]$Lite)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Demo-Compose.ps1')
+if ($Lite) { $DemoEnvFile = Join-Path $DemoRoot '.env.demo-lite' }
 $envFile = $DemoEnvFile
 if (Test-Path -LiteralPath $envFile) {
-    Write-Host 'Existing .env.demo preserved.'
+    Write-Host 'Existing demo environment preserved.'
     return
 }
 
@@ -26,4 +27,4 @@ try {
     $writer = New-Object IO.StreamWriter($file, [Text.UTF8Encoding]::new($false))
     try { $writer.WriteLine(($lines -join "`n")) } finally { $writer.Dispose() }
 } finally { $file.Dispose() }
-Write-Host 'Created isolated .env.demo.'
+Write-Host 'Created isolated demo environment.'

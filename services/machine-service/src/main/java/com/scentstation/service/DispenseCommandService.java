@@ -36,6 +36,14 @@ public class DispenseCommandService {
     private final Duration commandLifetime;
     private final boolean simulationEnabled;
 
+    private enum SimulationOutcome { SUCCESS, FAILURE, TIMEOUT }
+
+    @Value("${machine.commands.simulation.outcome:SUCCESS}")
+    private SimulationOutcome simulationOutcome = SimulationOutcome.SUCCESS;
+
+    @Value("${machine.commands.simulation.delay-ms:0}")
+    private long simulationDelayMs;
+
     @Autowired
     public DispenseCommandService(MachineCommandRepository commands, MachineRepository machines,
                                   MachineSlotRepository slots, AvailabilityService availabilityService,
@@ -95,21 +103,38 @@ public class DispenseCommandService {
             now.plus(commandLifetime)));
         if (simulationEnabled) {
             command.acknowledge(now);
-            command.complete(true, "Mô phỏng xịt thử thành công trong môi trường local", now);
+            if (simulationDelayMs <= 0 && simulationOutcome != SimulationOutcome.TIMEOUT) {
+                completeSimulation(command, now);
+            }
             command = commands.save(command);
         }
         return toResponse(command);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public DispenseCommandResponse get(String commandId, String tenantId) {
-        MachineCommand command = commands.findByCommandId(commandId)
+        boolean delayedSimulation = simulationEnabled && simulationDelayMs > 0
+            && simulationOutcome != SimulationOutcome.TIMEOUT;
+        MachineCommand command = (delayedSimulation
+            ? commands.findByCommandIdForUpdate(commandId)
+            : commands.findByCommandId(commandId))
             .orElseThrow(() -> new ResourceNotFoundException("Dispensing command not found: " + commandId));
         if (tenantId != null && !tenantId.isBlank()
                 && !command.getTenantId().equals(tenantId.trim())) {
             throw new InvalidOperationException("Dispensing command does not belong to the supplied tenant");
         }
+        if (delayedSimulation && command.getStatus() == MachineCommandStatus.ACKNOWLEDGED) {
+            Instant now = Instant.now();
+            if (!now.isBefore(command.getAcknowledgedAt().plusMillis(simulationDelayMs))) {
+                completeSimulation(command, now);
+            }
+        }
         return toResponse(command);
+    }
+
+    private void completeSimulation(MachineCommand command, Instant now) {
+        boolean success = simulationOutcome == SimulationOutcome.SUCCESS;
+        command.complete(success, success ? "Simulated dispense succeeded" : "Simulated dispense failed", now);
     }
 
     @Transactional(readOnly = true)

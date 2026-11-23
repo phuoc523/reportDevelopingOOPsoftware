@@ -14,7 +14,8 @@ type PaymentRecord = {
   paidAt: string | null
 }
 
-const orderServiceUrl = (import.meta.env.VITE_ORDER_SERVICE_URL ?? 'http://localhost:8083').replace(/\/$/, '')
+const liteProxy = import.meta.env.VITE_LITE_PROXY === '1'
+const orderServiceUrl = liteProxy ? '' : (import.meta.env.VITE_ORDER_SERVICE_URL ?? 'http://localhost:8083').replace(/\/$/, '')
 const callbackToken = import.meta.env.VITE_PAYMENT_CALLBACK_TOKEN ?? 'local-mock-callback-token'
 
 function getReferenceFromUrl() {
@@ -71,7 +72,7 @@ export default function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Payment-Callback-Token': callbackToken,
+          ...(!liteProxy && { 'X-Payment-Callback-Token': callbackToken }),
         },
         body: JSON.stringify({
           eventId: `mock-${Date.now()}`,
@@ -110,7 +111,7 @@ export default function App() {
   return (
     <main className="shell">
       <section className="panel">
-        <p className="eyebrow">SCENTSTATION · MOCK PAYMENT</p>
+        <p className="eyebrow">SCENTSTATION · THANH TOÁN MÔ PHỎNG</p>
         <h1>Thanh toán đơn hàng</h1>
 
         <div className="summary-grid">

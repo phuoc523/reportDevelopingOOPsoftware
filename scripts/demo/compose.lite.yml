@@ -1,0 +1,100 @@
+x-jvm: &lite-jvm
+  mem_limit: 384m
+x-db: &lite-db
+  mem_limit: 384m
+  command: ["--innodb-buffer-pool-size=64M", "--max-connections=32", "--performance-schema=OFF"]
+services:
+  redis:
+    mem_limit: 128m
+    environment:
+      REDIS_PORT: "6379"
+  api-gateway:
+    <<: *lite-jvm
+    ports: !reset []
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms48m -Xmx192m -XX:ActiveProcessorCount=2"
+      REDIS_PORT: "6379"
+    depends_on: !override
+      redis: {condition: service_healthy}
+      identity-service: {condition: service_healthy}
+      catalog-service: {condition: service_healthy}
+      order-service: {condition: service_healthy}
+      machine-service: {condition: service_healthy}
+  identity-service:
+    <<: *lite-jvm
+    environment:
+      PLATFORM_BOOTSTRAP_USERNAME: "${LITE_BOOTSTRAP_USERNAME:-}"
+      PLATFORM_BOOTSTRAP_EMAIL: "${LITE_BOOTSTRAP_EMAIL:-}"
+      PLATFORM_BOOTSTRAP_PASSWORD: "${LITE_BOOTSTRAP_PASSWORD:-}"
+      JAVA_TOOL_OPTIONS: "-Xms48m -Xmx192m -XX:ActiveProcessorCount=2"
+      REDIS_PORT: "6379"
+  catalog-service:
+    <<: *lite-jvm
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms48m -Xmx192m -XX:ActiveProcessorCount=2"
+      REDIS_PORT: "6379"
+  order-service:
+    <<: *lite-jvm
+    depends_on: !override
+      redis: {condition: service_healthy}
+      order-db: {condition: service_healthy}
+      machine-service: {condition: service_healthy}
+      catalog-service: {condition: service_healthy}
+    environment:
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Ho_Chi_Minh -Xms48m -Xmx192m -XX:ActiveProcessorCount=2"
+      REDIS_PORT: "6379"
+      ORDER_KAFKA_ENABLED: "false"
+      PAYMENT_MODE: SIMULATED
+      PAYMENT_PROVIDER: MOCK
+      PAYMENT_SANDBOX_MUTATIONS_ENABLED: "true"
+      PAYMENT_BANK_ACCOUNT: ""
+      PAYMENT_BANK_ACCOUNT_NAME: ""
+      SEPAY_WEBHOOK_SECRET: ""
+      SEPAY_RECONCILIATION_ENABLED: "false"
+      SEPAY_API_TOKEN: ""
+      SEPAY_BANK_ACCOUNT_ID: ""
+      PAYMENT_MOCK_WEB_BASE_URL: http://127.0.0.1:17516/mock-payment
+  machine-service:
+    <<: *lite-jvm
+    depends_on: !override
+      redis: {condition: service_healthy}
+      machine-db: {condition: service_healthy}
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms48m -Xmx192m -XX:ActiveProcessorCount=2"
+      REDIS_PORT: "6379"
+      MACHINE_MODE: SIMULATED
+      MACHINE_NOTIFICATION_KAFKA_ENABLED: "false"
+      MACHINE_COMMAND_SIMULATION_ENABLED: "true"
+      MACHINE_COMMANDS_SIMULATION_DELAY_MS: "2500"
+      MACHINE_COMMANDS_SIMULATION_OUTCOME: ${LITE_MACHINE_OUTCOME:-SUCCESS}
+  identity-db:
+    <<: *lite-db
+  catalog-db:
+    <<: *lite-db
+  order-db:
+    <<: *lite-db
+  machine-db:
+    <<: *lite-db
+  lite-web:
+    profiles: [demo-lite]
+    mem_limit: 64m
+    build:
+      context: .
+      dockerfile: infra/docker/lite-web.Dockerfile
+      args:
+        VITE_KIOSK_MACHINE_ID: "${LITE_KIOSK_MACHINE_ID:-9101}"
+    environment:
+      PAYMENT_CALLBACK_TOKEN: ${PAYMENT_CALLBACK_TOKEN:?Run Prepare-LocalEnv}
+      NGINX_ENVSUBST_FILTER: "^PAYMENT_CALLBACK_TOKEN$"
+    ports:
+      - "127.0.0.1:17514:7514"
+      - "127.0.0.1:17515:7515"
+      - "127.0.0.1:17516:3000"
+    networks: [default, ingress]
+    depends_on:
+      api-gateway: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:7515/ && wget -q -O /dev/null http://127.0.0.1:7514/ && wget -q -O /dev/null http://127.0.0.1:3000/"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
