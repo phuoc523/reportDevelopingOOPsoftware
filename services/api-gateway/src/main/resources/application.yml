@@ -29,6 +29,7 @@ spring:
               - ${CORS_ALLOWED_ORIGIN_3:http://localhost:7515}
               - ${CORS_ALLOWED_ORIGIN_4:http://127.0.0.1:7515}
               - ${CORS_ALLOWED_ORIGIN_5:http://localhost:3000}
+              - ${CORS_ALLOWED_ORIGIN_6:https://localhost:3443}
             allowedMethods:
               - GET
               - POST

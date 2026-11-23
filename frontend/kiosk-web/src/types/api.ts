@@ -118,6 +118,7 @@ export interface PaymentResponse {
   amount: number
   currency: string
   status: 'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED'
+  qrUrl: string
   qrPayload: string
   createdAt: string
   expiresAt: string

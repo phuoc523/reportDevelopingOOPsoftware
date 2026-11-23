@@ -67,7 +67,7 @@ function errorMessage(status: number, body: unknown) {
   return `Yêu cầu thất bại (HTTP ${status}).`
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, init: RequestInit = {}, includeAuth = true): Promise<T> {
   const method = (init.method ?? 'GET').toUpperCase()
   const token = authToken.get()
   const cacheable = isCacheableCatalogGet(path, method)
@@ -94,7 +94,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers)
     headers.set('Accept', 'application/json')
     if (init.body) headers.set('Content-Type', 'application/json')
-    if (token) headers.set('Authorization', `Bearer ${token}`)
+    if (includeAuth && token) headers.set('Authorization', `Bearer ${token}`)
 
     let response: Response
     try {
@@ -113,7 +113,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
     if (!response.ok) {
       const message = errorMessage(response.status, body)
-      if (response.status === 401 && path !== '/api/auth/login') {
+      if (includeAuth && response.status === 401) {
         authToken.clear()
         window.dispatchEvent(new CustomEvent('scentstation:kiosk-unauthorized', { detail: message }))
       }
@@ -138,10 +138,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const kioskApi = {
   async login(username: string, password: string) {
+    authToken.clear()
     const response = await request<AuthResponse>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
-    })
+    }, false)
     authToken.set(response.token)
     return response
   },

@@ -1,12 +1,15 @@
-FROM node:20-alpine
+FROM node:20-alpine AS build
+
+ARG VITE_ORDER_SERVICE_URL=
+ENV VITE_ORDER_SERVICE_URL=$VITE_ORDER_SERVICE_URL
 
 WORKDIR /app
-
 COPY frontend/mock-payment-web/package*.json ./
-RUN npm install
-
+RUN npm ci
 COPY frontend/mock-payment-web .
+RUN npm run build
 
+FROM nginx:1.27-alpine
+COPY infra/docker/nginx/mock-payment-web.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 3000
-
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]

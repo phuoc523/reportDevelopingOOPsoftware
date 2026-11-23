@@ -69,13 +69,16 @@ class PaymentControllerTest {
                 .andExpect(jsonPath("$.orderId").value(orderId))
                 .andExpect(jsonPath("$.amount").value(25.5))
                 .andExpect(jsonPath("$.status").value("PENDING"))
-                .andExpect(jsonPath("$.qrPayload").value(org.hamcrest.Matchers.startsWith(
-                        "http://localhost:3000/mock-payment/PAY-"
-                )))
+                .andExpect(jsonPath("$.qrUrl").value("http://mock-payment.example:3000/"))
+                .andExpect(jsonPath("$.qrPayload").value(org.hamcrest.Matchers.containsString("paymentReference")))
                 .andReturn();
 
-        String reference = objectMapper.readTree(firstResult.getResponse().getContentAsString())
-                .get("reference").asText();
+        JsonNode response = objectMapper.readTree(firstResult.getResponse().getContentAsString());
+        String reference = response.get("reference").asText();
+        JsonNode qrPayload = objectMapper.readTree(response.get("qrPayload").asText());
+        org.junit.jupiter.api.Assertions.assertEquals("SCENTSTATION_PAYMENT", qrPayload.get("type").asText());
+        org.junit.jupiter.api.Assertions.assertEquals(reference, qrPayload.get("paymentReference").asText());
+        org.junit.jupiter.api.Assertions.assertEquals(2, qrPayload.size());
 
         mockMvc.perform(post("/api/v1/orders/{id}/payments/qr", orderId))
                 .andExpect(status().isOk())
@@ -92,6 +95,82 @@ class PaymentControllerTest {
 
         org.junit.jupiter.api.Assertions.assertNotEquals(firstReference, secondReference);
         org.junit.jupiter.api.Assertions.assertNotEquals(firstOrderId, secondOrderId);
+        JsonNode firstQrData = getQrData(firstReference);
+        JsonNode secondQrData = getQrData(secondReference);
+        org.junit.jupiter.api.Assertions.assertEquals("SCENTSTATION_PAYMENT", firstQrData.get("type").asText());
+        org.junit.jupiter.api.Assertions.assertEquals("SCENTSTATION_PAYMENT", secondQrData.get("type").asText());
+        org.junit.jupiter.api.Assertions.assertEquals(firstReference, firstQrData.get("paymentReference").asText());
+        org.junit.jupiter.api.Assertions.assertEquals(secondReference, secondQrData.get("paymentReference").asText());
+        org.junit.jupiter.api.Assertions.assertNotEquals(
+                objectMapper.writeValueAsString(firstQrData),
+                objectMapper.writeValueAsString(secondQrData)
+        );
+    }
+
+    @Test
+    void publicPaymentResponseUsesRootUrlForPreviouslyStoredQrPayloads() throws Exception {
+        long orderId = createOrder();
+        paymentRepository.saveIfAbsent(new Payment(
+                "PAY-LEGACY",
+                orderId,
+                new java.math.BigDecimal("25.50"),
+                "VND",
+                "http://localhost:3000/mock-payment/PAY-LEGACY",
+                LocalDateTime.now(),
+                LocalDateTime.now().plusMinutes(15)
+        ));
+
+        mockMvc.perform(get("/api/v1/payments/public/{reference}", "PAY-LEGACY"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payment.qrUrl").value("http://mock-payment.example:3000/"))
+                .andExpect(jsonPath("$.payment.qrPayload").value(org.hamcrest.Matchers.containsString("paymentReference")));
+        JsonNode legacyQrData = getQrData("PAY-LEGACY");
+        org.junit.jupiter.api.Assertions.assertEquals("SCENTSTATION_PAYMENT", legacyQrData.get("type").asText());
+        org.junit.jupiter.api.Assertions.assertEquals("PAY-LEGACY", legacyQrData.get("paymentReference").asText());
+    }
+
+    @Test
+    void publicLookupAndConfirmResolveTheReferenceFromTheRequestBody() throws Exception {
+        long firstOrderId = createOrder();
+        long secondOrderId = createOrder();
+        String firstReference = createPayment(firstOrderId);
+        String secondReference = createPayment(secondOrderId);
+
+        mockMvc.perform(post("/api/v1/payments/public/lookup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentReference\":\"" + firstReference + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payment.reference").value(firstReference))
+                .andExpect(jsonPath("$.order.id").value(firstOrderId))
+                .andExpect(jsonPath("$.order.customerId").doesNotExist())
+                .andExpect(jsonPath("$.order.tenantId").doesNotExist())
+                .andExpect(jsonPath("$.order.machineId").doesNotExist());
+        mockMvc.perform(post("/api/v1/payments/public/lookup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentReference\":\"" + secondReference + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payment.reference").value(secondReference))
+                .andExpect(jsonPath("$.order.id").value(secondOrderId));
+
+        mockMvc.perform(post("/api/v1/payments/public/confirm")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(callbackBody("public-confirm-" + firstReference, firstReference, firstOrderId,
+                                "25.50", "VND", "PAID")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reference").value(firstReference))
+                .andExpect(jsonPath("$.status").value("PAID"));
+
+        mockMvc.perform(get("/api/v1/payments/{reference}", secondReference))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    @Test
+    void publicLookupRejectsUnknownReferences() throws Exception {
+        mockMvc.perform(post("/api/v1/payments/public/lookup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentReference\":\"PAY-NOT-FOUND\"}"))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -108,6 +187,12 @@ class PaymentControllerTest {
         mockMvc.perform(get("/api/v1/payments/{reference}", reference))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PAID"));
+        mockMvc.perform(post("/api/v1/payments/public/lookup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentReference\":\"" + reference + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payment.status").value("PAID"))
+                .andExpect(jsonPath("$.order.items[0].productName").value("Scent Sample"));
 
         mockMvc.perform(get("/api/v1/orders/{id}/dispensing", orderId))
                 .andExpect(status().isOk())
@@ -259,6 +344,11 @@ class PaymentControllerTest {
         mockMvc.perform(get("/api/v1/payments/{reference}", "PAY-EXPIRED"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("EXPIRED"));
+        mockMvc.perform(post("/api/v1/payments/public/lookup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"paymentReference\":\"PAY-EXPIRED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payment.status").value("EXPIRED"));
 
         mockMvc.perform(get("/api/v1/orders/{id}/status", orderId))
                 .andExpect(status().isOk())
@@ -437,6 +527,40 @@ class PaymentControllerTest {
     }
 
     @Test
+    void publicPaymentEndpointReturnsOnlyTheReferencedOrderAndAcceptsMockConfirmation() throws Exception {
+        long firstOrderId = createOrder();
+        long secondOrderId = createOrder();
+        String firstReference = createPayment(firstOrderId);
+        String secondReference = createPayment(secondOrderId);
+
+        mockMvc.perform(get("/api/v1/payments/public/{reference}", firstReference))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payment.reference").value(firstReference))
+                .andExpect(jsonPath("$.payment.orderId").value(firstOrderId))
+                .andExpect(jsonPath("$.order.id").value(firstOrderId))
+                .andExpect(jsonPath("$.order.items[0].productName").value("Scent Sample"));
+
+        mockMvc.perform(get("/api/v1/payments/public/{reference}", secondReference))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payment.reference").value(secondReference))
+                .andExpect(jsonPath("$.payment.orderId").value(secondOrderId))
+                .andExpect(jsonPath("$.order.id").value(secondOrderId));
+
+        mockMvc.perform(post("/api/v1/payments/public/{reference}/confirm", firstReference)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(callbackBody("public-event-" + firstOrderId, firstReference,
+                                firstOrderId, "25.50", "VND", "PAID")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAID"))
+                .andExpect(jsonPath("$.orderId").value(firstOrderId));
+
+        mockMvc.perform(get("/api/v1/payments/public/{reference}", secondReference))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.payment.status").value("PENDING"))
+                .andExpect(jsonPath("$.order.id").value(secondOrderId));
+    }
+
+    @Test
     void publishesOpenApiDocumentAndSwaggerUi() throws Exception {
         mockMvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
@@ -513,6 +637,15 @@ class PaymentControllerTest {
                 .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString())
                 .get("reference").asText();
+    }
+
+    private JsonNode getQrData(String reference) throws Exception {
+        MvcResult result = mockMvc.perform(get("/api/v1/payments/{reference}", reference))
+                .andExpect(status().isOk())
+                .andReturn();
+        String encodedPayload = objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("qrPayload").asText();
+        return objectMapper.readTree(encodedPayload);
     }
 
     private String callbackBody(

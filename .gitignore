@@ -42,3 +42,9 @@ infra/firebase/*.json
 .DS_Store
 Thumbs.db
 logs/
+# Locally generated Mock Payment leaf certificates and private keys
+infra/docker/tls/*.crt
+infra/docker/tls/*.key
+infra/docker/tls/*.pem
+infra/docker/tls/*.backup
+infra/docker/tls/*.tmp

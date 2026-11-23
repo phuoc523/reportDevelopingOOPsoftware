@@ -1,8 +1,13 @@
 package com.scentstation.order.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scentstation.order.dto.request.PaymentCallbackRequest;
 import com.scentstation.order.dto.response.OrderResponse;
+import com.scentstation.order.dto.response.PaymentQrPayload;
 import com.scentstation.order.dto.response.PaymentResponse;
+import com.scentstation.order.dto.response.PublicOrderDetailsResponse;
+import com.scentstation.order.dto.response.PublicPaymentResponse;
 import com.scentstation.order.entity.OrderStatus;
 import com.scentstation.order.entity.Payment;
 import com.scentstation.order.entity.PaymentCallbackEvent;
@@ -31,6 +36,7 @@ import java.util.UUID;
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
+    private final ObjectMapper objectMapper;
     private final OrderService orderService;
     private final DispensingService dispensingService;
     private final Duration qrExpiration;
@@ -39,11 +45,12 @@ public class PaymentService {
 
     public PaymentService(
             PaymentRepository paymentRepository,
+            ObjectMapper objectMapper,
             OrderService orderService,
             DispensingService dispensingService,
             @Value("${payment.qr-expiration:PT15M}") Duration qrExpiration,
             @Value("${payment.callback-token:local-mock-callback-token}") String callbackToken,
-            @Value("${payment.mock-web-base-url:http://localhost:3000/mock-payment}") String mockPaymentWebBaseUrl
+            @Value("${payment.mock-web-base-url}") String mockPaymentWebBaseUrl
     ) {
         if (qrExpiration.isZero() || qrExpiration.isNegative()) {
             throw new IllegalArgumentException("Payment QR expiration must be positive");
@@ -52,6 +59,7 @@ public class PaymentService {
             throw new IllegalArgumentException("Payment callback token must not be blank");
         }
         this.paymentRepository = paymentRepository;
+        this.objectMapper = objectMapper;
         this.orderService = orderService;
         this.dispensingService = dispensingService;
         this.qrExpiration = qrExpiration;
@@ -79,7 +87,7 @@ public class PaymentService {
         }
 
         String reference = "PAY-" + UUID.randomUUID().toString().replace("-", "").toUpperCase();
-        String qrPayload = mockPaymentWebBaseUrl + "/" + reference;
+        String qrPayload = encodeQrPayload(reference);
         LocalDateTime createdAt = LocalDateTime.now();
         LocalDateTime expiresAt = createdAt.plus(qrExpiration);
         if (order.expiresAt() != null && expiresAt.isAfter(order.expiresAt())) {
@@ -106,6 +114,28 @@ public class PaymentService {
         Payment payment = findPayment(reference);
         expireIfNecessary(payment);
         return toResponse(payment);
+    }
+
+    public PublicPaymentResponse getPublicPaymentDetails(String reference) {
+        PaymentResponse payment = getPayment(reference);
+        OrderResponse order = orderService.getOrderById(payment.orderId());
+        return new PublicPaymentResponse(payment, new PublicOrderDetailsResponse(
+                order.id(),
+                order.items(),
+                order.totalAmount(),
+                order.status(),
+                order.currency(),
+                order.expiresAt()
+        ));
+    }
+
+    @Transactional(noRollbackFor = PaymentVerificationException.class)
+    public PaymentResponse confirmPublicPayment(String reference, PaymentCallbackRequest request) {
+        if (!reference.equals(request.reference())) {
+            throw new PaymentVerificationException(HttpStatus.BAD_REQUEST,
+                    "Payment reference must match the callback request.");
+        }
+        return processCallback(request, callbackToken);
     }
 
     public PaymentResponse getPayment(String reference, IdentityPrincipal actor) {
@@ -256,7 +286,8 @@ public class PaymentService {
                     payment.getAmount(),
                     payment.getCurrency(),
                     payment.getStatus(),
-                    payment.getQrPayload(),
+                    mockPaymentWebBaseUrl,
+                    encodeQrPayload(payment.getReference()),
                     payment.getCreatedAt(),
                     payment.getExpiresAt(),
                     payment.getPaidAt()
@@ -275,13 +306,33 @@ public class PaymentService {
 
     private static String normalizeBaseUrl(String baseUrl) {
         if (baseUrl == null || baseUrl.isBlank()) {
-            return "http://localhost:3000/mock-payment";
+            throw new IllegalArgumentException("Mock payment web base URL must be configured");
         }
-        String normalized = baseUrl.trim();
-        if (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
+        java.net.URI uri = java.net.URI.create(baseUrl.trim());
+        String host = uri.getHost();
+        if (!(("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())))
+                || uri.getHost() == null
+                || "localhost".equalsIgnoreCase(host)
+                || host.toLowerCase(java.util.Locale.ROOT).endsWith(".localhost")
+                || host.matches("(?i)127(?:\\.\\d{1,3}){3}")
+                || "0.0.0.0".equals(host)
+                || host.matches("(?i)169\\.254(?:\\.\\d{1,3}){2}")
+                || "::1".equals(host)
+                || (uri.getPath() != null && !uri.getPath().isEmpty() && !"/".equals(uri.getPath()))
+                || uri.getQuery() != null
+                || uri.getFragment() != null
+                || uri.getUserInfo() != null) {
+            throw new IllegalArgumentException("Mock payment web base URL must be an HTTP/HTTPS origin root on a reachable host");
         }
-        return normalized;
+        return uri.getScheme() + "://" + uri.getRawAuthority() + "/";
+    }
+
+    private String encodeQrPayload(String reference) {
+        try {
+            return objectMapper.writeValueAsString(new PaymentQrPayload("SCENTSTATION_PAYMENT", reference));
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Unable to encode payment QR payload", exception);
+        }
     }
 
     private PaymentResponse accept(PaymentCallbackRequest request, Payment payment) {

@@ -11,6 +11,36 @@ const configuredMachineId = Number(import.meta.env.VITE_KIOSK_MACHINE_ID || '910
 const money = (value: number, currency = 'VND') => new Intl.NumberFormat('vi-VN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value)
 const readableError = (error: unknown) => error instanceof Error ? error.message : 'Không thể hoàn thành yêu cầu. Vui lòng thử lại.'
 
+function isPaymentQrData(qrPayload: string, reference: string) {
+  try {
+    const data: unknown = JSON.parse(qrPayload)
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false
+    const payload = data as Record<string, unknown>
+    return Object.keys(payload).length === 2
+      && payload.type === 'SCENTSTATION_PAYMENT'
+      && payload.paymentReference === reference
+  } catch {
+    return false
+  }
+}
+
+function getPaymentQrUrl(value: string) {
+  try {
+    const url = new URL(value)
+    const octets = url.hostname.split('.').map(Number)
+    const isIpv4 = octets.length === 4 && octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255)
+    const isHttpLan = url.protocol === 'http:' && (url.port === '3000' || url.port === '') && isIpv4
+      && octets[0] !== 0 && octets[0] !== 127 && !(octets[0] === 169 && octets[1] === 254)
+    const isHttpsOrigin = url.protocol === 'https:' && (url.port === '' || url.port === '3443')
+      && (isIpv4 || url.hostname.includes('.'))
+    if (!isHttpLan && !isHttpsOrigin) return null
+    if (url.pathname !== '/' || url.search || url.hash || url.username || url.password) return null
+    return url.href
+  } catch {
+    return null
+  }
+}
+
 function App() {
   const [principal, setPrincipal] = useState<Principal | null>(null)
   const [machine, setMachine] = useState<Machine | null>(null)
@@ -32,6 +62,8 @@ function App() {
   const creatingRef = useRef(false)
   const paymentReference = payment?.reference
   const paymentStatus = payment?.status
+  const paymentQrUrl = payment ? getPaymentQrUrl(payment.qrUrl) : null
+  const paymentQrDataValid = payment ? isPaymentQrData(payment.qrPayload, payment.reference) : false
 
   const machineReady = Boolean(!backendOffline
     && machine?.deviceRegistrationStatus === 'ACTIVE'
@@ -194,9 +226,27 @@ function App() {
       setError('Máy hiện không sẵn sàng để phục vụ lượt xịt. Không thể tạo đơn mới.')
       return
     }
-    if (resumablePayment) {
+    if (resumablePayment && payment) {
+      setBusy(true)
       setError('')
-      setScreen('payment')
+      try {
+        const currentPayment = await kioskApi.payment(payment.reference)
+        setPayment(currentPayment)
+        if (currentPayment.status === 'PAID') {
+          setScreen(order?.orderType === 'BOTTLE' ? 'result' : 'dispensing')
+        } else if (currentPayment.status === 'FAILED' || currentPayment.status === 'EXPIRED') {
+          setError(currentPayment.status === 'EXPIRED'
+            ? 'Giao dịch đã hết hạn. Vui lòng tạo đơn mới.'
+            : 'Thanh toán thất bại. Vui lòng tạo đơn mới.')
+          setScreen('result')
+        } else {
+          setScreen('payment')
+        }
+      } catch (reason) {
+        setError(readableError(reason))
+      } finally {
+        setBusy(false)
+      }
       return
     }
     creatingRef.current = true; setBusy(true); setError('')
@@ -362,15 +412,29 @@ function App() {
           <p>Đơn hàng #{payment.orderId}</p>
         </div>
       </div>
-      <div className="qr-wrap" aria-label="Mã QR thanh toán">
-        <QRCodeSVG value={payment.qrPayload} size={260} level="M" title={`QR thanh toán cho đơn hàng ${payment.orderId}`} />
-        <span className="pulse-dot" aria-hidden="true"/>
-      </div>
+      {paymentQrUrl && paymentQrDataValid ? <div className="qr-grid">
+        <article className="qr-card">
+          <h2>1. Mở Mock Payment trên điện thoại</h2>
+          <div className="qr-wrap" aria-label="QR URL trang chủ Mock Payment">
+            <QRCodeSVG value={paymentQrUrl} size={220} level="M" title="Mở trang chủ Mock Payment" />
+          </div>
+          <a className="payment-root-url" href={paymentQrUrl}>{paymentQrUrl}</a>
+        </article>
+        <article className="qr-card">
+          <h2>2. Dùng nút Quét mã QR trên điện thoại</h2>
+          <div className="qr-wrap" aria-label="QR dữ liệu thanh toán riêng của đơn hàng">
+            <QRCodeSVG value={payment.qrPayload} size={220} level="M" title="QR dữ liệu thanh toán của đơn hàng" />
+            <span className="pulse-dot" aria-hidden="true"/>
+          </div>
+          <p>Giữ trang thanh toán mở và đưa camera điện thoại vào mã này.</p>
+        </article>
+      </div> : <p className="error-box" role="alert">Dữ liệu URL hoặc QR thanh toán không hợp lệ. Vui lòng tải lại giao dịch.</p>}
       <strong className="payment-amount">{money(payment.amount, payment.currency)}</strong>
       <div className="payment-details">
         <p><span>Mã giao dịch</span><code>{payment.reference}</code></p>
         <p><span>Hết hạn lúc</span><strong>{new Date(payment.expiresAt).toLocaleTimeString('vi-VN')}{qrRemainingSeconds !== null ? ` (còn ${formatCountdown(qrRemainingSeconds)})` : ''}</strong></p>
       </div>
+      <small className="payment-hint">QR thứ nhất mở trang Mock Payment. QR thứ hai chỉ chứa dữ liệu định danh riêng của giao dịch.</small>
       <div className={`payment-status status-${payment.status.toLowerCase()}`} role="status">
         {payment.status === 'PENDING' && <div className="spinner"/>}
         <span>{payment.status === 'PENDING' ? 'Đang chờ backend xác nhận thanh toán…' : payment.status === 'PAID' ? 'Thanh toán thành công' : payment.status === 'FAILED' ? 'Thanh toán thất bại' : 'Giao dịch đã hết hạn'}</span>

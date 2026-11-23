@@ -201,6 +201,8 @@ services:
     build:
       context: .
       dockerfile: infra/docker/mock-payment-web.Dockerfile
+      args:
+        VITE_ORDER_SERVICE_URL: ""
     environment:
       # Keep browser requests on localhost:3000 and proxy them to the Gateway
       # inside Docker. This avoids exposing Order Service or relying on CORS.
@@ -212,6 +214,22 @@ services:
       - "${MOCK_PAYMENT_WEB_PORT:-3000}:3000"
     depends_on:
       - order-service
+      - api-gateway
+
+  mock-payment-web-https:
+    profiles: ["https"]
+    build:
+      context: .
+      dockerfile: infra/docker/mock-payment-web-https.Dockerfile
+      args:
+        VITE_ORDER_SERVICE_URL: ""
+    ports:
+      - "3443:3443"
+    volumes:
+      - ./infra/docker/tls:/etc/nginx/certs:ro
+    depends_on:
+      - order-service
+      - api-gateway
 
   machine-service:
     build:

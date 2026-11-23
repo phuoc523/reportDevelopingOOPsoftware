@@ -140,13 +140,16 @@ numeric order ID (for example, `http://localhost:8083/api/v1/orders/1` to view t
 full order as JSON). Shell variables such as `$($order.id)` are expanded only
 inside PowerShell commands, not in a browser address bar.
 
-The QR response contains an HTTP `qrPayload` URL such as
-`http://localhost:3000/mock-payment/PAY-...` that a client can render as a QR
-image. This is a mock payment page, not a connection to a real payment
-provider. Payments use VND and expire 15 minutes after creation by default
-(`PAYMENT_QR_EXPIRATION`, ISO-8601 duration, for example `PT15M`). The base URL
-is configurable via `PAYMENT_MOCK_WEB_BASE_URL`; for LAN testing, set it to the
-reachable host IP or hostname instead of hard-coding `localhost`.
+The QR response provides `qrUrl` and `qrPayload` separately. `qrUrl` is the
+shared Mock Payment site root (`http://<LAN_HOST>:3000/`); `qrPayload` is
+per-payment JSON containing `type: SCENTSTATION_PAYMENT` and that payment's
+`paymentReference`. The kiosk displays a QR for each value: the first opens the
+site, and the second is scanned from within the site. Neither the reference nor
+a path/query is added to the site URL. This is a mock payment page, not a
+connection to a real payment provider. Payments use VND and expire 15 minutes
+after creation by default (`PAYMENT_QR_EXPIRATION`, ISO-8601 duration, for
+example `PT15M`). `PAYMENT_MOCK_WEB_BASE_URL` must be configured as the site
+root; the Windows LAN script sets it from the active Wi-Fi IPv4.
 Orders also expire after `ORDER_EXPIRATION` (default `PT15M`); this is an
 independent setting and a payment QR cannot outlive its order.
 Order expiry is enforced when an order is read or processed. Payment expiry is
