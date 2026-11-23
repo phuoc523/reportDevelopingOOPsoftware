@@ -1,0 +1,31 @@
+user machine-service
+topic write scentstation/+/command
+topic read scentstation/+/response
+topic read scentstation/+/heartbeat
+topic read scentstation/+/telemetry
+topic read scentstation/+/event
+topic read scentstation/+/alert
+
+user device-ss-demo-9101
+topic read scentstation/9101/command
+topic write scentstation/9101/response
+topic write scentstation/9101/heartbeat
+topic write scentstation/9101/telemetry
+topic write scentstation/9101/event
+topic write scentstation/9101/alert
+
+user device-ch-demo-9102
+topic read scentstation/9102/command
+topic write scentstation/9102/response
+topic write scentstation/9102/heartbeat
+topic write scentstation/9102/telemetry
+topic write scentstation/9102/event
+topic write scentstation/9102/alert
+
+user device-dr-demo-9103
+topic read scentstation/9103/command
+topic write scentstation/9103/response
+topic write scentstation/9103/heartbeat
+topic write scentstation/9103/telemetry
+topic write scentstation/9103/event
+topic write scentstation/9103/alert
