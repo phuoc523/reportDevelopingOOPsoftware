@@ -45,6 +45,12 @@ Statuses are `ACCEPTED`, `PROCESSING`, `ACKNOWLEDGED`, `DISPENSED`, `FAILED`, `E
 
 When simulation is disabled and MQTT is enabled, a committed command is published to `scentstation/{machineId}/command`. Device responses update the persisted command. Heartbeat and other valid inbound device messages update `lastSeenAt`; the connectivity monitor creates `MACHINE_OFFLINE` after the configured TTL.
 
+## Telemetry and low stock
+
+Slot telemetry is published to `scentstation/{machineId}/telemetry` with `remainingPercent` from 0 to 100. `stockThreshold` uses the same percentage unit. The latest reading for each machine/slot is stored in `machine_telemetry_latest`.
+
+A normal reading at or below the configured threshold creates a deduplicated `LOW_STOCK` device alert. A newer reading above the threshold resolves that device alert. Inventory-origin alerts remain independent and are not resolved by device telemetry.
+
 ## Maintenance API
 
 - `PATCH /api/machines/{machineId}/control` with `ENTER_MAINTENANCE` puts the machine into maintenance mode and blocks new dispensing.

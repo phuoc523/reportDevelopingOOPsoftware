@@ -76,9 +76,28 @@ CREATE TABLE IF NOT EXISTS machine_slots (
     CONSTRAINT chk_slot_status
         CHECK (slot_status IN ('AVAILABLE', 'EMPTY', 'DISABLED', 'ERROR')),
     CONSTRAINT chk_slot_number CHECK (slot_number >= 1),
-    CONSTRAINT chk_stock_threshold CHECK (stock_threshold >= 0),
+    CONSTRAINT chk_stock_threshold CHECK (stock_threshold BETWEEN 0 AND 100),
     CONSTRAINT chk_spray_duration CHECK (calibrated_spray_duration_ms > 0),
     CONSTRAINT chk_dose_ml CHECK (dose_ml IS NULL OR dose_ml > 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS machine_telemetry_latest (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    machine_id BIGINT NOT NULL,
+    slot_id BIGINT NOT NULL,
+    remaining_percent DECIMAL(5,2) NOT NULL,
+    sensor_status VARCHAR(30) NOT NULL,
+    measured_at TIMESTAMP(6) NOT NULL,
+    received_at TIMESTAMP(6) NOT NULL,
+
+    PRIMARY KEY (id),
+    CONSTRAINT uk_telemetry_machine_slot UNIQUE (machine_id, slot_id),
+    CONSTRAINT fk_telemetry_machine FOREIGN KEY (machine_id)
+        REFERENCES machines(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_telemetry_slot FOREIGN KEY (slot_id)
+        REFERENCES machine_slots(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT chk_telemetry_remaining_percent
+        CHECK (remaining_percent BETWEEN 0 AND 100)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS machine_history (

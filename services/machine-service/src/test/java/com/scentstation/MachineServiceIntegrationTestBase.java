@@ -7,6 +7,7 @@ import com.scentstation.repository.MachineCommandRepository;
 import com.scentstation.repository.MachineHistoryRepository;
 import com.scentstation.repository.MachineRepository;
 import com.scentstation.repository.MachineSlotRepository;
+import com.scentstation.repository.MachineTelemetryLatestRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -55,6 +56,9 @@ abstract class MachineServiceIntegrationTestBase {
     private MachineSlotRepository slotRepository;
 
     @Autowired
+    private MachineTelemetryLatestRepository telemetryRepository;
+
+    @Autowired
     protected MachineRepository machineRepository;
 
     @Autowired
@@ -82,6 +86,7 @@ abstract class MachineServiceIntegrationTestBase {
         commandRepository.deleteAllInBatch();
         alertRepository.deleteAllInBatch();
         historyRepository.deleteAllInBatch();
+        telemetryRepository.deleteAllInBatch();
         slotRepository.deleteAllInBatch();
         machineRepository.deleteAllInBatch();
         locationRepository.deleteAllInBatch();

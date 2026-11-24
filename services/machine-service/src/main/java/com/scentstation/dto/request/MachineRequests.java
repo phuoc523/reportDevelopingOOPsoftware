@@ -112,6 +112,7 @@ public final class MachineRequests {
 
         @NotNull
         @Min(0)
+        @Max(100)
         private Integer stockThreshold;
 
         @NotNull
@@ -391,6 +392,7 @@ public final class MachineRequests {
 
         @NotNull
         @Min(0)
+        @Max(100)
         private Integer stockThreshold;
 
         @NotNull

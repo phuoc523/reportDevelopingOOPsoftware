@@ -12,8 +12,9 @@
 #endif
 
 namespace {
-constexpr char FIRMWARE_VERSION[] = "esp32-led-1.0.0";
+constexpr char FIRMWARE_VERSION[] = "esp32-led-1.1.0";
 constexpr unsigned long HEARTBEAT_INTERVAL_MS = 5000;
+constexpr unsigned long TELEMETRY_INTERVAL_MS = 30000;
 constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 3000;
 constexpr int MIN_DURATION_MS = 50;
 constexpr int MAX_DURATION_MS = 10000;
@@ -29,12 +30,15 @@ const SlotPin SLOT_PINS[] = {
     {"91007", 19},
     {"91008", 21},
 };
+constexpr size_t SLOT_COUNT = sizeof(SLOT_PINS) / sizeof(SLOT_PINS[0]);
 
 WiFiClient networkClient;
 PubSubClient mqtt(networkClient);
 Preferences preferences;
 unsigned long lastHeartbeatAt = 0;
+unsigned long lastTelemetryAt = 0;
 unsigned long lastReconnectAttemptAt = 0;
+float remainingPercent[] = {100.0F, 100.0F, 100.0F, 100.0F};
 
 String topic(const char* channel) {
   return "scentstation/" + String(MACHINE_ID) + "/" + channel;
@@ -75,6 +79,13 @@ time_t parseTimestamp(const char* value) {
 int pinForSlot(const String& slotId) {
   for (const SlotPin& slot : SLOT_PINS) {
     if (slotId == slot.slotId) return slot.pin;
+  }
+  return -1;
+}
+
+int indexForSlot(const String& slotId) {
+  for (size_t index = 0; index < SLOT_COUNT; index++) {
+    if (slotId == SLOT_PINS[index].slotId) return static_cast<int>(index);
   }
   return -1;
 }
@@ -175,6 +186,49 @@ void publishHeartbeat() {
   mqtt.publish(topic("heartbeat").c_str(), reinterpret_cast<const uint8_t*>(json), length, false);
 }
 
+void publishTelemetry() {
+  if (!mqtt.connected() || !clockReady()) return;
+  JsonDocument document;
+  document["schemaVersion"] = 1;
+  document["messageId"] = newMessageId();
+  document["machineId"] = MACHINE_ID;
+  document["type"] = "TELEMETRY";
+  document["timestamp"] = timestampNow();
+  JsonArray readings = document["payload"]["slots"].to<JsonArray>();
+  for (size_t index = 0; index < SLOT_COUNT; index++) {
+    JsonObject reading = readings.add<JsonObject>();
+    reading["slotId"] = SLOT_PINS[index].slotId;
+    reading["remainingPercent"] = remainingPercent[index];
+    reading["sensorStatus"] = "NORMAL";
+  }
+
+  char json[1024];
+  size_t length = serializeJson(document, json, sizeof(json));
+  mqtt.publish(topic("telemetry").c_str(), reinterpret_cast<const uint8_t*>(json), length, false);
+}
+
+void handleSerialDemo() {
+  if (!Serial.available()) return;
+  String line = Serial.readStringUntil('\n');
+  line.trim();
+  if (!line.startsWith("LEVEL ")) {
+    Serial.println("Use: LEVEL <slotId> <0-100>");
+    return;
+  }
+  int separator = line.indexOf(' ', 6);
+  if (separator < 0) return;
+  String slotId = line.substring(6, separator);
+  float value = line.substring(separator + 1).toFloat();
+  int index = indexForSlot(slotId);
+  if (index < 0 || value < 0 || value > 100) {
+    Serial.println("Invalid slotId or level");
+    return;
+  }
+  remainingPercent[index] = value;
+  publishTelemetry();
+  Serial.printf("Telemetry sent: slot=%s remaining=%.2f%%\n", slotId.c_str(), value);
+}
+
 void connectWifi() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -194,6 +248,7 @@ void connectMqtt() {
     mqtt.subscribe(topic("command").c_str(), 1);
     Serial.println("MQTT connected");
     publishHeartbeat();
+    publishTelemetry();
   }
 }
 }  // namespace
@@ -217,9 +272,14 @@ void loop() {
   if (WiFi.status() != WL_CONNECTED) connectWifi();
   connectMqtt();
   mqtt.loop();
+  handleSerialDemo();
   if (mqtt.connected() && millis() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
     lastHeartbeatAt = millis();
     publishHeartbeat();
+  }
+  if (mqtt.connected() && millis() - lastTelemetryAt >= TELEMETRY_INTERVAL_MS) {
+    lastTelemetryAt = millis();
+    publishTelemetry();
   }
   delay(10);
 }

@@ -32,3 +32,13 @@ arduino-cli upload --port COM7 --fqbn esp32:esp32:esp32 firmware/esp32-led-machi
 ```
 
 Firmware gửi heartbeat mỗi 5 giây, nhận `DISPENSE_COMMAND`, lưu `commandId` gần nhất vào NVS, bật đúng LED theo `durationMs`, rồi gửi `ACKNOWLEDGED` và `DISPENSED`. Nếu ESP32 khởi động lại giữa lúc LED đang bật, command được lưu là `UNKNOWN` và không được thực hiện lại.
+
+## Demo mức nước hoa
+
+Firmware gửi telemetry của bốn slot mỗi 30 giây. Khi chưa có cảm biến, mở Serial Monitor ở 115200 baud và nhập:
+
+```text
+LEVEL 91001 5
+```
+
+Lệnh trên đặt mức demo của slot `91001` thành 5% và gửi telemetry ngay. Dùng giá trị lớn hơn `stockThreshold` để kiểm tra việc tự resolve cảnh báo `LOW_STOCK`.
