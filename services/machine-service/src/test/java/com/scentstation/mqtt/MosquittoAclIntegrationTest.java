@@ -33,6 +33,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MosquittoAclIntegrationTest {
     private static final String DEVICE_A = "device-a";
     private static final String DEVICE_B = "device-b";
+    private static final String MACHINE_A = "9101";
+    private static final String MACHINE_B = "9102";
     private static final String BACKEND = "machine-service";
     private static final String DEVICE_A_PASSWORD = "test-device-a-password";
     private static final String DEVICE_B_PASSWORD = "test-device-b-password";
@@ -96,12 +98,12 @@ class MosquittoAclIntegrationTest {
     @Test
     void acceptsOwnDeviceMessagesAndDeniesCrossDeviceSubscriptions() throws Exception {
         CountDownLatch received = new CountDownLatch(1);
-        backend.subscribe(topic(DEVICE_A, "heartbeat"), 1, (topic, message) -> received.countDown())
+        backend.subscribe(topic(MACHINE_A, "heartbeat"), 1, (topic, message) -> received.countDown())
             .waitForCompletion(5000);
-        publish(deviceA, topic(DEVICE_A, "heartbeat"), "heartbeat");
+        publish(deviceA, topic(MACHINE_A, "heartbeat"), "heartbeat");
         assertTrue(received.await(3, TimeUnit.SECONDS));
 
-        IMqttToken deniedSubscription = deviceA.subscribe(topic(DEVICE_B, "heartbeat"), 1);
+        IMqttToken deniedSubscription = deviceA.subscribe(topic(MACHINE_B, "heartbeat"), 1);
         deniedSubscription.waitForCompletion(5000);
         assertArrayEquals(new int[] {128}, deniedSubscription.getGrantedQos());
     }
@@ -109,10 +111,10 @@ class MosquittoAclIntegrationTest {
     @Test
     void deviceCannotPublishToAnotherDevicesTopic() throws Exception {
         CountDownLatch crossDeviceMessageReceived = new CountDownLatch(1);
-        backend.subscribe(topic(DEVICE_B, "heartbeat"), 1,
+        backend.subscribe(topic(MACHINE_B, "heartbeat"), 1,
             (ignoredTopic, ignoredMessage) -> crossDeviceMessageReceived.countDown()).waitForCompletion(5000);
         try {
-            publish(deviceA, topic(DEVICE_B, "heartbeat"), "must be denied");
+            publish(deviceA, topic(MACHINE_B, "heartbeat"), "must be denied");
         } catch (MqttException ignored) {
             // Mosquitto may reject the publish by disconnecting the unauthorized client.
         }
@@ -122,18 +124,15 @@ class MosquittoAclIntegrationTest {
     @Test
     void devicesCannotPublishCommandsAndBackendCanPublishOnlyAuthorizedTopics() throws Exception {
         CountDownLatch commandMessageReceived = new CountDownLatch(1);
-        deviceA.subscribe(topic(DEVICE_A, "commands"), 1,
+        deviceA.subscribe(topic(MACHINE_A, "command"), 1,
             (ignoredTopic, ignoredMessage) -> commandMessageReceived.countDown()).waitForCompletion(5000);
-        publish(deviceA, topic(DEVICE_A, "commands"), "must be denied");
+        publish(deviceA, topic(MACHINE_A, "command"), "must be denied");
         assertFalse(commandMessageReceived.await(700, TimeUnit.MILLISECONDS));
 
-        CountDownLatch backendTestReceived = new CountDownLatch(1);
-        deviceA.subscribe(topic(DEVICE_A, "backend/test"), 1,
-            (ignoredTopic, ignoredMessage) -> backendTestReceived.countDown()).waitForCompletion(5000);
-        publish(backend, topic(DEVICE_A, "backend/test"), "CONNECTIVITY_TEST");
-        assertTrue(backendTestReceived.await(3, TimeUnit.SECONDS));
+        publish(backend, topic(MACHINE_A, "command"), "DISPENSE_COMMAND");
+        assertTrue(commandMessageReceived.await(3, TimeUnit.SECONDS));
 
-        IMqttToken deniedBackendSubscription = backend.subscribe(topic(DEVICE_A, "commands"), 1);
+        IMqttToken deniedBackendSubscription = backend.subscribe(topic(MACHINE_A, "command"), 1);
         deniedBackendSubscription.waitForCompletion(5000);
         assertArrayEquals(new int[] {128}, deniedBackendSubscription.getGrantedQos());
     }
@@ -143,7 +142,7 @@ class MosquittoAclIntegrationTest {
         MqttMessage retained = new MqttMessage("retained".getBytes(StandardCharsets.UTF_8));
         retained.setQos(1);
         retained.setRetained(true);
-        assertThrows(MqttException.class, () -> deviceA.publish(topic(DEVICE_A, "events"), retained)
+        assertThrows(MqttException.class, () -> deviceA.publish(topic(MACHINE_A, "event"), retained)
             .waitForCompletion(5000));
     }
 
@@ -152,7 +151,7 @@ class MosquittoAclIntegrationTest {
         byte[] oversizedPayload = new byte[65_537];
         MqttMessage oversized = new MqttMessage(oversizedPayload);
         oversized.setQos(1);
-        assertThrows(MqttException.class, () -> deviceA.publish(topic(DEVICE_A, "events"), oversized)
+        assertThrows(MqttException.class, () -> deviceA.publish(topic(MACHINE_A, "event"), oversized)
             .waitForCompletion(5000));
     }
 
@@ -186,8 +185,8 @@ class MosquittoAclIntegrationTest {
         client.publish(topic, message).waitForCompletion(5000);
     }
 
-    private static String topic(String deviceId, String channel) {
-        return "scentstation/v1/devices/" + deviceId + "/" + channel;
+    private static String topic(String machineId, String channel) {
+        return "scentstation/" + machineId + "/" + channel;
     }
 
     private static void close(MqttAsyncClient client) {

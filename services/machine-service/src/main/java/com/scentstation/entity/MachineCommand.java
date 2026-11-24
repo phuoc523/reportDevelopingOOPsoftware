@@ -106,6 +106,13 @@ public class MachineCommand {
         this.expiresAt = expiresAt;
     }
 
+    public MachineCommand(String commandId, Machine machine, String orderId, String paymentReference,
+                          String slotId, String requestFingerprint, Instant issuedAt, Instant expiresAt) {
+        this(commandId, machine.getTenantId(), orderId, paymentReference, machine.getId(), slotId,
+            requestFingerprint, issuedAt, expiresAt);
+        this.deviceIdentity = machine.getDeviceIdentity();
+    }
+
     public void acknowledge(Instant at) {
         if (isTerminal()) {
             return;
@@ -132,9 +139,26 @@ public class MachineCommand {
             : success ? MachineCommandStatus.DISPENSED : MachineCommandStatus.FAILED;
     }
 
+    public void markUnknown(String details, Instant at) {
+        if (isTerminal()) return;
+        resultSuccess = null;
+        resultDetails = details;
+        completedAt = at;
+        status = MachineCommandStatus.UNKNOWN;
+    }
+
+    public void markExpired(String details, Instant at) {
+        if (isTerminal()) return;
+        resultSuccess = null;
+        resultDetails = details;
+        completedAt = at;
+        status = MachineCommandStatus.EXPIRED;
+    }
+
     private boolean isTerminal() {
         return status == MachineCommandStatus.DISPENSED
             || status == MachineCommandStatus.FAILED
+            || status == MachineCommandStatus.UNKNOWN
             || status == MachineCommandStatus.EXPIRED;
     }
 

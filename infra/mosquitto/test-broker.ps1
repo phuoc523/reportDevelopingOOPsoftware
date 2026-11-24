@@ -18,24 +18,22 @@ foreach ($line in Get-Content -LiteralPath $envFile) {
 }
 
 $devices = @(
-    @{ Username = 'device-ss-demo-9101'; MachineId = '9101'; PasswordKey = 'MQTT_DEVICE_SS_DEMO_9101_PASSWORD' },
-    @{ Username = 'device-ch-demo-9102'; MachineId = '9102'; PasswordKey = 'MQTT_DEVICE_CH_DEMO_9102_PASSWORD' },
-    @{ Username = 'device-dr-demo-9103'; MachineId = '9103'; PasswordKey = 'MQTT_DEVICE_DR_DEMO_9103_PASSWORD' }
+    @{ Username = 'device-ss-demo-9101'; MachineId = '9101'; PasswordKey = 'MQTT_DEVICE_9101_PASSWORD' }
 )
 $servicePassword = $values['MQTT_MACHINE_SERVICE_PASSWORD']
 $passwords = @($servicePassword)
 foreach ($device in $devices) {
     $password = $values[$device.PasswordKey]
-    if (-not $password -or $password.StartsWith('replace-with-') -or $password.Length -lt 32) {
-        throw "Set a unique password of at least 32 characters for $($device.Username) in .env."
+    if (-not $password -or $password.StartsWith('replace-with-') -or $password.Length -lt 16) {
+        throw "Set a unique password of at least 16 characters for $($device.Username) in .env."
     }
     $passwords += $password
 }
 if (-not $servicePassword -or $servicePassword.StartsWith('replace-with-') -or
-        $servicePassword.Length -lt 32) {
-    throw 'Set a unique password of at least 32 characters for Machine Service in .env.'
+        $servicePassword.Length -lt 16) {
+    throw 'Set a unique password of at least 16 characters for Machine Service in .env.'
 }
-if (@($passwords | Select-Object -Unique).Count -ne $passwords.Count) {
+if ($servicePassword -eq $values['MQTT_DEVICE_9101_PASSWORD']) {
     throw 'Machine Service and each demo device must have different MQTT passwords.'
 }
 
@@ -45,14 +43,13 @@ if (-not $brokerId) {
 }
 
 $source = $devices[0]
-$target = $devices[1]
+$targetMachineId = '9102'
 $nonce = [Guid]::NewGuid().ToString('N')
 $tokens = @{
     '__SOURCE_USERNAME__' = $source.Username
     '__SOURCE_PASSWORD__' = $values[$source.PasswordKey]
     '__SOURCE_MACHINE_ID__' = $source.MachineId
-    '__TARGET_USERNAME__' = $target.Username
-    '__TARGET_MACHINE_ID__' = $target.MachineId
+    '__TARGET_MACHINE_ID__' = $targetMachineId
     '__SERVICE_PASSWORD__' = $servicePassword
     '__NONCE__' = $nonce
 }

@@ -1,6 +1,6 @@
 # ScentStation Machine Service
 
-REST service for machine, location, slot, availability, alerts, and dispensing commands (P4-01 to P4-09). MQTT and device telemetry are not part of this service scope.
+REST and MQTT service for machine, location, slot, availability, alerts, dispensing commands and device connectivity.
 
 ## Database
 
@@ -24,6 +24,9 @@ Tenant, location, product, cartridge, and order IDs are external identifiers. Th
 | MACHINE_COMMAND_EXPIRY_INTERVAL_MS | 60000 | Command expiry job interval |
 | MACHINE_COMMAND_LIFETIME_MS | 60000 | Dispensing-command lifetime |
 | MACHINE_ALERT_ESCALATE_AFTER_MS | 300000 | Alert escalation delay |
+| MACHINE_MQTT_ENABLED | false | Enable MQTT command/heartbeat integration |
+| MACHINE_MQTT_BROKER_URL | tcp://localhost:1883 | Mosquitto URI |
+| MACHINE_MQTT_HEARTBEAT_TIMEOUT_MS | 15000 | Mark an online machine offline after this TTL |
 
 ```powershell
 # For this PowerShell session (never commit a real password):
@@ -39,6 +42,8 @@ mvn spring-boot:run
 A command ID is idempotent. An order cannot have more than one active command. Machine and slot availability are validated before acceptance.
 
 Statuses are `ACCEPTED`, `PROCESSING`, `ACKNOWLEDGED`, `DISPENSED`, `FAILED`, `EXPIRED`, and `UNKNOWN`.
+
+When simulation is disabled and MQTT is enabled, a committed command is published to `scentstation/{machineId}/command`. Device responses update the persisted command. Heartbeat and other valid inbound device messages update `lastSeenAt`; the connectivity monitor creates `MACHINE_OFFLINE` after the configured TTL.
 
 ## Maintenance API
 

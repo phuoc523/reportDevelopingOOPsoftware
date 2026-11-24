@@ -52,18 +52,6 @@ java -jar device-simulator/target/device-simulator-1.0.0-SNAPSHOT.jar
 
 The simulator is a separate JVM and does not depend on Machine Service being in the same process. Backend services and the broker must be running for an integrated kiosk session.
 
-## Optional local Compose profile
-
-The optional profile starts one 4-slot virtual kiosk for demo machine 9101 and stores its journal in a named volume:
-
-```powershell
-docker compose --profile mqtt-setup run --rm mosquitto-setup
-docker compose up -d mqtt-broker machine-service
-docker compose --profile device-simulator up --build device-simulator-9101
-```
-
-Use `docker compose --profile device-simulator logs -f device-simulator-9101` to observe the device. The profile is opt-in; default Compose startup does not add a simulator.
-
 ## Fault controls
 
 In an interactive terminal, enter one command per line:

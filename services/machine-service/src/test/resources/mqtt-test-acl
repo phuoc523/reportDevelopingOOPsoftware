@@ -1,15 +1,23 @@
 user machine-service
-topic read scentstation/v1/devices/+/heartbeat
-topic read scentstation/v1/devices/+/telemetry
-topic read scentstation/v1/devices/+/events
-topic read scentstation/v1/devices/+/acks
-topic read scentstation/v1/devices/+/results
-topic write scentstation/v1/devices/+/commands
-topic write scentstation/v1/devices/+/backend/test
-pattern write scentstation/v1/devices/%u/heartbeat
-pattern write scentstation/v1/devices/%u/telemetry
-pattern write scentstation/v1/devices/%u/events
-pattern write scentstation/v1/devices/%u/acks
-pattern write scentstation/v1/devices/%u/results
-pattern read scentstation/v1/devices/%u/commands
-pattern read scentstation/v1/devices/%u/backend/test
+topic write scentstation/+/command
+topic read scentstation/+/response
+topic read scentstation/+/heartbeat
+topic read scentstation/+/telemetry
+topic read scentstation/+/event
+topic read scentstation/+/alert
+
+user device-a
+topic read scentstation/9101/command
+topic write scentstation/9101/response
+topic write scentstation/9101/heartbeat
+topic write scentstation/9101/telemetry
+topic write scentstation/9101/event
+topic write scentstation/9101/alert
+
+user device-b
+topic read scentstation/9102/command
+topic write scentstation/9102/response
+topic write scentstation/9102/heartbeat
+topic write scentstation/9102/telemetry
+topic write scentstation/9102/event
+topic write scentstation/9102/alert

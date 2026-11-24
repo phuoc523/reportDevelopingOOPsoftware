@@ -231,6 +231,37 @@ services:
       - order-service
       - api-gateway
 
+  mqtt-broker:
+    image: eclipse-mosquitto:2.0.22
+    environment:
+      MQTT_MACHINE_SERVICE_PASSWORD: "${MQTT_MACHINE_SERVICE_PASSWORD:?Set MQTT_MACHINE_SERVICE_PASSWORD in .env}"
+      MQTT_DEVICE_9101_PASSWORD: "${MQTT_DEVICE_9101_PASSWORD:?Set MQTT_DEVICE_9101_PASSWORD in .env}"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        mkdir -p /mosquitto/secrets
+        mosquitto_passwd -b -c /mosquitto/secrets/passwd machine-service "$${MQTT_MACHINE_SERVICE_PASSWORD}"
+        mosquitto_passwd -b /mosquitto/secrets/passwd device-ss-demo-9101 "$${MQTT_DEVICE_9101_PASSWORD}"
+        chown mosquitto:mosquitto /mosquitto/secrets/passwd
+        chmod 600 /mosquitto/secrets/passwd
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
+    ports:
+      - "${MOSQUITTO_PORT:-1883}:1883"
+    volumes:
+      - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./infra/mosquitto/acl:/mosquitto/config/acl:ro
+      - mqtt-data:/mosquitto/data
+    tmpfs:
+      - /mosquitto/secrets:mode=1777
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 1883"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
   machine-service:
     build:
       context: .
@@ -254,7 +285,14 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
       MACHINE_NOTIFICATION_KAFKA_ENABLED: "true"
       MACHINE_NOTIFICATION_KAFKA_TOPIC: "machine-alert.v1"
-      MACHINE_COMMAND_SIMULATION_ENABLED: "true"
+      MACHINE_COMMAND_SIMULATION_ENABLED: "false"
+      MACHINE_MQTT_ENABLED: "true"
+      MACHINE_MQTT_BROKER_URL: "tcp://mqtt-broker:1883"
+      MACHINE_MQTT_USERNAME: "machine-service"
+      MACHINE_MQTT_PASSWORD: "${MQTT_MACHINE_SERVICE_PASSWORD:?Set MQTT_MACHINE_SERVICE_PASSWORD in .env}"
+      MACHINE_MQTT_CLIENT_ID: "machine-service"
+      MACHINE_MQTT_HEARTBEAT_TIMEOUT_MS: "${MACHINE_MQTT_HEARTBEAT_TIMEOUT_MS:-15000}"
+      MACHINE_MQTT_CONNECTIVITY_CHECK_INTERVAL_MS: "${MACHINE_MQTT_CONNECTIVITY_CHECK_INTERVAL_MS:-5000}"
     depends_on:
       redis:
         condition: service_healthy
@@ -262,6 +300,8 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+      mqtt-broker:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8084/actuator/health"]
       interval: 10s
@@ -675,6 +715,7 @@ volumes:
   operation-data:
   reporting-data:
   notification-data:
+  mqtt-data:
   kafka-data:
   prometheus-data:
   grafana-data:
