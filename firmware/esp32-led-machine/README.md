@@ -20,7 +20,7 @@ ESP32 và laptop phải ở cùng mạng. `MQTT_HOST` không được dùng `loc
 ## Thư viện Arduino
 
 ```powershell
-arduino-cli lib install PubSubClient
+arduino-cli lib install ArduinoMqttClient@0.1.8
 arduino-cli lib install ArduinoJson
 ```
 
@@ -31,7 +31,7 @@ arduino-cli compile --fqbn esp32:esp32:esp32 firmware/esp32-led-machine
 arduino-cli upload --port COM7 --fqbn esp32:esp32:esp32 firmware/esp32-led-machine
 ```
 
-Firmware gửi heartbeat mỗi 5 giây, nhận `DISPENSE_COMMAND`, lưu `commandId` gần nhất vào NVS, bật đúng LED theo `durationMs`, rồi gửi `ACKNOWLEDGED` và `DISPENSED`. Nếu ESP32 khởi động lại giữa lúc LED đang bật, command được lưu là `UNKNOWN` và không được thực hiện lại.
+Firmware dùng MQTT QoS 1 cho response, heartbeat và telemetry. Nó lưu tám `commandId` gần nhất cùng kết quả vào NVS, bật đúng LED theo `durationMs`, rồi gửi `ACKNOWLEDGED` và `DISPENSED`. Nếu ESP32 khởi động lại giữa lúc LED đang bật, command được lưu là `UNKNOWN` và không được thực hiện lại.
 
 ## Demo mức nước hoa
 

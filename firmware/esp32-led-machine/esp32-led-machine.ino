@@ -1,7 +1,7 @@
 #include <Arduino.h>
+#include <ArduinoMqttClient.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
-#include <PubSubClient.h>
 #include <WiFi.h>
 #include <time.h>
 
@@ -18,6 +18,7 @@ constexpr unsigned long TELEMETRY_INTERVAL_MS = 30000;
 constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 3000;
 constexpr int MIN_DURATION_MS = 50;
 constexpr int MAX_DURATION_MS = 10000;
+constexpr size_t RESULT_HISTORY_SIZE = 8;
 
 struct SlotPin {
   const char* slotId;
@@ -33,7 +34,7 @@ const SlotPin SLOT_PINS[] = {
 constexpr size_t SLOT_COUNT = sizeof(SLOT_PINS) / sizeof(SLOT_PINS[0]);
 
 WiFiClient networkClient;
-PubSubClient mqtt(networkClient);
+MqttClient mqtt(networkClient);
 Preferences preferences;
 unsigned long lastHeartbeatAt = 0;
 unsigned long lastTelemetryAt = 0;
@@ -42,6 +43,12 @@ float remainingPercent[] = {100.0F, 100.0F, 100.0F, 100.0F};
 
 String topic(const char* channel) {
   return "scentstation/" + String(MACHINE_ID) + "/" + channel;
+}
+
+bool publishQos1(const char* channel, const char* json, size_t length) {
+  if (!mqtt.connected() || mqtt.beginMessage(topic(channel), length, false, 1) != 1) return false;
+  mqtt.write(reinterpret_cast<const uint8_t*>(json), length);
+  return mqtt.endMessage() == 1;
 }
 
 String newMessageId() {
@@ -72,7 +79,15 @@ bool clockReady() {
 
 time_t parseTimestamp(const char* value) {
   struct tm parsed {};
-  if (value == nullptr || strptime(value, "%Y-%m-%dT%H:%M:%SZ", &parsed) == nullptr) return 0;
+  if (value == nullptr) return 0;
+  const char* rest = strptime(value, "%Y-%m-%dT%H:%M:%S", &parsed);
+  if (rest == nullptr) return 0;
+  if (*rest == '.') {
+    rest++;
+    if (*rest < '0' || *rest > '9') return 0;
+    while (*rest >= '0' && *rest <= '9') rest++;
+  }
+  if (*rest != 'Z' || *(rest + 1) != '\0') return 0;
   return mktime(&parsed);
 }
 
@@ -104,20 +119,41 @@ void publishResponse(const String& commandId, const char* status, const String& 
 
   char json[768];
   size_t length = serializeJson(document, json, sizeof(json));
-  mqtt.publish(topic("response").c_str(), reinterpret_cast<const uint8_t*>(json), length, false);
+  publishQos1("response", json, length);
+}
+
+String resultKey(const char* prefix, size_t index) {
+  return String(prefix) + index;
+}
+
+int storedResultIndex(const String& commandId) {
+  for (size_t index = 0; index < RESULT_HISTORY_SIZE; index++) {
+    if (preferences.getString(resultKey("commandId", index).c_str(), "") == commandId) {
+      return static_cast<int>(index);
+    }
+  }
+  return -1;
 }
 
 void rememberResult(const String& commandId, const char* status, const String& details) {
-  preferences.putString("commandId", commandId);
-  preferences.putString("status", status);
-  preferences.putString("details", details.substring(0, 200));
+  int existing = storedResultIndex(commandId);
+  size_t index = existing >= 0 ? static_cast<size_t>(existing)
+      : preferences.getUChar("resultNext", 0) % RESULT_HISTORY_SIZE;
+  preferences.putString(resultKey("commandId", index).c_str(), commandId);
+  preferences.putString(resultKey("status", index).c_str(), status);
+  preferences.putString(resultKey("details", index).c_str(), details.substring(0, 200));
+  if (existing < 0) preferences.putUChar("resultNext", (index + 1) % RESULT_HISTORY_SIZE);
 }
 
 void replayIfDuplicate(const String& commandId, bool& duplicate) {
-  duplicate = preferences.getString("commandId", "") == commandId;
+  int index = storedResultIndex(commandId);
+  duplicate = index >= 0;
   if (!duplicate) return;
-  String status = preferences.getString("status", "UNKNOWN");
-  String details = preferences.getString("details", "Stored command result replayed");
+  String status = preferences.getString(resultKey("status", index).c_str(), "UNKNOWN");
+  String details = preferences.getString(resultKey("details", index).c_str(),
+      "Stored command result replayed");
+  Serial.printf("Duplicate command ignored, replaying %s: id=%s\n",
+      status.c_str(), commandId.c_str());
   publishResponse(commandId, status.c_str(), details);
 }
 
@@ -135,6 +171,8 @@ void handleCommand(byte* bytes, unsigned int length) {
   int durationMs = payload["durationMs"].as<int>();
   time_t expiresAt = parseTimestamp(payload["expiresAt"].as<const char*>());
   if (commandId.isEmpty()) return;
+  Serial.printf("Command received: id=%s slot=%s duration=%dms\n",
+      commandId.c_str(), slotId.c_str(), durationMs);
 
   bool duplicate = false;
   replayIfDuplicate(commandId, duplicate);
@@ -156,16 +194,28 @@ void handleCommand(byte* bytes, unsigned int length) {
   publishResponse(commandId, "ACKNOWLEDGED", "ESP32 accepted LED command");
   rememberResult(commandId, "UNKNOWN", "ESP32 restarted during LED command");
 
+  Serial.printf("LED ON: GPIO %d\n", pin);
   digitalWrite(pin, HIGH);
   delay(durationMs);
   digitalWrite(pin, LOW);
+  Serial.printf("LED OFF: GPIO %d\n", pin);
 
   rememberResult(commandId, "DISPENSED", "LED cycle completed");
   publishResponse(commandId, "DISPENSED", "LED cycle completed");
 }
 
-void mqttCallback(char* incomingTopic, byte* payload, unsigned int length) {
-  if (String(incomingTopic) == topic("command")) handleCommand(payload, length);
+void mqttCallback(int messageSize) {
+  if (messageSize <= 0 || messageSize > 1024) {
+    while (mqtt.available()) mqtt.read();
+    return;
+  }
+  String receivedTopic = mqtt.messageTopic();
+  byte payload[1024];
+  size_t length = 0;
+  while (mqtt.available() && length < sizeof(payload)) {
+    payload[length++] = static_cast<byte>(mqtt.read());
+  }
+  if (receivedTopic == topic("command")) handleCommand(payload, length);
 }
 
 void publishHeartbeat() {
@@ -183,7 +233,7 @@ void publishHeartbeat() {
 
   char json[512];
   size_t length = serializeJson(document, json, sizeof(json));
-  mqtt.publish(topic("heartbeat").c_str(), reinterpret_cast<const uint8_t*>(json), length, false);
+  publishQos1("heartbeat", json, length);
 }
 
 void publishTelemetry() {
@@ -204,7 +254,7 @@ void publishTelemetry() {
 
   char json[1024];
   size_t length = serializeJson(document, json, sizeof(json));
-  mqtt.publish(topic("telemetry").c_str(), reinterpret_cast<const uint8_t*>(json), length, false);
+  publishQos1("telemetry", json, length);
 }
 
 void handleSerialDemo() {
@@ -243,12 +293,13 @@ void connectWifi() {
 void connectMqtt() {
   if (mqtt.connected() || millis() - lastReconnectAttemptAt < MQTT_RECONNECT_INTERVAL_MS) return;
   lastReconnectAttemptAt = millis();
-  String clientId = "esp32-" + String(MACHINE_ID) + "-" + String(static_cast<uint32_t>(ESP.getEfuseMac()), HEX);
-  if (mqtt.connect(clientId.c_str(), MQTT_USERNAME, MQTT_PASSWORD)) {
-    mqtt.subscribe(topic("command").c_str(), 1);
+  if (mqtt.connect(MQTT_HOST, MQTT_PORT)) {
+    mqtt.subscribe(topic("command"), 1);
     Serial.println("MQTT connected");
     publishHeartbeat();
     publishTelemetry();
+  } else {
+    Serial.printf("MQTT connection failed, code=%d\n", mqtt.connectError());
   }
 }
 }  // namespace
@@ -263,15 +314,21 @@ void setup() {
   }
   preferences.begin("scentstation", false);
   connectWifi();
-  mqtt.setServer(MQTT_HOST, MQTT_PORT);
-  mqtt.setBufferSize(1024);
-  mqtt.setCallback(mqttCallback);
+  String clientId = "esp32-" + String(MACHINE_ID) + "-"
+      + String(static_cast<uint32_t>(ESP.getEfuseMac()), HEX);
+  mqtt.setId(clientId);
+  mqtt.setUsernamePassword(MQTT_USERNAME, MQTT_PASSWORD);
+  mqtt.setCleanSession(true);
+  mqtt.setKeepAliveInterval(30 * 1000);
+  mqtt.setConnectionTimeout(10 * 1000);
+  mqtt.setTxPayloadSize(1024);
+  mqtt.onMessage(mqttCallback);
 }
 
 void loop() {
   if (WiFi.status() != WL_CONNECTED) connectWifi();
   connectMqtt();
-  mqtt.loop();
+  mqtt.poll();
   handleSerialDemo();
   if (mqtt.connected() && millis() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
     lastHeartbeatAt = millis();

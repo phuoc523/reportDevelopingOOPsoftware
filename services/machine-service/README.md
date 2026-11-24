@@ -27,6 +27,7 @@ Tenant, location, product, cartridge, and order IDs are external identifiers. Th
 | MACHINE_MQTT_ENABLED | false | Enable MQTT command/heartbeat integration |
 | MACHINE_MQTT_BROKER_URL | tcp://localhost:1883 | Mosquitto URI |
 | MACHINE_MQTT_HEARTBEAT_TIMEOUT_MS | 15000 | Mark an online machine offline after this TTL |
+| MACHINE_MQTT_COMMAND_RETRY_INTERVAL_MS | 3000 | Retry unacknowledged commands while they remain valid |
 
 ```powershell
 # For this PowerShell session (never commit a real password):
@@ -44,6 +45,8 @@ A command ID is idempotent. An order cannot have more than one active command. M
 Statuses are `ACCEPTED`, `PROCESSING`, `ACKNOWLEDGED`, `DISPENSED`, `FAILED`, `EXPIRED`, and `UNKNOWN`.
 
 When simulation is disabled and MQTT is enabled, a committed command is published to `scentstation/{machineId}/command`. Device responses update the persisted command. Heartbeat and other valid inbound device messages update `lastSeenAt`; the connectivity monitor creates `MACHINE_OFFLINE` after the configured TTL.
+
+An `ACCEPTED` command also acts as its durable MQTT outbox record. While it is unexpired and has not received an ACK/result, the gateway republishes the same `commandId` at the configured retry interval. ESP32 deduplication makes the retry safe; an ACK/result stops further retries.
 
 ## Telemetry and low stock
 

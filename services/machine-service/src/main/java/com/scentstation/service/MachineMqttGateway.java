@@ -4,6 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scentstation.mqtt.DispenseCommandCreatedEvent;
 import com.scentstation.mqtt.MqttEnvelope;
 import com.scentstation.mqtt.MqttTopics;
+import com.scentstation.entity.MachineCommandStatus;
+import com.scentstation.repository.MachineCommandRepository;
+import com.scentstation.repository.MachineSlotRepository;
+import java.time.Instant;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,14 +38,19 @@ public class MachineMqttGateway {
     private final MqttConnectOptions connectOptions;
     private final MachineMqttMessageHandler handler;
     private final ObjectMapper objectMapper;
+    private final MachineCommandRepository commands;
+    private final MachineSlotRepository slots;
     private final AtomicBoolean connecting = new AtomicBoolean();
 
     public MachineMqttGateway(MqttAsyncClient client, MqttConnectOptions connectOptions,
-                              MachineMqttMessageHandler handler, ObjectMapper objectMapper) {
+                              MachineMqttMessageHandler handler, ObjectMapper objectMapper,
+                              MachineCommandRepository commands, MachineSlotRepository slots) {
         this.client = client;
         this.connectOptions = connectOptions;
         this.handler = handler;
         this.objectMapper = objectMapper;
+        this.commands = commands;
+        this.slots = slots;
         client.setCallback(new MqttCallbackExtended() {
             @Override
             public void connectComplete(boolean reconnect, String serverURI) {
@@ -101,7 +111,8 @@ public class MachineMqttGateway {
         }
         MqttEnvelope envelope = new MqttEnvelope(
             1,
-            UUID.randomUUID().toString(),
+            UUID.nameUUIDFromBytes(("dispense-command:" + event.commandId())
+                .getBytes(StandardCharsets.UTF_8)).toString(),
             Long.toString(event.machineId()),
             "DISPENSE_COMMAND",
             event.issuedAt(),
@@ -120,6 +131,30 @@ public class MachineMqttGateway {
             client.publish(MqttTopics.command(event.machineId()), message);
         } catch (Exception exception) {
             logger.error("Unable to publish MQTT command {}", event.commandId(), exception);
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${machine.mqtt.command-retry-interval-ms:3000}")
+    public void retryAcceptedCommands() {
+        if (!client.isConnected()) return;
+        Instant now = Instant.now();
+        for (var command : commands.findTop100ByStatusAndExpiresAtAfterOrderByIssuedAtAsc(
+                MachineCommandStatus.ACCEPTED, now)) {
+            try {
+                long slotId = Long.parseLong(command.getSlotId());
+                var slot = slots.findByIdAndMachineId(slotId, command.getMachineId()).orElse(null);
+                if (slot == null) {
+                    logger.error("Cannot retry MQTT command {} because slot {} is missing",
+                        command.getCommandId(), command.getSlotId());
+                    continue;
+                }
+                publish(new DispenseCommandCreatedEvent(command.getCommandId(), command.getMachineId(),
+                    command.getSlotId(), slot.getCalibratedSprayDurationMs(), command.getIssuedAt(),
+                    command.getExpiresAt()));
+            } catch (NumberFormatException exception) {
+                logger.error("Cannot retry MQTT command {} because slot ID is invalid",
+                    command.getCommandId(), exception);
+            }
         }
     }
 

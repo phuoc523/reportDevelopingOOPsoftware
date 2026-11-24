@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.LockModeType;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface MachineCommandRepository extends JpaRepository<MachineCommand, Long> {
@@ -18,6 +19,8 @@ public interface MachineCommandRepository extends JpaRepository<MachineCommand, 
     java.util.List<com.scentstation.entity.MachineCommand> findAllByTenantIdOrderByIssuedAtDesc(String tenantId);
     boolean existsByOrderIdAndStatusIn(String orderId,
         java.util.Collection<com.scentstation.entity.MachineCommandStatus> statuses);
+    List<MachineCommand> findTop100ByStatusAndExpiresAtAfterOrderByIssuedAtAsc(
+        com.scentstation.entity.MachineCommandStatus status, Instant now);
 
     @Modifying
     @Transactional
