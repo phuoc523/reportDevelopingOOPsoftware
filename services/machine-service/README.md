@@ -48,9 +48,13 @@ When simulation is disabled and MQTT is enabled, a committed command is publishe
 
 An `ACCEPTED` command also acts as its durable MQTT outbox record. While it is unexpired and has not received an ACK/result, the gateway republishes the same `commandId` at the configured retry interval. ESP32 deduplication makes the retry safe; an ACK/result stops further retries.
 
-## Telemetry and low stock
+## Telemetry, device events and alerts
 
-Slot telemetry is published to `scentstation/{machineId}/telemetry` with `remainingPercent` from 0 to 100. `stockThreshold` uses the same percentage unit. The latest reading for each machine/slot is stored in `machine_telemetry_latest`.
+Slot telemetry is published to `scentstation/{machineId}/telemetry` with `remainingPercent` from 0 to 100. `stockThreshold` uses the same percentage unit. The latest reading for each machine/slot is stored in `machine_telemetry_latest` and can be read via `GET /api/machines/{machineId}/telemetry` (`MACHINE_READ`).
+
+Device alerts published to `scentstation/{machineId}/alert` (`LEAK_DETECTED`, `DOOR_OPEN`, `SENSOR_FAILURE`, `ACTUATOR_FAILURE`, `SLOT_EMPTY`, `DISPENSE_FAILED`) are validated and recorded with source `DEVICE` via `MachineAlertService`, then forwarded through Kafka `machine-alert.v1` to `notification-service`.
+
+Device events published to `scentstation/{machineId}/event` (`DEVICE_REBOOTED`) are stored in `machine_device_events` without mutating machine status or inventory.
 
 A normal reading at or below the configured threshold creates a deduplicated `LOW_STOCK` device alert. A newer reading above the threshold resolves that device alert. Inventory-origin alerts remain independent and are not resolved by device telemetry.
 

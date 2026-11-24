@@ -15,10 +15,12 @@ import com.scentstation.entity.MachineCommand;
 import com.scentstation.entity.MachineAlertSeverity;
 import com.scentstation.entity.MachineAlertSource;
 import com.scentstation.entity.MachineAlertType;
+import com.scentstation.entity.MachineDeviceEvent;
 import com.scentstation.entity.MachineOperationalStatus;
 import com.scentstation.entity.MachineSlot;
 import com.scentstation.entity.MachineTelemetryLatest;
 import com.scentstation.repository.MachineCommandRepository;
+import com.scentstation.repository.MachineDeviceEventRepository;
 import com.scentstation.repository.MachineRepository;
 import com.scentstation.repository.MachineSlotRepository;
 import com.scentstation.repository.MachineTelemetryLatestRepository;
@@ -37,11 +39,12 @@ class MachineMqttMessageHandlerTest {
     private final MachineCommandRepository commands = mock(MachineCommandRepository.class);
     private final MachineSlotRepository slots = mock(MachineSlotRepository.class);
     private final MachineTelemetryLatestRepository telemetry = mock(MachineTelemetryLatestRepository.class);
+    private final MachineDeviceEventRepository deviceEvents = mock(MachineDeviceEventRepository.class);
     private final MachineAlertService alerts = mock(MachineAlertService.class);
     private final MachineMqttProperties properties = new MachineMqttProperties();
     private final MachineMqttMessageHandler handler = new MachineMqttMessageHandler(
-        new ObjectMapper().registerModule(new JavaTimeModule()), machines, commands, slots, telemetry, alerts,
-        properties, new MqttMessageIdTracker(), Clock.fixed(NOW, ZoneOffset.UTC));
+        new ObjectMapper().registerModule(new JavaTimeModule()), machines, commands, slots, telemetry,
+        deviceEvents, alerts, properties, new MqttMessageIdTracker(), Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     void appliesVerifiedDispenseResultAndRestoresConnectivity() {
@@ -130,6 +133,56 @@ class MachineMqttMessageHandlerTest {
         verify(alerts).resolveObservedAlert(machine, MachineAlertType.LOW_STOCK, 91001L,
             MachineAlertSource.DEVICE, "Perfume level recovered above configured threshold", NOW);
         assertThat(existing.getRemainingPercent()).isEqualByComparingTo("50");
+    }
+
+    @Test
+    void recordsValidatedDeviceAlertAndRejectsDisallowedType() {
+        Machine machine = machine(MachineOperationalStatus.ONLINE);
+        MachineSlot slot = slot(91001L, 10);
+        when(slots.findByIdAndMachineId(91001L, 9101L)).thenReturn(Optional.of(slot));
+
+        handler.handle("scentstation/9101/alert", json("""
+            {"schemaVersion":1,"messageId":"550e8400-e29b-41d4-a716-446655440005",
+             "machineId":"9101","type":"DEVICE_ALERT","timestamp":"2026-11-24T08:00:00Z",
+             "payload":{"alertType":"LEAK_DETECTED","severity":"CRITICAL","slotId":"91001",
+                        "summary":"Leak detected near slot 91001"}}
+            """));
+
+        verify(alerts).record(machine, MachineAlertType.LEAK_DETECTED, MachineAlertSeverity.CRITICAL,
+            MachineAlertSource.DEVICE, 91001L, "Leak detected near slot 91001", NOW);
+
+        assertThatThrownBy(() -> handler.handle("scentstation/9101/alert", json("""
+            {"schemaVersion":1,"messageId":"550e8400-e29b-41d4-a716-446655440006",
+             "machineId":"9101","type":"DEVICE_ALERT","timestamp":"2026-11-24T08:00:00Z",
+             "payload":{"alertType":"MACHINE_OFFLINE","severity":"HIGH",
+                        "summary":"Offline is backend derived"}}
+            """)))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("cannot be reported directly");
+    }
+
+    @Test
+    void recordsValidatedDeviceEventAndRejectsUnknownEventType() {
+        machine(MachineOperationalStatus.ONLINE);
+
+        handler.handle("scentstation/9101/event", json("""
+            {"schemaVersion":1,"messageId":"550e8400-e29b-41d4-a716-446655440007",
+             "machineId":"9101","type":"DEVICE_EVENT","timestamp":"2026-11-24T08:00:00Z",
+             "payload":{"eventType":"DEVICE_REBOOTED","details":"ESP32 booted and connected"}}
+            """));
+
+        ArgumentCaptor<MachineDeviceEvent> saved = ArgumentCaptor.forClass(MachineDeviceEvent.class);
+        verify(deviceEvents).save(saved.capture());
+        assertThat(saved.getValue().getEventType()).isEqualTo("DEVICE_REBOOTED");
+        assertThat(saved.getValue().getDetails()).isEqualTo("ESP32 booted and connected");
+
+        assertThatThrownBy(() -> handler.handle("scentstation/9101/event", json("""
+            {"schemaVersion":1,"messageId":"550e8400-e29b-41d4-a716-446655440008",
+             "machineId":"9101","type":"DEVICE_EVENT","timestamp":"2026-11-24T08:00:00Z",
+             "payload":{"eventType":"DISPENSE_SUCCESS","details":"Not allowed on event topic"}}
+            """)))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Unsupported device eventType");
     }
 
     private MachineSlot slot(Long id, int threshold) {

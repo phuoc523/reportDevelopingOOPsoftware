@@ -9,11 +9,13 @@ import com.scentstation.entity.MachineCommand;
 import com.scentstation.entity.MachineAlertSeverity;
 import com.scentstation.entity.MachineAlertSource;
 import com.scentstation.entity.MachineAlertType;
+import com.scentstation.entity.MachineDeviceEvent;
 import com.scentstation.entity.MachineOperationalStatus;
 import com.scentstation.entity.MachineTelemetryLatest;
 import com.scentstation.mqtt.MqttEnvelope;
 import com.scentstation.mqtt.MqttTopics;
 import com.scentstation.repository.MachineCommandRepository;
+import com.scentstation.repository.MachineDeviceEventRepository;
 import com.scentstation.repository.MachineRepository;
 import com.scentstation.repository.MachineSlotRepository;
 import com.scentstation.repository.MachineTelemetryLatestRepository;
@@ -21,6 +23,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -30,11 +33,22 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MachineMqttMessageHandler {
+    private static final Set<MachineAlertType> ALLOWED_DEVICE_ALERTS = EnumSet.of(
+        MachineAlertType.LEAK_DETECTED,
+        MachineAlertType.DOOR_OPEN,
+        MachineAlertType.SENSOR_FAILURE,
+        MachineAlertType.ACTUATOR_FAILURE,
+        MachineAlertType.SLOT_EMPTY,
+        MachineAlertType.DISPENSE_FAILED
+    );
+    private static final Set<String> ALLOWED_DEVICE_EVENTS = Set.of("DEVICE_REBOOTED");
+
     private final ObjectMapper objectMapper;
     private final MachineRepository machines;
     private final MachineCommandRepository commands;
     private final MachineSlotRepository slots;
     private final MachineTelemetryLatestRepository telemetry;
+    private final MachineDeviceEventRepository deviceEvents;
     private final MachineAlertService alerts;
     private final MachineMqttProperties properties;
     private final MqttMessageIdTracker messageIds;
@@ -44,15 +58,17 @@ public class MachineMqttMessageHandler {
     public MachineMqttMessageHandler(ObjectMapper objectMapper, MachineRepository machines,
                                      MachineCommandRepository commands, MachineSlotRepository slots,
                                      MachineTelemetryLatestRepository telemetry,
+                                     MachineDeviceEventRepository deviceEvents,
                                      MachineAlertService alerts,
                                      MachineMqttProperties properties) {
-        this(objectMapper, machines, commands, slots, telemetry, alerts, properties,
+        this(objectMapper, machines, commands, slots, telemetry, deviceEvents, alerts, properties,
             new MqttMessageIdTracker(), Clock.systemUTC());
     }
 
     MachineMqttMessageHandler(ObjectMapper objectMapper, MachineRepository machines,
                               MachineCommandRepository commands, MachineSlotRepository slots,
                               MachineTelemetryLatestRepository telemetry,
+                              MachineDeviceEventRepository deviceEvents,
                               MachineAlertService alerts,
                               MachineMqttProperties properties, MqttMessageIdTracker messageIds,
                               Clock clock) {
@@ -61,6 +77,7 @@ public class MachineMqttMessageHandler {
         this.commands = commands;
         this.slots = slots;
         this.telemetry = telemetry;
+        this.deviceEvents = deviceEvents;
         this.alerts = alerts;
         this.properties = properties;
         this.messageIds = messageIds;
@@ -90,6 +107,10 @@ public class MachineMqttMessageHandler {
             applyCommandResponse(machine, envelope.payload(), now);
         } else if ("telemetry".equals(parsedTopic.channel())) {
             applyTelemetry(machine, envelope.payload(), envelope.timestamp(), now);
+        } else if ("alert".equals(parsedTopic.channel())) {
+            applyDeviceAlert(machine, envelope.payload(), envelope.timestamp());
+        } else if ("event".equals(parsedTopic.channel())) {
+            applyDeviceEvent(machine, envelope.messageId(), envelope.payload(), envelope.timestamp(), now);
         }
         machines.save(machine);
     }
@@ -210,6 +231,51 @@ public class MachineMqttMessageHandler {
         }
     }
 
+    private void applyDeviceAlert(Machine machine, JsonNode payload, Instant occurredAt) {
+        String alertTypeText = requiredText(payload, "alertType");
+        MachineAlertType alertType;
+        try {
+            alertType = MachineAlertType.valueOf(alertTypeText);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Unsupported device alertType: " + alertTypeText, exception);
+        }
+        if (!ALLOWED_DEVICE_ALERTS.contains(alertType)) {
+            throw new IllegalArgumentException("AlertType cannot be reported directly by device: " + alertTypeText);
+        }
+        String severityText = requiredText(payload, "severity");
+        MachineAlertSeverity severity;
+        try {
+            severity = MachineAlertSeverity.valueOf(severityText);
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Unsupported device alert severity: " + severityText, exception);
+        }
+        String summary = requiredText(payload, "summary");
+        if (summary.length() > 500) {
+            throw new IllegalArgumentException("Alert summary must be at most 500 characters");
+        }
+        Long slotId = optionalLong(payload, "slotId");
+        if (slotId != null && slots.findByIdAndMachineId(slotId, machine.getId()).isEmpty()) {
+            throw new IllegalArgumentException("Alert slot does not belong to the machine");
+        }
+        alerts.record(machine, alertType, severity, MachineAlertSource.DEVICE, slotId, summary, occurredAt);
+    }
+
+    private void applyDeviceEvent(Machine machine, String messageId, JsonNode payload,
+                                  Instant occurredAt, Instant receivedAt) {
+        String eventType = requiredText(payload, "eventType");
+        if (!ALLOWED_DEVICE_EVENTS.contains(eventType)) {
+            throw new IllegalArgumentException("Unsupported device eventType: " + eventType);
+        }
+        String details = payload.path("details").asText("").trim();
+        if (details.length() > 500) {
+            throw new IllegalArgumentException("Event details must be at most 500 characters");
+        }
+        if (!deviceEvents.existsByMessageId(messageId)) {
+            deviceEvents.save(new MachineDeviceEvent(machine.getId(), messageId, eventType,
+                details, occurredAt, receivedAt));
+        }
+    }
+
     private String requiredText(JsonNode payload, String field) {
         String value = payload.path(field).asText("").trim();
         if (value.isEmpty()) {
@@ -221,6 +287,22 @@ public class MachineMqttMessageHandler {
     private Long requiredLong(JsonNode payload, String field) {
         try {
             return Long.valueOf(requiredText(payload, field));
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException(field + " must be a numeric identifier", exception);
+        }
+    }
+
+    private Long optionalLong(JsonNode payload, String field) {
+        JsonNode node = payload.path(field);
+        if (node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        String value = node.asText("").trim();
+        if (value.isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.valueOf(value);
         } catch (NumberFormatException exception) {
             throw new IllegalArgumentException(field + " must be a numeric identifier", exception);
         }

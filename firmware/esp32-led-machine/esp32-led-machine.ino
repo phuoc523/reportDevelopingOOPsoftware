@@ -39,6 +39,7 @@ Preferences preferences;
 unsigned long lastHeartbeatAt = 0;
 unsigned long lastTelemetryAt = 0;
 unsigned long lastReconnectAttemptAt = 0;
+bool rebootEventPublished = false;
 float remainingPercent[] = {100.0F, 100.0F, 100.0F, 100.0F};
 
 String topic(const char* channel) {
@@ -257,26 +258,90 @@ void publishTelemetry() {
   publishQos1("telemetry", json, length);
 }
 
+void publishDeviceEvent(const char* eventType, const char* details) {
+  if (!mqtt.connected() || !clockReady()) return;
+  JsonDocument document;
+  document["schemaVersion"] = 1;
+  document["messageId"] = newMessageId();
+  document["machineId"] = MACHINE_ID;
+  document["type"] = "DEVICE_EVENT";
+  document["timestamp"] = timestampNow();
+  JsonObject payload = document["payload"].to<JsonObject>();
+  payload["eventType"] = eventType;
+  payload["details"] = details;
+
+  char json[512];
+  size_t length = serializeJson(document, json, sizeof(json));
+  if (publishQos1("event", json, length)) {
+    Serial.printf("Event sent: type=%s\n", eventType);
+  }
+}
+
+void publishDeviceAlert(const String& alertType, const String& severity,
+                        const String& slotId, const String& summary) {
+  if (!mqtt.connected() || !clockReady()) return;
+  JsonDocument document;
+  document["schemaVersion"] = 1;
+  document["messageId"] = newMessageId();
+  document["machineId"] = MACHINE_ID;
+  document["type"] = "DEVICE_ALERT";
+  document["timestamp"] = timestampNow();
+  JsonObject payload = document["payload"].to<JsonObject>();
+  payload["alertType"] = alertType;
+  payload["severity"] = severity;
+  if (!slotId.isEmpty()) {
+    payload["slotId"] = slotId;
+  }
+  payload["summary"] = summary;
+
+  char json[768];
+  size_t length = serializeJson(document, json, sizeof(json));
+  if (publishQos1("alert", json, length)) {
+    Serial.printf("Alert sent: type=%s severity=%s slot=%s\n",
+        alertType.c_str(), severity.c_str(), slotId.isEmpty() ? "-" : slotId.c_str());
+  }
+}
+
 void handleSerialDemo() {
   if (!Serial.available()) return;
   String line = Serial.readStringUntil('\n');
   line.trim();
-  if (!line.startsWith("LEVEL ")) {
-    Serial.println("Use: LEVEL <slotId> <0-100>");
+  if (line.startsWith("LEVEL ")) {
+    int separator = line.indexOf(' ', 6);
+    if (separator < 0) return;
+    String slotId = line.substring(6, separator);
+    float value = line.substring(separator + 1).toFloat();
+    int index = indexForSlot(slotId);
+    if (index < 0 || value < 0 || value > 100) {
+      Serial.println("Invalid slotId or level");
+      return;
+    }
+    remainingPercent[index] = value;
+    publishTelemetry();
+    Serial.printf("Telemetry sent: slot=%s remaining=%.2f%%\n", slotId.c_str(), value);
     return;
   }
-  int separator = line.indexOf(' ', 6);
-  if (separator < 0) return;
-  String slotId = line.substring(6, separator);
-  float value = line.substring(separator + 1).toFloat();
-  int index = indexForSlot(slotId);
-  if (index < 0 || value < 0 || value > 100) {
-    Serial.println("Invalid slotId or level");
+  if (line.startsWith("ALERT ")) {
+    String args = line.substring(6);
+    args.trim();
+    int firstSpace = args.indexOf(' ');
+    if (firstSpace < 0) {
+      Serial.println("Use: ALERT <alertType> <severity> [slotId]");
+      return;
+    }
+    String alertType = args.substring(0, firstSpace);
+    String rest = args.substring(firstSpace + 1);
+    rest.trim();
+    int secondSpace = rest.indexOf(' ');
+    String severity = secondSpace < 0 ? rest : rest.substring(0, secondSpace);
+    String slotId = secondSpace < 0 ? "" : rest.substring(secondSpace + 1);
+    slotId.trim();
+    String summary = "ESP32 reported " + alertType
+        + (slotId.isEmpty() ? "" : " on slot " + slotId);
+    publishDeviceAlert(alertType, severity, slotId, summary);
     return;
   }
-  remainingPercent[index] = value;
-  publishTelemetry();
-  Serial.printf("Telemetry sent: slot=%s remaining=%.2f%%\n", slotId.c_str(), value);
+  Serial.println("Use: LEVEL <slotId> <0-100> | ALERT <alertType> <severity> [slotId]");
 }
 
 void connectWifi() {
@@ -330,6 +395,10 @@ void loop() {
   connectMqtt();
   mqtt.poll();
   handleSerialDemo();
+  if (!rebootEventPublished && mqtt.connected() && clockReady()) {
+    publishDeviceEvent("DEVICE_REBOOTED", "ESP32 booted and connected to MQTT");
+    rebootEventPublished = true;
+  }
   if (mqtt.connected() && millis() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
     lastHeartbeatAt = millis();
     publishHeartbeat();
