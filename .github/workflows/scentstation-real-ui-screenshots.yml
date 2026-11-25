@@ -1,0 +1,144 @@
+name: ScentStation real UI screenshots
+
+on:
+  push:
+    branches:
+      - test-phung-iot-payment-all-20261125
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  real-ui:
+    name: Run ScentStation stack and capture real UI
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            frontend/kiosk-web/package-lock.json
+            frontend/admin-web/package-lock.json
+            frontend/mock-payment-web/package-lock.json
+            ui-e2e/package-lock.json
+
+      - name: Prepare isolated CI demo configuration
+        shell: bash
+        run: |
+          umask 077
+          jwt_secret="$(printf '%s' 'ScentStation disposable GitHub Actions demo JWT secret 2026' | base64 -w0)"
+          internal_key="$(openssl rand -hex 32)"
+          reporting_key="$(openssl rand -hex 32)"
+          cat > .env <<EOF
+          JWT_SECRET=${jwt_secret}
+          INTERNAL_SERVICE_KEY=${internal_key}
+          REPORTING_SYNC_API_KEY=${reporting_key}
+          PAYMENT_MOCK_WEB_BASE_URL=http://localhost:3000/mock-payment
+          PAYMENT_CALLBACK_TOKEN=local-mock-callback-token
+          MACHINE_COMMAND_SIMULATION_ENABLED=true
+          EOF
+          unset jwt_secret internal_key reporting_key
+          cat > docker-compose.override.yml <<'YAML'
+          services:
+            order-service:
+              ports: ["127.0.0.1:8083:8083"]
+          YAML
+          docker compose config --quiet
+
+      - name: Build and start the full backend stack
+        run: docker compose up -d --build --wait --wait-timeout 900 api-gateway
+
+      - name: Seed disposable demo databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          seed_db() {
+            local service="$1" db="$2" user="$3" password="$4" file="$5"
+            docker compose exec -T "$service" mysql --default-character-set=utf8mb4 -u "$user" "-p${password}" "$db" < "$file"
+          }
+          seed_db identity-db scentstation_identity identity_app identity_local_password infra/demo-data/identity.sql
+          seed_db catalog-db scentstation_catalog catalog_app catalog_local_password infra/demo-data/catalog.sql
+          seed_db machine-db scentstation_machine machine_app machine_local_password infra/demo-data/machine.sql
+          docker compose exec -T machine-db sh -ec 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u "$MYSQL_USER" "$MYSQL_DATABASE"' <<'SQL'
+          UPDATE machines SET operating_hours_start = '00:00:00', operating_hours_end = '23:59:59' WHERE id = 9101;
+          SQL
+          seed_db operation-db scentstation_operation operation_app operation_local_password infra/demo-data/operation.sql
+          seed_db order-db order_db order_user order_local_password infra/demo-data/order.sql
+          seed_db reporting-db scentstation_reporting reporting_app reporting_local_password infra/demo-data/reporting.sql
+
+      - name: Build Kiosk, Admin and Mock Payment Web
+        shell: bash
+        run: |
+          set -euo pipefail
+          for app in kiosk-web admin-web mock-payment-web; do
+            (cd "frontend/$app" && npm ci --no-audit --no-fund && npm run build)
+          done
+
+      - name: Install Playwright and Chromium
+        run: |
+          npm ci --prefix ui-e2e --no-audit --no-fund
+          npx --prefix ui-e2e playwright install --with-deps chromium
+
+      - name: Start the real frontend applications
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd frontend/kiosk-web && npm run dev -- --host 127.0.0.1 --strictPort > /tmp/kiosk.log 2>&1 &)
+          (cd frontend/admin-web && npm run dev -- --host 127.0.0.1 > /tmp/admin.log 2>&1 &)
+          cp ui-e2e/vite.mock.config.mjs frontend/mock-payment-web/vite.ci.config.mjs
+          (cd frontend/mock-payment-web && VITE_ORDER_SERVICE_URL='' npm run dev -- --host 127.0.0.1 --config vite.ci.config.mjs > /tmp/payment.log 2>&1 &)
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:7515/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:7514/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:3000/ >/dev/null \
+              && curl --fail --silent http://127.0.0.1:8080/actuator/health | grep -q UP; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/kiosk.log /tmp/admin.log /tmp/payment.log
+          docker compose ps
+          exit 1
+
+      - name: Run Playwright journey and save actual screenshots
+        id: browser
+        run: node ui-e2e/capture-screenshots.mjs
+        env:
+          KIOSK_URL: http://127.0.0.1:7515
+          ADMIN_URL: http://127.0.0.1:7514
+          MOCK_PAYMENT_URL: http://127.0.0.1:3000
+          ARTIFACT_DIR: artifacts/screenshots
+
+      - name: Write run evidence and package ZIP
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p artifacts/screenshots
+          docker compose ps > artifacts/screenshots/compose-status.txt || true
+          if [ "${{ job.status }}" != success ]; then docker compose logs --no-color --tail=80; fi
+          if [ -f artifacts/screenshots/run-report.json ]; then
+            cp artifacts/screenshots/run-report.json artifacts/run-report.json
+          fi
+          (cd artifacts && zip -qr scentstation-real-ui-screenshots.zip screenshots run-report.json 2>/dev/null) || true
+
+      - name: Upload GitHub Actions artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scentstation-real-ui-screenshots
+          path: |
+            artifacts/screenshots
+            artifacts/scentstation-real-ui-screenshots.zip
+            artifacts/run-report.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop disposable stack
+        if: always()
+        run: docker compose down --remove-orphans || true
