@@ -8,6 +8,7 @@ import type {
   Principal,
   Product,
   Slot,
+  TrialConfirmationResponse,
 } from '../types/api'
 
 const env = (import.meta as { env?: Record<string, string | undefined> }).env ?? {}
@@ -164,6 +165,15 @@ export const kioskApi = {
     items: Array<{ productId: number; productName: string; unitPrice: number; quantity: number }>
   }) => request<OrderResponse>('/api/v1/orders', { method: 'POST', body: JSON.stringify(payload) }),
   createPayment: (orderId: number) => request<PaymentResponse>(`/api/v1/orders/${orderId}/payments/qr`, { method: 'POST' }),
+  createTrialConfirmation: (payload: {
+    machineId: string
+    slotId: string
+    productId: number
+    productName: string
+    unitPrice: number
+    currency?: string
+  }) => request<TrialConfirmationResponse>('/api/v1/orders/trial-confirmations', { method: 'POST', body: JSON.stringify(payload) }),
+  trialConfirmation: (sessionId: string) => request<TrialConfirmationResponse>(`/api/v1/orders/trial-confirmations/${encodeURIComponent(sessionId)}`),
   payment: (reference: string) => request<PaymentResponse>(`/api/v1/payments/${encodeURIComponent(reference)}`),
   order: (orderId: number) => request<OrderResponse>(`/api/v1/orders/${orderId}`),
   dispensing: (orderId: number) => request<DispensingResponse>(`/api/v1/orders/${orderId}/dispensing`),

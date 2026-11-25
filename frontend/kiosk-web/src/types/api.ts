@@ -136,3 +136,16 @@ export interface DispensingResponse {
   createdAt: string
   resultReceivedAt: string | null
 }
+
+export interface TrialConfirmationResponse {
+  sessionId: string
+  status: 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'EXPIRED'
+  confirmUrl: string
+  machineId: string
+  slotId: string
+  productId: number
+  productName: string
+  unitPrice: number
+  currency: string
+  expiresAt: string
+}

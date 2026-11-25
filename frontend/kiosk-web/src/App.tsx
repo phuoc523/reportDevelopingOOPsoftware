@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import './App.css'
 import { ApiError, authToken, clearKioskCache, kioskApi } from './services/api'
-import type { DispensingResponse, KioskItem, Machine, OrderResponse, PaymentResponse, Principal } from './types/api'
+import type { DispensingResponse, KioskItem, Machine, OrderResponse, PaymentResponse, Principal, TrialConfirmationResponse } from './types/api'
 import { availabilityText, dispensingStatusText, formatCountdown } from './utils/kioskHelpers.ts'
 
 type Screen = 'catalog' | 'confirm' | 'payment' | 'dispensing' | 'result' | 'purchase'
@@ -24,23 +24,6 @@ function isPaymentQrData(qrPayload: string, reference: string) {
   }
 }
 
-function getPaymentQrUrl(value: string) {
-  try {
-    const url = new URL(value)
-    const octets = url.hostname.split('.').map(Number)
-    const isIpv4 = octets.length === 4 && octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255)
-    const isHttpLan = url.protocol === 'http:' && (url.port === '3000' || url.port === '') && isIpv4
-      && octets[0] !== 0 && octets[0] !== 127 && !(octets[0] === 169 && octets[1] === 254)
-    const isHttpsOrigin = url.protocol === 'https:' && (url.port === '' || url.port === '3443')
-      && (isIpv4 || url.hostname.includes('.'))
-    if (!isHttpLan && !isHttpsOrigin) return null
-    if (url.pathname !== '/' || url.search || url.hash || url.username || url.password) return null
-    return url.href
-  } catch {
-    return null
-  }
-}
-
 function App() {
   const [principal, setPrincipal] = useState<Principal | null>(null)
   const [machine, setMachine] = useState<Machine | null>(null)
@@ -49,6 +32,8 @@ function App() {
   const [screen, setScreen] = useState<Screen>('catalog')
   const [order, setOrder] = useState<OrderResponse | null>(null)
   const [payment, setPayment] = useState<PaymentResponse | null>(null)
+  const [trialSession, setTrialSession] = useState<TrialConfirmationResponse | null>(null)
+  const [trialSessionLoading, setTrialSessionLoading] = useState(false)
   const [dispensing, setDispensing] = useState<DispensingResponse | null>(null)
   const [transactionType, setTransactionType] = useState<'TRIAL' | 'BOTTLE'>('TRIAL')
   const [loading, setLoading] = useState(true)
@@ -62,7 +47,6 @@ function App() {
   const creatingRef = useRef(false)
   const paymentReference = payment?.reference
   const paymentStatus = payment?.status
-  const paymentQrUrl = payment ? getPaymentQrUrl(payment.qrUrl) : null
   const paymentQrDataValid = payment ? isPaymentQrData(payment.qrPayload, payment.reference) : false
 
   const machineReady = Boolean(!backendOffline
@@ -140,9 +124,71 @@ function App() {
       finally { polling = false }
     }
     void poll()
-    const timer = window.setInterval(() => void poll(), 3000)
+    const timer = window.setInterval(() => void poll(), 1500)
     return () => { active = false; window.clearInterval(timer) }
   }, [order?.orderType, paymentReference, paymentStatus, screen])
+
+  const startPaymentRef = useRef<(type?: 'TRIAL' | 'BOTTLE') => Promise<void>>(async () => undefined)
+
+  useEffect(() => {
+    if (screen !== 'confirm' || !selected || !principal || !machineReady) {
+      if (screen !== 'confirm') setTrialSession(null)
+      return
+    }
+    let active = true
+    setTrialSessionLoading(true)
+    setError('')
+    void kioskApi.createTrialConfirmation({
+      machineId: String(selected.slot.machineId),
+      slotId: String(selected.slot.id),
+      productId: selected.product.id,
+      productName: selected.product.name,
+      unitPrice: selected.pricing.effectivePrice,
+      currency: 'VND',
+    }).then((created) => {
+      if (active) setTrialSession(created)
+    }).catch((reason) => {
+      if (active) setError(`Không thể tạo mã QR xác nhận: ${readableError(reason)}`)
+    }).finally(() => {
+      if (active) setTrialSessionLoading(false)
+    })
+    return () => { active = false }
+  }, [screen, selected, principal, machineReady])
+
+  useEffect(() => {
+    if (screen !== 'confirm' || !trialSession || trialSession.status !== 'PENDING') return
+    let active = true
+    let polling = false
+    const poll = async () => {
+      if (polling) return
+      polling = true
+      try {
+        const latest = await kioskApi.trialConfirmation(trialSession.sessionId)
+        if (!active) return
+        setTrialSession(latest)
+        if (latest.status === 'CONFIRMED') {
+          setError('')
+          void startPaymentRef.current('TRIAL')
+        } else if (latest.status === 'DECLINED') {
+          setError('Người dùng đã chọn Không xác nhận dùng thử nước hoa.')
+          window.setTimeout(() => {
+            if (active) {
+              setTrialSession(null)
+              setScreen('catalog')
+            }
+          }, 1800)
+        } else if (latest.status === 'EXPIRED') {
+          setError('Mã QR xác nhận đã hết hạn. Vui lòng chọn lại mùi hương.')
+        }
+      } catch {
+        /* giữ phiên hiện tại và thử lại ở chu kỳ tiếp theo */
+      } finally {
+        polling = false
+      }
+    }
+    const timer = window.setInterval(() => void poll(), 800)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [screen, trialSession])
 
   useEffect(() => {
     if (screen !== 'dispensing' || !order) return
@@ -280,6 +326,7 @@ function App() {
       setError(readableError(reason)); await refresh()
     } finally { creatingRef.current = false; setBusy(false) }
   }
+  startPaymentRef.current = startPayment
 
   const resetTransaction = useCallback(() => {
     clearKioskCache()
@@ -382,8 +429,8 @@ function App() {
     </>}
 
     {screen === 'confirm' && selected && <section className="flow-card">
-      <p className="step">BƯỚC 1 / 3 · XÁC NHẬN LƯỢNG THỬ</p>
-      <h1 className="flow-title">Xác nhận lượt trải nghiệm</h1>
+      <p className="step">BƯỚC 1 / 3 · XÁC NHẬN DÙNG THỬ QUA ĐIỆN THOẠI</p>
+      <h1 className="flow-title">Quét mã QR để xác nhận dùng thử</h1>
       <div className="flow-product-summary">
         {selected.product.imageUrl ? <img src={selected.product.imageUrl} alt={selected.product.name} /> : <div className="flow-product-placeholder">S.</div>}
         <div className="flow-product-copy">
@@ -393,17 +440,28 @@ function App() {
           <p>{selected.product.description || (selected.product.fragranceNotes ? '' : 'Thông tin hương thơm đang được cập nhật.')}</p>
         </div>
       </div>
-      <div className="sample-dose"><span className="sample-icon">✦</span><div><small>Lượng thử đã hiệu chuẩn</small><strong>1 lượt xịt · {selected.slot.doseMl ?? 0.12} ml</strong><p>Đây là lượng cố định an toàn được cấu hình trực tiếp tại đầu phun.</p></div><span className="selected-mark">Đã chọn</span></div>
-      <div className="summary-grid"><div><span>Máy</span><strong>{machine?.name}</strong></div><div><span>Đầu phun</span><strong>{selected.slot.slotCode}</strong></div><div><span>Thời lượng hiệu chuẩn</span><strong>{selected.slot.doseMl ? 'Theo cấu hình đầu phun' : 'Theo cấu hình máy'}</strong></div><div><span>Phí trải nghiệm</span><strong>{money(selected.pricing.effectivePrice)}</strong></div></div>
-      <p className="flow-note">Giá, tenant, trạng thái máy, đầu phun và lượng xịt đều được backend kiểm tra lại. Kiosk không tự thay đổi liều lượng.</p>
-      {resumablePayment && <div className="pending-payment-note">Mã QR đã được tạo và vẫn còn hiệu lực. Tiếp tục để mở lại đúng giao dịch, không tạo thêm đơn mới.</div>}
+      <div className="sample-dose"><span className="sample-icon">✦</span><div><small>Lượng thử đã hiệu chuẩn</small><strong>1 lượt xịt · {selected.slot.doseMl ?? 0.12} ml</strong><p>Phí trải nghiệm: <strong>{money(selected.pricing.effectivePrice)}</strong></p></div><span className="selected-mark">Đã chọn</span></div>
+      <div className="qr-grid" style={{ gridTemplateColumns: '1fr', maxWidth: 380, margin: '1rem auto' }}>
+        <article className="qr-card">
+          <h2>Quét mã QR bằng điện thoại</h2>
+          <div className="qr-wrap" aria-label="QR xác nhận dùng thử trên điện thoại">
+            {trialSessionLoading ? <div className="spinner" /> : trialSession ? <QRCodeSVG value={trialSession.confirmUrl} size={220} level="M" title="Quét để mở Mock Payment trên điện thoại" /> : null}
+          </div>
+          {trialSession && <a className="payment-root-url" href={trialSession.confirmUrl} target="_blank" rel="noreferrer">{trialSession.confirmUrl}</a>}
+          <p>Sau khi chọn <strong>Có</strong> trên điện thoại, máy tính sẽ tự động chuyển sang mã QR đơn hàng.</p>
+        </article>
+      </div>
+      <div className="payment-status status-pending" role="status">
+        <div className="spinner" />
+        <span>{trialSession?.status === 'CONFIRMED' ? 'Đã xác nhận! Đang chuyển sang QR đơn hàng…' : trialSession?.status === 'DECLINED' ? 'Người dùng đã chọn Không.' : 'Đang chờ bạn xác nhận trên điện thoại…'}</span>
+      </div>
       {error && <div className="error-box" role="alert">{error}</div>}
-      <div className="flow-actions"><button className="secondary" onClick={() => setScreen('catalog')} disabled={busy}>Quay lại</button><button className="primary large" onClick={() => void startPayment('TRIAL')} disabled={busy}>{busy ? 'Đang tạo đơn…' : resumablePayment ? 'Tiếp tục thanh toán' : 'Thanh toán lượt thử'}</button></div>
+      <div className="flow-actions"><button className="secondary" onClick={() => { setTrialSession(null); setScreen('catalog') }} disabled={busy}>Quay lại</button><button className="primary large" onClick={() => void startPayment('TRIAL')} disabled={busy}>{busy ? 'Đang tạo đơn…' : resumablePayment ? 'Tiếp tục thanh toán' : 'Chuyển sang QR đơn hàng'}</button></div>
     </section>}
 
     {screen === 'payment' && payment && <section className="flow-card payment-card">
-      <p className="step">BƯỚC 2 / 3 · THANH TOÁN</p>
-      <h1 className="flow-title">Quét mã để thanh toán</h1>
+      <p className="step">BƯỚC 2 / 3 · QUÉT QR ĐƠN HÀNG ĐỂ THANH TOÁN</p>
+      <h1 className="flow-title">Đưa camera điện thoại vào mã QR đơn hàng</h1>
       <div className="flow-product-summary payment-product-summary">
         {selected?.product.imageUrl ? <img src={selected.product.imageUrl} alt={selected.product.name} /> : <div className="flow-product-placeholder">S.</div>}
         <div className="flow-product-copy">
@@ -412,23 +470,16 @@ function App() {
           <p>Đơn hàng #{payment.orderId}</p>
         </div>
       </div>
-      {paymentQrUrl && paymentQrDataValid ? <div className="qr-grid">
+      {paymentQrDataValid ? <div className="qr-grid" style={{ gridTemplateColumns: '1fr', maxWidth: 380, margin: '1rem auto' }}>
         <article className="qr-card">
-          <h2>1. Mở Mock Payment trên điện thoại</h2>
-          <div className="qr-wrap" aria-label="QR URL trang chủ Mock Payment">
-            <QRCodeSVG value={paymentQrUrl} size={220} level="M" title="Mở trang chủ Mock Payment" />
-          </div>
-          <a className="payment-root-url" href={paymentQrUrl}>{paymentQrUrl}</a>
-        </article>
-        <article className="qr-card">
-          <h2>2. Dùng nút Quét mã QR trên điện thoại</h2>
+          <h2>Mã QR thanh toán đơn hàng</h2>
           <div className="qr-wrap" aria-label="QR dữ liệu thanh toán riêng của đơn hàng">
-            <QRCodeSVG value={payment.qrPayload} size={220} level="M" title="QR dữ liệu thanh toán của đơn hàng" />
+            <QRCodeSVG value={payment.qrPayload} size={250} level="M" title="QR dữ liệu thanh toán của đơn hàng" />
             <span className="pulse-dot" aria-hidden="true"/>
           </div>
-          <p>Giữ trang thanh toán mở và đưa camera điện thoại vào mã này.</p>
+          <p>Quét trực tiếp bằng camera trên trang Mock Payment của điện thoại để xem chi tiết đơn và xác nhận phun.</p>
         </article>
-      </div> : <p className="error-box" role="alert">Dữ liệu URL hoặc QR thanh toán không hợp lệ. Vui lòng tải lại giao dịch.</p>}
+      </div> : <p className="error-box" role="alert">Dữ liệu QR thanh toán không hợp lệ. Vui lòng tải lại giao dịch.</p>}
       <strong className="payment-amount">{money(payment.amount, payment.currency)}</strong>
       <div className="payment-details">
         <p><span>Mã giao dịch</span><code>{payment.reference}</code></p>
@@ -466,7 +517,6 @@ function App() {
         {displayResultCountdown !== null && <small className="payment-hint">Tự động quay về màn hình chính sau {displayResultCountdown} giây.</small>}
         <div className="flow-actions">
           {canRecheck && <button className="secondary large" disabled={busy} onClick={() => void recheckOrderStatus()}>{busy ? 'Đang kiểm tra…' : 'Kiểm tra lại trạng thái đơn'}</button>}
-          {dispensed && <button className="secondary large" onClick={() => { setTransactionType('BOTTLE'); setOrder(null); setPayment(null); setDispensing(null); setScreen('purchase') }}>Tôi muốn mua chai</button>}
           <button className="primary large" disabled={busy} onClick={resetTransaction}>{dispensed ? 'Khám phá mùi khác' : 'Bắt đầu lượt mới'}</button>
         </div>
       </section>

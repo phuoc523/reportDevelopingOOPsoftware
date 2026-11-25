@@ -39,6 +39,19 @@ type PublicPaymentDetails = {
   order: OrderRecord
 }
 
+type TrialConfirmationSession = {
+  sessionId: string
+  status: 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'EXPIRED'
+  confirmUrl: string
+  machineId: string
+  slotId: string
+  productId: number
+  productName: string
+  unitPrice: number
+  currency: string
+  expiresAt: string
+}
+
 const scannerElementId = 'mock-payment-qr-reader'
 const orderServiceUrl = (
   import.meta.env.VITE_ORDER_SERVICE_URL ||
@@ -56,17 +69,25 @@ function createEventId(reference: string) {
   return `mock-${reference}-${nonce}`
 }
 
+function getInitialConfirmSessionId() {
+  return new URLSearchParams(window.location.search).get('confirmSession')?.trim() || ''
+}
+
 export default function App() {
+  const [confirmSessionId, setConfirmSessionId] = useState<string>(() => getInitialConfirmSessionId())
+  const [confirmSession, setConfirmSession] = useState<TrialConfirmationSession | null>(null)
+  const [confirmLoading, setConfirmLoading] = useState<boolean>(() => Boolean(getInitialConfirmSessionId()))
+  const [confirmResponding, setConfirmResponding] = useState(false)
+  const [confirmDeclined, setConfirmDeclined] = useState(false)
+
   const [payment, setPayment] = useState<PaymentRecord | null>(null)
   const [order, setOrder] = useState<OrderRecord | null>(null)
-  const [loading, setLoading] = useState(false)
   const [scannerStatus, setScannerStatus] = useState<'idle' | 'starting' | 'scanning' | 'identified' | 'lookup'>('idle')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState('')
   const [scanning, setScanning] = useState(false)
   const scannerRef = useRef<Html5QrcodeScanner | null>(null)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const scanHandledRef = useRef(false)
   const scannerStartRequestedRef = useRef(false)
   const lastScannedPayloadRef = useRef('')
@@ -98,6 +119,34 @@ export default function App() {
       scanner.clear()
     }
   }, [])
+
+  useEffect(() => {
+    if (!confirmSessionId) return
+    let active = true
+    setConfirmLoading(true)
+    setError('')
+    void fetch(`${orderServiceUrl}/api/v1/payments/public/trial-confirmations/${encodeURIComponent(confirmSessionId)}`)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(response.status === 404
+            ? 'Phiên xác nhận dùng thử không tồn tại hoặc đã hết hạn.'
+            : `Không thể tải phiên xác nhận (${response.status}).`)
+        }
+        return response.json() as Promise<TrialConfirmationSession>
+      })
+      .then((data) => {
+        if (!active) return
+        setConfirmSession(data)
+        if (data.status === 'DECLINED') setConfirmDeclined(true)
+      })
+      .catch((cause: unknown) => {
+        if (active) setError(cause instanceof Error ? cause.message : 'Không thể tải thông tin xác nhận.')
+      })
+      .finally(() => {
+        if (active) setConfirmLoading(false)
+      })
+    return () => { active = false }
+  }, [confirmSessionId])
 
   async function loadPayment(requestedReference: string) {
     setScannerStatus('lookup')
@@ -156,7 +205,7 @@ export default function App() {
 
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       setScannerStatus('idle')
-      setError('Camera trực tiếp cần HTTPS hoặc localhost. Trang đang chạy trên HTTP LAN nên một số điện thoại chặn getUserMedia. Dùng nút chụp QR bằng camera hệ thống hoặc mở trang trên HTTPS.')
+      setError('Camera quét trực tiếp trong trình duyệt cần HTTPS (hoặc localhost). Hãy mở trang bằng HTTPS (cổng 3443) để trình duyệt cho phép mở camera trực tiếp.')
       return
     }
 
@@ -164,7 +213,7 @@ export default function App() {
       scannerStartRequestedRef.current = true
       setScanning(true)
       setScannerStatus('starting')
-      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())))
       if (!scannerStartRequestedRef.current) return
       const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode')
       const cameras = await Html5Qrcode.getCameras()
@@ -203,44 +252,46 @@ export default function App() {
           : name === 'NotReadableError'
             ? 'Camera đang được ứng dụng khác sử dụng. Hãy đóng ứng dụng khác rồi thử lại.'
             : name === 'SecurityError'
-              ? 'Trình duyệt chặn camera trên môi trường HTTP LAN. Hãy dùng HTTPS hoặc localhost.'
+              ? 'Trình duyệt chặn camera trên HTTP LAN. Hãy mở trang bằng HTTPS.'
               : cause instanceof Error
                 ? `Không thể mở camera: ${cause.message}`
                 : 'Không thể mở camera trực tiếp.'
-      setError(`${message} Có thể thử chụp QR bằng camera hệ thống.`)
+      setError(message)
     }
   }
 
-  async function scanCapturedImage(file: File | undefined) {
-    if (!file) return
+  async function respondTrialConfirmation(accepted: boolean) {
+    if (!confirmSessionId || confirmResponding) return
+    setConfirmResponding(true)
     setError('')
-    setScannerStatus('identified')
-
     try {
-      const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode')
-      const imageScanner = new Html5Qrcode(scannerElementId, {
-        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-        verbose: false,
-      })
-      let decodedText: string
-      try {
-        decodedText = await imageScanner.scanFile(file, false)
-      } finally {
-        await imageScanner.clear()
+      const response = await fetch(
+        `${orderServiceUrl}/api/v1/payments/public/trial-confirmations/${encodeURIComponent(confirmSessionId)}/respond`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accepted }),
+        },
+      )
+      if (!response.ok) {
+        throw new Error(response.status === 409
+          ? 'Phiên xác nhận đã hết hạn. Vui lòng quét lại mã trên kiosk.'
+          : `Không thể gửi xác nhận (${response.status}).`)
       }
-      await handleQrPayload(decodedText)
+      const updated: TrialConfirmationSession = await response.json()
+      setConfirmSession(updated)
+      if (!accepted) {
+        setConfirmDeclined(true)
+        return
+      }
+      window.history.replaceState({}, '', window.location.pathname)
+      setConfirmSessionId('')
+      setConfirmSession(null)
+      void startScanner()
     } catch (cause) {
-      setScannerStatus('idle')
-      scanHandledRef.current = false
-      lastScannedPayloadRef.current = ''
-      const message = cause instanceof Error
-        ? cause.message
-        : 'Không xác định được mã QR.'
-      if (/not found|no qrcode|qr code not found|notfoundexception|no multi.?format readers/i.test(message)) {
-        setError('Ảnh không chứa mã QR rõ ràng hoặc ảnh bị mờ. Hãy chụp lại gần và đủ sáng.')
-      } else {
-        setError(`Không đọc được mã QR trong ảnh: ${message}`)
-      }
+      setError(cause instanceof Error ? cause.message : 'Không thể gửi phản hồi xác nhận.')
+    } finally {
+      setConfirmResponding(false)
     }
   }
 
@@ -276,7 +327,7 @@ export default function App() {
 
       const updated = data as PaymentRecord
       setPayment(updated)
-      setResult('Thanh toán thành công. Giao dịch đã được backend xác nhận.')
+      setResult('Thanh toán thành công! Hệ thống đang gửi tín hiệu phun tới máy Kiosk.')
     } catch (cause) {
       if (flowVersion === paymentFlowVersionRef.current) {
         setError(cause instanceof Error ? cause.message : 'Không thể xác nhận thanh toán ngay lúc này.')
@@ -286,7 +337,7 @@ export default function App() {
     }
   }
 
-  function backToHome() {
+  function backToScanner() {
     paymentFlowVersionRef.current += 1
     void stopScanner().catch((cause: unknown) => {
       setError(cause instanceof Error ? cause.message : 'Không thể dừng camera.')
@@ -301,8 +352,49 @@ export default function App() {
     setScannerStatus('idle')
   }
 
-  if (loading) {
-    return <main className="shell"><section className="panel"><p className="eyebrow">SCENTSTATION</p><h1>Đang tải giao dịch…</h1><div className="spinner" /></section></main>
+  if (confirmSessionId) {
+    return (
+      <main className="shell">
+        <section className="panel">
+          <p className="eyebrow">SCENTSTATION · MOCK PAYMENT</p>
+          <h1>Bạn có xác nhận dùng thử nước hoa?</h1>
+          {confirmLoading && <div className="spinner" />}
+          {confirmSession && (
+            <div className="order-details">
+              <div className="order-item">
+                <div>
+                  <strong>{confirmSession.productName}</strong>
+                  <span>Kiosk #{confirmSession.machineId} · Đầu phun #{confirmSession.slotId}</span>
+                </div>
+                <strong>{formatMoney(confirmSession.unitPrice, confirmSession.currency || 'VND')}</strong>
+              </div>
+            </div>
+          )}
+          {error && <div className="alert error" role="alert">{error}</div>}
+          {confirmDeclined ? (
+            <div className="alert" role="status">
+              Bạn đã chọn <strong>Không</strong>. Lượt dùng thử nước hoa đã được hủy trên màn hình Kiosk.
+            </div>
+          ) : confirmSession?.status === 'EXPIRED' ? (
+            <div className="alert error" role="alert">
+              Phiên xác nhận đã hết hạn. Vui lòng chọn lại mùi hương trên màn hình Kiosk.
+            </div>
+          ) : (
+            <div className="actions">
+              <button type="button" disabled={confirmLoading || confirmResponding} onClick={() => void respondTrialConfirmation(true)}>
+                {confirmResponding ? 'Đang xử lý…' : 'CÓ'}
+              </button>
+              <button className="secondary" type="button" disabled={confirmLoading || confirmResponding} onClick={() => void respondTrialConfirmation(false)}>
+                KHÔNG
+              </button>
+            </div>
+          )}
+          <p className="camera-note">
+            Khi bạn chọn <strong>Có</strong>, màn hình Kiosk sẽ tự chuyển sang mã QR đơn hàng và điện thoại sẽ mở trực tiếp camera quét QR.
+          </p>
+        </section>
+      </main>
+    )
   }
 
   if (!payment) {
@@ -310,40 +402,27 @@ export default function App() {
       <main className="shell">
         <section className="panel">
           <p className="eyebrow">SCENTSTATION · MOCK PAYMENT</p>
-          <h1>Quét mã QR</h1>
-          <p>Dùng camera để quét mã giao dịch đang hiển thị trên kiosk. Không cần nhập mã thanh toán.</p>
+          <h1>Quét mã QR đơn hàng</h1>
+          <p>Đưa camera hướng vào mã QR đơn hàng đang hiển thị trên màn hình Kiosk.</p>
           {error && <div className="alert error" role="alert">{error}</div>}
-          {scannerStatus === 'starting' && <div className="alert" role="status">Đang yêu cầu quyền camera…</div>}
-          {scannerStatus === 'scanning' && <div className="alert" role="status">Đang quét mã QR đơn hàng…</div>}
+          {scannerStatus === 'starting' && <div className="alert" role="status">Đang mở camera trực tiếp…</div>}
+          {scannerStatus === 'scanning' && <div className="alert" role="status">Camera đang hoạt động — hãy đưa vào mã QR đơn hàng…</div>}
           {scannerStatus === 'identified' && <div className="alert" role="status">Đã nhận diện QR. Đang kiểm tra dữ liệu…</div>}
-          {scannerStatus === 'lookup' && <div className="alert" role="status">Đã nhận diện QR. Đang tra cứu đơn hàng…</div>}
-          <div className="actions">
-            <button type="button" onClick={() => void startScanner()} disabled={scanning}>QUÉT MÃ QR</button>
-            <button className="secondary" type="button" onClick={() => fileInputRef.current?.click()} disabled={scanning}>
-              CHỤP QR BẰNG CAMERA HỆ THỐNG
-            </button>
-            {scanning && <button className="secondary" type="button" onClick={() => {
-              void stopScanner().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Không thể dừng camera.'))
-            }}>DỪNG QUÉT</button>}
-          </div>
-          <input
-            ref={fileInputRef}
-            className="camera-input"
-            type="file"
-            accept="image/*"
-            capture="environment"
-            aria-label="Chụp ảnh mã QR thanh toán"
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0]
-              event.currentTarget.value = ''
-              void scanCapturedImage(file)
-            }}
-          />
+          {scannerStatus === 'lookup' && <div className="alert" role="status">Đã nhận diện QR. Đang tra cứu thông tin đơn hàng…</div>}
           <div id={scannerElementId} className={scanning ? 'qr-scanner' : 'qr-scanner qr-scanner-idle'} />
+          <div className="actions">
+            {!scanning ? (
+              <button type="button" onClick={() => void startScanner()}>MỞ CAMERA QUÉT QR</button>
+            ) : (
+              <button className="secondary" type="button" onClick={() => {
+                void stopScanner().catch((cause: unknown) => setError(cause instanceof Error ? cause.message : 'Không thể dừng camera.'))
+              }}>DỪNG QUÉT</button>
+            )}
+          </div>
           <p className="camera-note">
             {window.isSecureContext
-              ? 'Trang đang chạy trong secure context. Nhấn QUÉT MÃ QR và cấp quyền camera khi trình duyệt hỏi; camera sau sẽ được ưu tiên.'
-              : 'Trên HTTP bằng địa chỉ IP LAN, trình duyệt thường chặn camera trực tiếp (getUserMedia). Hãy mở trang bằng HTTPS; nút chụp ảnh chỉ là phương án dự phòng.'}
+              ? 'Camera web đang dùng trực tiếp trong trình duyệt (ưu tiên camera sau).'
+              : 'Lưu ý: trình duyệt điện thoại yêu cầu HTTPS (cổng 3443) để mở camera trực tiếp trong trang web.'}
           </p>
         </section>
       </main>
@@ -354,7 +433,7 @@ export default function App() {
     <main className="shell">
       <section className="panel">
         <p className="eyebrow">SCENTSTATION · MOCK PAYMENT</p>
-        <h1>{payment.status === 'PAID' ? 'Thanh toán thành công' : 'Thanh toán đơn hàng'}</h1>
+        <h1>{payment.status === 'PAID' ? 'Thanh toán thành công' : 'Xác nhận thanh toán đơn hàng'}</h1>
 
         <div className="summary-grid">
           <div className="box">
@@ -369,7 +448,7 @@ export default function App() {
 
         {order && (
           <div className="order-details">
-            <h2>Chi tiết đơn hàng</h2>
+            <h2>Chi tiết đơn hàng #{order.id}</h2>
             {order.items.map((item) => (
               <div className="order-item" key={`${item.productId}-${item.productName}`}>
                 <div>
@@ -387,25 +466,25 @@ export default function App() {
         )}
 
         <div className="details">
+          <p><strong>Mã giao dịch:</strong> {payment.reference}</p>
           <p><strong>Thời gian hết hạn:</strong> {new Date(payment.expiresAt).toLocaleString('vi-VN')}</p>
-          <p><strong>Đơn vị tiền tệ:</strong> {payment.currency}</p>
         </div>
 
         {error && <div className="alert error" role="alert">{error}</div>}
         {result && <div className="alert success" role="status">{result}</div>}
-        {payment.status === 'PAID' && !result && <div className="alert success">Giao dịch đã được xử lý.</div>}
+        {payment.status === 'PAID' && !result && <div className="alert success">Giao dịch đã được xử lý và gửi tín hiệu phun.</div>}
         {payment.status === 'FAILED' && <div className="alert error">Thanh toán thất bại. Giao dịch không được chấp nhận.</div>}
-        {payment.status === 'EXPIRED' && <div className="alert error">Giao dịch đã hết hạn. Vui lòng liên hệ kiosk để được hỗ trợ.</div>}
+        {payment.status === 'EXPIRED' && <div className="alert error">Giao dịch đã hết hạn. Vui lòng thực hiện lại trên kiosk.</div>}
 
         {payment.status === 'PENDING' ? (
           <div className="actions">
             <button type="button" disabled={submitting} onClick={() => void confirmPayment()}>
-              {submitting ? 'Đang xác nhận...' : 'THANH TOÁN'}
+              {submitting ? 'Đang gửi xác nhận...' : 'XÁC NHẬN THANH TOÁN & PHUN'}
             </button>
-            <button className="secondary" type="button" onClick={backToHome}>QUAY LẠI</button>
+            <button className="secondary" type="button" onClick={backToScanner}>QUÉT LẠI QR</button>
           </div>
         ) : (
-          <button type="button" onClick={backToHome}>QUAY LẠI TRANG CHÍNH</button>
+          <button type="button" onClick={backToScanner}>QUÉT MÃ QR MỚI</button>
         )}
       </section>
     </main>
