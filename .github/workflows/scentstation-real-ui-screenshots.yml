@@ -52,7 +52,18 @@ jobs:
           docker compose config --quiet
 
       - name: Build and start the full backend stack
-        run: docker compose up -d --build --wait --wait-timeout 900 api-gateway
+        run: |
+          # MySQL 8.4 rejects ADD COLUMN IF NOT EXISTS. The fresh runner database
+          # already gets order_type from the CREATE TABLE immediately above it.
+          python3 - <<'PYSQL'
+          from pathlib import Path
+          p = Path("services/order-service/database/schema.sql")
+          sql = p.read_text()
+          redundant = "ALTER TABLE orders\n    ADD COLUMN IF NOT EXISTS order_type VARCHAR(16) NOT NULL DEFAULT 'TRIAL';"
+          assert sql.count(redundant) == 1 and sql.count("order_type VARCHAR(16)") == 2
+          p.write_text(sql.replace(redundant, ""))
+          PYSQL
+          docker compose up -d --build --wait --wait-timeout 900 api-gateway
 
       - name: Seed disposable demo databases
         shell: bash
