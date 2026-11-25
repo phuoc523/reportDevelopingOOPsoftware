@@ -98,6 +98,11 @@ class MachineTelemetryIntegrationTest extends MachineServiceIntegrationTestBase 
         var events = deviceEvents.findAllByMachineIdOrderByOccurredAtDesc(machineId);
         assertThat(events).hasSize(1);
         assertThat(events.getFirst().getEventType()).isEqualTo("DEVICE_REBOOTED");
+
+        var eventsResponse = getJsonList("/api/machines/" + machineId + "/events");
+        assertEquals(HttpStatus.OK, eventsResponse.getStatusCode());
+        assertThat(eventsResponse.getBody()).hasSize(1);
+        assertThat(eventsResponse.getBody().getFirst().get("eventType")).isEqualTo("DEVICE_REBOOTED");
     }
 
     private void sendTelemetry(Long machineId, Long slotId, String remainingPercent, Instant timestamp) {

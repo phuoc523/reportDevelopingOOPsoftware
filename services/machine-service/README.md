@@ -54,7 +54,7 @@ Slot telemetry is published to `scentstation/{machineId}/telemetry` with `remain
 
 Device alerts published to `scentstation/{machineId}/alert` (`LEAK_DETECTED`, `DOOR_OPEN`, `SENSOR_FAILURE`, `ACTUATOR_FAILURE`, `SLOT_EMPTY`, `DISPENSE_FAILED`) are validated and recorded with source `DEVICE` via `MachineAlertService`, then forwarded through Kafka `machine-alert.v1` to `notification-service`.
 
-Device events published to `scentstation/{machineId}/event` (`DEVICE_REBOOTED`) are stored in `machine_device_events` without mutating machine status or inventory.
+Device events published to `scentstation/{machineId}/event` (`DEVICE_REBOOTED`) are stored in `machine_device_events` without mutating machine status or inventory, and can be read via `GET /api/machines/{machineId}/events` (`MACHINE_READ`).
 
 A normal reading at or below the configured threshold creates a deduplicated `LOW_STOCK` device alert. A newer reading above the threshold resolves that device alert. Inventory-origin alerts remain independent and are not resolved by device telemetry.
 
