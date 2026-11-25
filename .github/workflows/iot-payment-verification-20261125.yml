@@ -1,0 +1,72 @@
+name: ScentStation IoT and Payment safe test 2026-11-25
+
+on:
+  push:
+    branches:
+      - test-iot-payment-20261125
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  module-tests:
+    name: "${{ matrix.module }} Maven verification"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [device-simulator, machine-service, order-service]
+        include:
+          - module: device-simulator
+            pom: device-simulator/pom.xml
+          - module: machine-service
+            pom: services/machine-service/pom.xml
+          - module: order-service
+            pom: services/order-service/pom.xml
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: "${{ matrix.pom }}"
+      - name: Run Maven clean verify
+        run: mvn -B -ntp -f "${{ matrix.pom }}" clean verify
+        env:
+          MAVEN_OPTS: -Xms64m -Xmx1024m -XX:ActiveProcessorCount=2
+      - name: Upload JUnit results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "junit-${{ matrix.module }}"
+          path: |
+            device-simulator/target/surefire-reports/
+            services/${{ matrix.module }}/target/surefire-reports/
+          if-no-files-found: ignore
+
+  mqtt-broker-acl:
+    name: MQTT Mosquitto ACL integration (Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: services/machine-service/pom.xml
+      - name: Run opt-in broker ACL tests
+        run: mvn -B -ntp -f services/machine-service/pom.xml -Dmachine.mqtt.broker-tests=true -Dtest=MosquittoAclIntegrationTest test
+        env:
+          MAVEN_OPTS: -Xms64m -Xmx1024m -XX:ActiveProcessorCount=2
+      - name: Upload MQTT results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-mosquitto-acl
+          path: services/machine-service/target/surefire-reports/
+          if-no-files-found: ignore
