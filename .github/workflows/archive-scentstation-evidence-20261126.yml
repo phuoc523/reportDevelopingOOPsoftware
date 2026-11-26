@@ -1,0 +1,54 @@
+name: Archive ScentStation UI evidence (2026-11-26)
+
+on:
+  push:
+    branches: [test-2026-11-26]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.ref == 'refs/heads/test-2026-11-26'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: scentstation-real-ui-screenshots
+          run-id: '45738373463'
+          github-token: ${{ github.token }}
+          path: evidence-download
+      - name: Check and commit the verified evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import shutil
+          from pathlib import Path
+
+          download = Path("evidence-download")
+          report_path = download / "run-report.json"
+          report = json.loads(report_path.read_text())
+          sources = sorted((download / "screenshots").glob("*.png"))
+          assert len(sources) == 10
+          assert {p.name for p in sources} == set(report["screenshots"])
+          assert report["outcome"] == "PAYMENT_SIMULATED_SPRAY_AND_INVENTORY_CONFIRMED"
+          assert report["realBankUsed"] is False
+          assert report["sprayStatus"] == "DISPENSED"
+          assert report["inventoryBefore"] == 452 and report["inventoryAfter"] == 451.88
+          dest = Path("artifacts/screenshots")
+          dest.mkdir(parents=True, exist_ok=True)
+          for source in sources:
+              assert source.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+              shutil.copyfile(source, dest / source.name)
+          shutil.copyfile(report_path, dest.parent / report_path.name)
+          PY
+          git add -f artifacts/run-report.json artifacts/screenshots/*.png
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "test: archive verified ScentStation UI screenshots for 26 November"
+          git push origin HEAD:refs/heads/test-2026-11-26
