@@ -42,6 +42,9 @@ LEVEL 91001 5
 LEVEL 91001 80
 ALERT LEAK_DETECTED CRITICAL 91001
 ALERT DOOR_OPEN HIGH
+BROKER 192.168.1.140
 ```
 
 Lệnh `LEVEL` đặt mức demo của slot và gửi telemetry ngay; dùng giá trị lớn hơn `stockThreshold` để kiểm tra tự resolve cảnh báo `LOW_STOCK`. Lệnh `ALERT` gửi `DEVICE_ALERT` QoS 1 lên `scentstation/{machineId}/alert`.
+
+Nếu cấu hình `MQTT_MDNS_HOST` trong `secrets.h` (tên máy tính chạy broker, ví dụ `ADMIN-PC`), ESP32 tự động tìm IP LAN mới của laptop qua mDNS (`<MQTT_MDNS_HOST>.local`, lọc đúng subnet Wi-Fi) mỗi khi đổi mạng mà không cần nạp lại firmware; có thể ghi đè nhanh qua Serial bằng lệnh `BROKER <ip>`.

@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ArduinoMqttClient.h>
 #include <ArduinoJson.h>
+#include <ESPmDNS.h>
 #include <Preferences.h>
 #include <WiFi.h>
 #include <time.h>
@@ -9,6 +10,10 @@
 #include "secrets.h"
 #else
 #include "secrets.example.h"
+#endif
+
+#ifndef MQTT_MDNS_HOST
+#define MQTT_MDNS_HOST ""
 #endif
 
 namespace {
@@ -40,6 +45,8 @@ unsigned long lastHeartbeatAt = 0;
 unsigned long lastTelemetryAt = 0;
 unsigned long lastReconnectAttemptAt = 0;
 bool rebootEventPublished = false;
+bool mdnsStarted = false;
+String currentMqttHost = MQTT_HOST;
 float remainingPercent[] = {100.0F, 100.0F, 100.0F, 100.0F};
 
 String topic(const char* channel) {
@@ -341,7 +348,53 @@ void handleSerialDemo() {
     publishDeviceAlert(alertType, severity, slotId, summary);
     return;
   }
-  Serial.println("Use: LEVEL <slotId> <0-100> | ALERT <alertType> <severity> [slotId]");
+  if (line.startsWith("BROKER ")) {
+    String nextHost = line.substring(7);
+    nextHost.trim();
+    if (nextHost.isEmpty()) {
+      Serial.println("Use: BROKER <ip-or-host>");
+      return;
+    }
+    preferences.putString("mqttHost", nextHost);
+    currentMqttHost = nextHost;
+    if (mqtt.connected()) mqtt.stop();
+    lastReconnectAttemptAt = 0;
+    Serial.printf("MQTT broker updated to %s (reconnecting...)\n", currentMqttHost.c_str());
+    return;
+  }
+  Serial.println("Use: LEVEL <slotId> <0-100> | ALERT <alertType> <severity> [slotId] | BROKER <ip>");
+}
+
+bool isSameSubnet(const IPAddress& candidate) {
+  IPAddress local = WiFi.localIP();
+  IPAddress mask = WiFi.subnetMask();
+  for (int i = 0; i < 4; i++) {
+    if ((candidate[i] & mask[i]) != (local[i] & mask[i])) return false;
+  }
+  return true;
+}
+
+String resolveMqttHost() {
+  String mdnsName = String(MQTT_MDNS_HOST);
+  mdnsName.trim();
+  if (mdnsName.endsWith(".local")) {
+    mdnsName = mdnsName.substring(0, mdnsName.length() - 6);
+  }
+  if (!mdnsName.isEmpty() && mdnsStarted) {
+    IPAddress resolved = MDNS.queryHost(mdnsName.c_str(), 2000);
+    if (resolved != INADDR_NONE && isSameSubnet(resolved)) {
+      String ip = resolved.toString();
+      if (ip != currentMqttHost) {
+        Serial.printf("mDNS resolved %s.local -> %s\n", mdnsName.c_str(), ip.c_str());
+        preferences.putString("mqttHost", ip);
+      }
+      return ip;
+    }
+  }
+  String stored = preferences.getString("mqttHost", "");
+  stored.trim();
+  if (!stored.isEmpty()) return stored;
+  return String(MQTT_HOST);
 }
 
 void connectWifi() {
@@ -353,18 +406,23 @@ void connectWifi() {
   }
   Serial.printf("\nWiFi connected, IP=%s\n", WiFi.localIP().toString().c_str());
   configTime(0, 0, "pool.ntp.org", "time.google.com");
+  if (!mdnsStarted) {
+    mdnsStarted = MDNS.begin("esp32-scentstation");
+  }
 }
 
 void connectMqtt() {
   if (mqtt.connected() || millis() - lastReconnectAttemptAt < MQTT_RECONNECT_INTERVAL_MS) return;
   lastReconnectAttemptAt = millis();
-  if (mqtt.connect(MQTT_HOST, MQTT_PORT)) {
+  currentMqttHost = resolveMqttHost();
+  if (mqtt.connect(currentMqttHost.c_str(), MQTT_PORT)) {
     mqtt.subscribe(topic("command"), 1);
-    Serial.println("MQTT connected");
+    Serial.printf("MQTT connected to %s:%d\n", currentMqttHost.c_str(), MQTT_PORT);
     publishHeartbeat();
     publishTelemetry();
   } else {
-    Serial.printf("MQTT connection failed, code=%d\n", mqtt.connectError());
+    Serial.printf("MQTT connection to %s:%d failed, code=%d\n",
+        currentMqttHost.c_str(), MQTT_PORT, mqtt.connectError());
   }
 }
 }  // namespace

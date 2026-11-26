@@ -199,7 +199,13 @@ public class MachineService {
             throw new InvalidOperationException("A disabled machine must be re-enabled through the control endpoint");
         }
         machine.setOperationalStatus(next);
+        if (next == MachineOperationalStatus.ONLINE && old != MachineOperationalStatus.ONLINE) {
+            machine.setLastSeenAt(null);
+        }
         Machine saved = machines.save(machine);
+        if (next == MachineOperationalStatus.ONLINE && old == MachineOperationalStatus.OFFLINE) {
+            machineAlerts.resolveMachineOfflineAlerts(saved, java.time.Instant.now());
+        }
         if (old != request.getStatus()) {
             saveHistory(saved, MachineHistoryAction.OPERATIONAL_STATUS_CHANGED,
                 saved.getTenantId(), saved.getTenantId(), saved.getLocationId(),

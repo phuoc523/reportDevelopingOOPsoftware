@@ -11,6 +11,28 @@ const configuredMachineId = Number(import.meta.env.VITE_KIOSK_MACHINE_ID || '910
 const money = (value: number, currency = 'VND') => new Intl.NumberFormat('vi-VN', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value)
 const readableError = (error: unknown) => error instanceof Error ? error.message : 'Không thể hoàn thành yêu cầu. Vui lòng thử lại.'
 
+function rewriteConfirmUrlWithLanIp(confirmUrl: string, lanIp: string | null): string {
+  if (!lanIp) return confirmUrl
+  try {
+    const parsed = new URL(confirmUrl)
+    parsed.hostname = lanIp
+    return parsed.toString()
+  } catch {
+    return confirmUrl
+  }
+}
+
+async function fetchCurrentLanIp(): Promise<string | null> {
+  try {
+    const res = await fetch('/__kiosk-network', { cache: 'no-store' })
+    if (!res.ok) return null
+    const data = await res.json() as { ip?: string | null }
+    return typeof data.ip === 'string' && data.ip.trim() ? data.ip.trim() : null
+  } catch {
+    return null
+  }
+}
+
 function isPaymentQrData(qrPayload: string, reference: string) {
   try {
     const data: unknown = JSON.parse(qrPayload)
@@ -138,15 +160,23 @@ function App() {
     let active = true
     setTrialSessionLoading(true)
     setError('')
-    void kioskApi.createTrialConfirmation({
-      machineId: String(selected.slot.machineId),
-      slotId: String(selected.slot.id),
-      productId: selected.product.id,
-      productName: selected.product.name,
-      unitPrice: selected.pricing.effectivePrice,
-      currency: 'VND',
-    }).then((created) => {
-      if (active) setTrialSession(created)
+    void Promise.all([
+      kioskApi.createTrialConfirmation({
+        machineId: String(selected.slot.machineId),
+        slotId: String(selected.slot.id),
+        productId: selected.product.id,
+        productName: selected.product.name,
+        unitPrice: selected.pricing.effectivePrice,
+        currency: 'VND',
+      }),
+      fetchCurrentLanIp(),
+    ]).then(([created, lanIp]) => {
+      if (active) {
+        setTrialSession({
+          ...created,
+          confirmUrl: rewriteConfirmUrlWithLanIp(created.confirmUrl, lanIp),
+        })
+      }
     }).catch((reason) => {
       if (active) setError(`Không thể tạo mã QR xác nhận: ${readableError(reason)}`)
     }).finally(() => {
@@ -165,7 +195,7 @@ function App() {
       try {
         const latest = await kioskApi.trialConfirmation(trialSession.sessionId)
         if (!active) return
-        setTrialSession(latest)
+        setTrialSession((current) => ({ ...latest, confirmUrl: current?.confirmUrl || latest.confirmUrl }))
         if (latest.status === 'CONFIRMED') {
           setError('')
           void startPaymentRef.current('TRIAL')
