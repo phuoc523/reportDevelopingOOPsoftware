@@ -83,6 +83,20 @@ jobs:
           seed_db order-db order_db order_user order_local_password infra/demo-data/order.sql
           seed_db reporting-db scentstation_reporting reporting_app reporting_local_password infra/demo-data/reporting.sql
 
+      - name: Check seeded demo sessions through the gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          for username in brand.admin kiosk.customer; do
+            login="$(curl -fsS http://127.0.0.1:8080/api/auth/login \
+              -H 'Content-Type: application/json' \
+              --data "$(jq -cn --arg username "$username" '{username: $username, password: "Demo@2026!"}')")"
+            token="$(jq -er '.token' <<< "$login")"
+            curl -fsS http://127.0.0.1:8080/api/auth/me -H "Authorization: Bearer $token" \
+              | jq -e --arg username "$username" '.username == $username and .tenantId == 1' >/dev/null
+            echo "Verified demo session for $username"
+          done
+
       - name: Build Kiosk, Admin and Mock Payment Web
         shell: bash
         run: |

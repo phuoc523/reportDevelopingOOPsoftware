@@ -3,6 +3,9 @@ SET NAMES utf8mb4;
 INSERT INTO brand_tenants
     (id, code, name, description, contact_email, contact_phone, logo_url, kiosk_content, status)
 VALUES
+    (1, 'scentstation', 'ScentStation', 'Thương hiệu demo ScentStation.',
+     'contact@scentstation.demo', NULL, NULL,
+     'Khám phá bộ sưu tập hương thơm ScentStation.', 'ACTIVE'),
     (9102, 'chanel', 'Chanel', 'Thương hiệu nước hoa Pháp với phong cách thanh lịch và vượt thời gian.',
      'admin.vn@chanel.demo', '028-7300-1921', NULL,
      'Khám phá các tầng hương biểu tượng của Chanel tại ScentStation.', 'ACTIVE'),
