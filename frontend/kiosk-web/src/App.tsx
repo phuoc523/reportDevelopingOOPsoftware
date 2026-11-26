@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import './App.css'
+import { WifiSetupModal } from './components/WifiSetupModal'
 import { ApiError, authToken, clearKioskCache, kioskApi } from './services/api'
 import type { DispensingResponse, KioskItem, Machine, OrderResponse, PaymentResponse, Principal, TrialConfirmationResponse } from './types/api'
 import { availabilityText, dispensingStatusText, formatCountdown } from './utils/kioskHelpers.ts'
@@ -66,6 +67,7 @@ function App() {
   const [error, setError] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [wifiModalOpen, setWifiModalOpen] = useState(false)
   const creatingRef = useRef(false)
   const paymentReference = payment?.reference
   const paymentStatus = payment?.status
@@ -416,13 +418,41 @@ function App() {
 
   if (loading) return <main className="center-screen"><div className="spinner"/><p>Đang kết nối ScentStation…</p></main>
 
-  if (!principal) return <main className="login-screen"><section className="login-card">
-    <div className="brand-emblem">S</div><p className="eyebrow">SCENTSTATION · KIOSK</p><h1>Bắt đầu trải nghiệm hương thơm</h1><p>Đăng nhập tài khoản khách được cấp cho máy này để tiếp tục.</p>
-    <form onSubmit={submitLogin}><label>Tên đăng nhập<input autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required /></label><label>Mật khẩu<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>{error && <div className="error-box" role="alert">{error}</div>}<button className="primary" disabled={busy}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button></form><small>Máy cấu hình: #{configuredMachineId}</small>
-  </section></main>
+  if (!principal) return <main className="login-screen">
+    <button
+      className="wifi-icon-button wifi-floating-btn"
+      type="button"
+      title="Cấu hình Wi-Fi & đồng bộ máy phun ESP32"
+      aria-label="Cấu hình Wi-Fi cho máy phun"
+      onClick={() => setWifiModalOpen(true)}
+    >
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01" /></svg>
+    </button>
+    <section className="login-card">
+      <div className="brand-emblem">S</div><p className="eyebrow">SCENTSTATION · KIOSK</p><h1>Bắt đầu trải nghiệm hương thơm</h1><p>Đăng nhập tài khoản khách được cấp cho máy này để tiếp tục.</p>
+      <form onSubmit={submitLogin}><label>Tên đăng nhập<input autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required /></label><label>Mật khẩu<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>{error && <div className="error-box" role="alert">{error}</div>}<button className="primary" disabled={busy}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button></form><small>Máy cấu hình: #{configuredMachineId}</small>
+    </section>
+    <WifiSetupModal open={wifiModalOpen} onClose={() => setWifiModalOpen(false)} />
+  </main>
 
   return <main className="kiosk-shell">
-    <header className="topbar"><div className="brand-lockup"><span>S</span><div><strong>SCENTSTATION</strong><small>HƯƠNG THƠM CỦA RIÊNG BẠN</small></div></div><div className={`machine-pill ${machineReady ? 'online' : 'offline'}`}><i />{machine?.name || `Máy #${configuredMachineId}`} · {machineReady ? 'Sẵn sàng' : 'Ngoại tuyến'}</div><button className="logout-button" type="button" onClick={() => void logout()} disabled={busy}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5m5 5H3m9-7h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6" /></svg><span>Đăng xuất</span></button></header>
+    <header className="topbar">
+      <div className="brand-lockup"><span>S</span><div><strong>SCENTSTATION</strong><small>HƯƠNG THƠM CỦA RIÊNG BẠN</small></div></div>
+      <div className={`machine-pill ${machineReady ? 'online' : 'offline'}`}><i />{machine?.name || `Máy #${configuredMachineId}`} · {machineReady ? 'Sẵn sàng' : 'Ngoại tuyến'}</div>
+      <div className="topbar-actions">
+        <button className="logout-button" type="button" onClick={() => void logout()} disabled={busy}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5m5 5H3m9-7h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-6" /></svg><span>Đăng xuất</span></button>
+        <button
+          className={`wifi-icon-button ${machineReady ? 'online' : 'offline'}`}
+          type="button"
+          title="Cấu hình Wi-Fi & đồng bộ máy phun ESP32"
+          aria-label="Cấu hình Wi-Fi cho máy phun"
+          onClick={() => setWifiModalOpen(true)}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01" /></svg>
+          <i className="wifi-status-dot" aria-hidden="true" />
+        </button>
+      </div>
+    </header>
 
     {screen === 'catalog' && <><section className="hero"><div><p className="eyebrow">BỘ SƯU TẬP TẠI MÁY #{configuredMachineId}</p><h1>Chọn mùi hương bạn muốn trải nghiệm</h1><p>1. Chọn mùi hương → 2. Quét mã QR thanh toán → 3. Đưa cổ tay vào đầu phun nhận hương.</p></div><button className="secondary" onClick={() => void refresh()} disabled={busy}>{busy ? 'Đang tải…' : 'Làm mới'}</button></section>
       {error && <div className="error-banner" role="alert">{error}</div>}{!machineReady && <div className="warning-banner">Máy hiện không sẵn sàng. Không thể tạo đơn hoặc thanh toán cho đến khi máy trực tuyến và hoàn tất kiểm tra kỹ thuật.</div>}<div className="catalog-meta"><strong>{items.length} đầu phun</strong><span>{availableCount} mùi đang sẵn sàng</span></div>
@@ -578,6 +608,7 @@ function App() {
       {error && <div className="error-box" role="alert">{error}</div>}
       <div className="flow-actions"><button className="secondary" onClick={() => setScreen(dispensing?.status === 'DISPENSED' ? 'result' : 'catalog')} disabled={busy}>Quay lại</button><button className="primary large" onClick={() => void startPayment('BOTTLE')} disabled={busy || !selected.product.bottlePrice || selected.product.bottleStock <= 0}>{busy ? 'Đang tạo đơn…' : resumablePayment ? 'Tiếp tục thanh toán' : 'Thanh toán mua chai'}</button></div>
     </section>}
+    <WifiSetupModal open={wifiModalOpen} onClose={() => setWifiModalOpen(false)} onSynced={() => { void refresh() }} />
   </main>
 }
 

@@ -17,10 +17,12 @@
 #endif
 
 namespace {
-constexpr char FIRMWARE_VERSION[] = "esp32-led-1.1.0";
+constexpr char FIRMWARE_VERSION[] = "esp32-led-1.2.0";
 constexpr unsigned long HEARTBEAT_INTERVAL_MS = 5000;
 constexpr unsigned long TELEMETRY_INTERVAL_MS = 30000;
 constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 3000;
+constexpr unsigned long WIFI_RECONNECT_INTERVAL_MS = 10000;
+constexpr unsigned long WIFI_CONNECT_TIMEOUT_MS = 15000;
 constexpr int MIN_DURATION_MS = 50;
 constexpr int MAX_DURATION_MS = 10000;
 constexpr size_t RESULT_HISTORY_SIZE = 8;
@@ -44,8 +46,12 @@ Preferences preferences;
 unsigned long lastHeartbeatAt = 0;
 unsigned long lastTelemetryAt = 0;
 unsigned long lastReconnectAttemptAt = 0;
+unsigned long lastWifiAttemptAt = 0;
+bool wifiConnectedLogged = false;
 bool rebootEventPublished = false;
 bool mdnsStarted = false;
+String currentWifiSsid = WIFI_SSID;
+String currentWifiPassword = WIFI_PASSWORD;
 String currentMqttHost = MQTT_HOST;
 float remainingPercent[] = {100.0F, 100.0F, 100.0F, 100.0F};
 
@@ -309,10 +315,141 @@ void publishDeviceAlert(const String& alertType, const String& severity,
   }
 }
 
+void printStatusJson() {
+  JsonDocument doc;
+  doc["type"] = "STATUS";
+  doc["machineId"] = MACHINE_ID;
+  doc["firmwareVersion"] = FIRMWARE_VERSION;
+  doc["wifiConnected"] = WiFi.status() == WL_CONNECTED;
+  doc["ssid"] = currentWifiSsid;
+  doc["ip"] = WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : "";
+  doc["rssi"] = WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0;
+  doc["mqttConnected"] = mqtt.connected();
+  doc["mqttHost"] = currentMqttHost;
+  Serial.println();
+  Serial.print("@@JSON:");
+  serializeJson(doc, Serial);
+  Serial.println();
+}
+
+void printWifiScanJson() {
+  int count = WiFi.scanNetworks(false, false);
+  JsonDocument doc;
+  doc["type"] = "WIFI_LIST";
+  JsonArray networks = doc["networks"].to<JsonArray>();
+  String seen[15];
+  size_t seenCount = 0;
+  for (int i = 0; i < count && seenCount < 15; i++) {
+    String ssid = WiFi.SSID(i);
+    ssid.trim();
+    if (ssid.isEmpty()) continue;
+    bool duplicate = false;
+    for (size_t j = 0; j < seenCount; j++) {
+      if (seen[j] == ssid) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (duplicate) continue;
+    seen[seenCount++] = ssid;
+    JsonObject item = networks.add<JsonObject>();
+    item["ssid"] = ssid;
+    item["rssi"] = WiFi.RSSI(i);
+    item["secured"] = WiFi.encryptionType(i) != WIFI_AUTH_OPEN;
+  }
+  WiFi.scanDelete();
+  Serial.println();
+  Serial.print("@@JSON:");
+  serializeJson(doc, Serial);
+  Serial.println();
+}
+
+bool connectWifiBlocking(unsigned long timeoutMs);
+void connectMqtt();
+
+void handleWifiProvisionCommand(const String& rawArgs) {
+  int firstSep = rawArgs.indexOf('|');
+  String ssid;
+  String password;
+  String brokerHint;
+  if (firstSep < 0) {
+    ssid = rawArgs;
+  } else {
+    ssid = rawArgs.substring(0, firstSep);
+    int secondSep = rawArgs.indexOf('|', firstSep + 1);
+    if (secondSep < 0) {
+      password = rawArgs.substring(firstSep + 1);
+    } else {
+      password = rawArgs.substring(firstSep + 1, secondSep);
+      brokerHint = rawArgs.substring(secondSep + 1);
+      brokerHint.trim();
+    }
+  }
+  ssid.trim();
+  if (ssid.isEmpty()) {
+    JsonDocument doc;
+    doc["type"] = "WIFI_RESULT";
+    doc["ok"] = false;
+    doc["error"] = "Wi-Fi SSID khong duoc de trong";
+    Serial.println();
+    Serial.print("@@JSON:");
+    serializeJson(doc, Serial);
+    Serial.println();
+    return;
+  }
+
+  currentWifiSsid = ssid;
+  currentWifiPassword = password;
+  preferences.putString("wifiSsid", currentWifiSsid);
+  preferences.putString("wifiPass", currentWifiPassword);
+  if (!brokerHint.isEmpty()) {
+    currentMqttHost = brokerHint;
+    preferences.putString("mqttHost", currentMqttHost);
+  }
+
+  if (mqtt.connected()) mqtt.stop();
+  WiFi.disconnect(false, false);
+  delay(150);
+  wifiConnectedLogged = false;
+  bool connected = connectWifiBlocking(12000);
+  if (connected) {
+    lastReconnectAttemptAt = 0;
+  }
+
+  JsonDocument doc;
+  doc["type"] = "WIFI_RESULT";
+  doc["ok"] = connected;
+  doc["ssid"] = currentWifiSsid;
+  doc["ip"] = connected ? WiFi.localIP().toString() : "";
+  doc["mqttConnected"] = false;
+  doc["mqttHost"] = currentMqttHost;
+  if (!connected) {
+    doc["error"] = "Khong ket noi duoc Wi-Fi '" + currentWifiSsid + "'. Kiem tra ten mang hoac mat khau.";
+  }
+  Serial.println();
+  Serial.print("@@JSON:");
+  serializeJson(doc, Serial);
+  Serial.println();
+  Serial.flush();
+}
+
 void handleSerialDemo() {
   if (!Serial.available()) return;
   String line = Serial.readStringUntil('\n');
   line.trim();
+  if (line.isEmpty()) return;
+  if (line == "STATUS") {
+    printStatusJson();
+    return;
+  }
+  if (line == "SCAN_WIFI") {
+    printWifiScanJson();
+    return;
+  }
+  if (line.startsWith("WIFI ")) {
+    handleWifiProvisionCommand(line.substring(5));
+    return;
+  }
   if (line.startsWith("LEVEL ")) {
     int separator = line.indexOf(' ', 6);
     if (separator < 0) return;
@@ -362,7 +499,7 @@ void handleSerialDemo() {
     Serial.printf("MQTT broker updated to %s (reconnecting...)\n", currentMqttHost.c_str());
     return;
   }
-  Serial.println("Use: LEVEL <slotId> <0-100> | ALERT <alertType> <severity> [slotId] | BROKER <ip>");
+  Serial.println("Use: STATUS | SCAN_WIFI | WIFI <ssid>|<pass>[|<broker>] | LEVEL <slotId> <0-100> | ALERT <type> <sev> [slot] | BROKER <ip>");
 }
 
 bool isSameSubnet(const IPAddress& candidate) {
@@ -397,21 +534,52 @@ String resolveMqttHost() {
   return String(MQTT_HOST);
 }
 
-void connectWifi() {
+void onWifiConnected() {
+  if (wifiConnectedLogged) return;
+  wifiConnectedLogged = true;
+  Serial.printf("\nWiFi connected (%s), IP=%s\n",
+      currentWifiSsid.c_str(), WiFi.localIP().toString().c_str());
+  configTime(0, 0, "pool.ntp.org", "time.google.com");
+  if (mdnsStarted) {
+    MDNS.end();
+    mdnsStarted = false;
+  }
+  mdnsStarted = MDNS.begin("esp32-scentstation");
+}
+
+bool connectWifiBlocking(unsigned long timeoutMs) {
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
+  WiFi.begin(currentWifiSsid.c_str(), currentWifiPassword.c_str());
+  lastWifiAttemptAt = millis();
+  unsigned long startedAt = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startedAt < timeoutMs) {
+    delay(250);
     Serial.print('.');
   }
-  Serial.printf("\nWiFi connected, IP=%s\n", WiFi.localIP().toString().c_str());
-  configTime(0, 0, "pool.ntp.org", "time.google.com");
-  if (!mdnsStarted) {
-    mdnsStarted = MDNS.begin("esp32-scentstation");
+  if (WiFi.status() == WL_CONNECTED) {
+    onWifiConnected();
+    return true;
+  }
+  Serial.printf("\nWiFi connect timeout for SSID=%s\n", currentWifiSsid.c_str());
+  return false;
+}
+
+void ensureWifiConnected() {
+  if (WiFi.status() == WL_CONNECTED) {
+    onWifiConnected();
+    return;
+  }
+  wifiConnectedLogged = false;
+  if (millis() - lastWifiAttemptAt >= WIFI_RECONNECT_INTERVAL_MS) {
+    lastWifiAttemptAt = millis();
+    Serial.printf("Reconnecting WiFi (%s)...\n", currentWifiSsid.c_str());
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(currentWifiSsid.c_str(), currentWifiPassword.c_str());
   }
 }
 
 void connectMqtt() {
+  if (WiFi.status() != WL_CONNECTED) return;
   if (mqtt.connected() || millis() - lastReconnectAttemptAt < MQTT_RECONNECT_INTERVAL_MS) return;
   lastReconnectAttemptAt = millis();
   currentMqttHost = resolveMqttHost();
@@ -436,7 +604,18 @@ void setup() {
     digitalWrite(slot.pin, LOW);
   }
   preferences.begin("scentstation", false);
-  connectWifi();
+  String storedSsid = preferences.getString("wifiSsid", "");
+  storedSsid.trim();
+  if (!storedSsid.isEmpty()) {
+    currentWifiSsid = storedSsid;
+    currentWifiPassword = preferences.getString("wifiPass", "");
+  }
+  String storedHost = preferences.getString("mqttHost", "");
+  storedHost.trim();
+  if (!storedHost.isEmpty()) {
+    currentMqttHost = storedHost;
+  }
+  connectWifiBlocking(WIFI_CONNECT_TIMEOUT_MS);
   String clientId = "esp32-" + String(MACHINE_ID) + "-"
       + String(static_cast<uint32_t>(ESP.getEfuseMac()), HEX);
   mqtt.setId(clientId);
@@ -449,10 +628,10 @@ void setup() {
 }
 
 void loop() {
-  if (WiFi.status() != WL_CONNECTED) connectWifi();
+  handleSerialDemo();
+  ensureWifiConnected();
   connectMqtt();
   mqtt.poll();
-  handleSerialDemo();
   if (!rebootEventPublished && mqtt.connected() && clockReady()) {
     publishDeviceEvent("DEVICE_REBOOTED", "ESP32 booted and connected to MQTT");
     rebootEventPublished = true;

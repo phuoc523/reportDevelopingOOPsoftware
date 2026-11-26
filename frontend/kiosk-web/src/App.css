@@ -196,3 +196,45 @@ button:focus-visible { outline:3px solid rgba(166,117,56,.48); outline-offset:3p
   .sample-icon { width:44px; height:44px; flex:0 0 44px; }
   .selected-mark { margin-left:56px; }
 }
+
+.topbar-actions { display:flex; align-items:center; gap:10px; }
+.wifi-icon-button { position:relative; width:44px; height:44px; display:inline-grid; place-items:center; border:1px solid #cfc5b4; border-radius:12px; background:var(--paper); color:var(--ink); cursor:pointer; transition:background-color .18s ease,border-color .18s ease,transform .12s ease; }
+.wifi-icon-button svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+.wifi-icon-button:hover { background:#f4efe5; border-color:var(--gold); transform:translateY(-1px); }
+.wifi-icon-button .wifi-status-dot { position:absolute; top:7px; right:7px; width:8px; height:8px; border-radius:50%; background:var(--danger); border:1.5px solid var(--paper); }
+.wifi-icon-button.online .wifi-status-dot { background:var(--success); }
+.wifi-floating-btn { position:fixed; top:20px; right:20px; z-index:20; box-shadow:0 8px 24px rgba(23,55,47,.12); }
+
+.wifi-modal-backdrop { position:fixed; inset:0; z-index:50; background:rgba(16,33,28,.48); backdrop-filter:blur(4px); display:grid; place-items:center; padding:20px; }
+.wifi-modal { width:min(580px,100%); max-height:92vh; overflow-y:auto; background:var(--paper); border:1px solid var(--line); border-radius:24px; padding:26px; box-shadow:0 28px 80px rgba(16,33,28,.24); color:var(--ink); text-align:left; }
+.wifi-modal-header { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:18px; }
+.wifi-modal-header h2 { margin:6px 0 0; font:500 26px/1.2 "Playfair Display",Georgia,serif; }
+.wifi-close-btn { width:36px; height:36px; border:1px solid var(--line); border-radius:10px; background:transparent; color:var(--ink); font-size:16px; cursor:pointer; }
+.wifi-close-btn:hover:not(:disabled) { background:#f4efe5; }
+
+.wifi-status-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:14px; }
+.wifi-status-grid>div { padding:14px; border:1px solid var(--line); border-radius:14px; background:#faf7f0; display:grid; gap:4px; }
+.wifi-status-grid span { font-size:12px; color:var(--muted); font-weight:650; }
+.wifi-status-grid strong { font-size:15px; color:var(--ink); overflow-wrap:anywhere; }
+.wifi-status-grid small { font-size:12px; color:var(--muted); line-height:1.45; overflow-wrap:anywhere; }
+
+.wifi-toolbar { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; }
+.wifi-toolbar button { min-height:38px; padding:8px 14px; font-size:13px; }
+.wifi-network-list { display:grid; gap:6px; max-height:165px; overflow-y:auto; margin-bottom:16px; padding:8px; border:1px solid var(--line); border-radius:14px; background:#faf7f0; }
+.wifi-network-item { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:9px 12px; border:1px solid transparent; border-radius:10px; background:var(--paper); color:var(--ink); font-size:14px; font-weight:600; cursor:pointer; text-align:left; }
+.wifi-network-item:hover { border-color:var(--gold); }
+.wifi-network-item.active { border-color:var(--ink); background:#efe9dc; }
+.wifi-network-item small { color:var(--muted); font-size:12px; font-weight:500; white-space:nowrap; }
+
+.wifi-form { display:grid; gap:14px; }
+.wifi-form label { display:grid; gap:6px; font-size:13px; font-weight:700; color:var(--ink); }
+.wifi-form input[type="text"],.wifi-form input[type="password"] { min-height:46px; border:1px solid #cfc8bc; border-radius:12px; background:white; padding:10px 14px; color:var(--ink); font-size:14px; }
+.wifi-password-row { display:flex; gap:8px; }
+.wifi-password-row input { flex:1; min-width:0; }
+.wifi-password-row button { min-height:46px; padding:0 14px; font-size:13px; }
+.wifi-checkbox { display:flex!important; align-items:flex-start; gap:10px; font-weight:500!important; font-size:13px!important; color:var(--muted)!important; cursor:pointer; }
+.wifi-checkbox input { width:18px; height:18px; margin-top:1px; accent-color:var(--ink); flex:0 0 auto; }
+.wifi-feedback.success { padding:12px 14px; border-radius:12px; border:1px solid #a9d2bc; background:#e8f4ed; color:#23573f; font-size:13px; line-height:1.5; }
+.wifi-modal-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:10px; margin-top:4px; }
+.wifi-modal-actions button { min-height:46px; padding:10px 18px; font-size:14px; }
+@media (max-width:560px) { .wifi-status-grid { grid-template-columns:1fr; } .wifi-modal-actions button { width:100%; } }
