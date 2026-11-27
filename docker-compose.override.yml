@@ -1,0 +1,93 @@
+# Local resource guardrails. Docker Compose loads this file automatically.
+# CPU is intentionally not capped so services can finish startup quickly; RAM,
+# reservations and log rotation prevent the stack from exhausting the host.
+x-log-limits: &log-limits
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "2"
+
+x-db-limits: &db-limits
+  mem_limit: 384m
+  mem_reservation: 128m
+  logging: *log-limits
+
+x-java-limits: &java-limits
+  mem_limit: 512m
+  mem_reservation: 192m
+  logging: *log-limits
+
+services:
+  identity-db:
+    <<: *db-limits
+  catalog-db:
+    <<: *db-limits
+  machine-db:
+    <<: *db-limits
+  operation-db:
+    <<: *db-limits
+  order-db:
+    <<: *db-limits
+  reporting-db:
+    <<: *db-limits
+  notification-db:
+    <<: *db-limits
+
+  redis:
+    mem_limit: 192m
+    mem_reservation: 48m
+    logging: *log-limits
+  kafka:
+    mem_limit: 768m
+    mem_reservation: 256m
+    logging: *log-limits
+  kafka-init:
+    mem_limit: 256m
+    mem_reservation: 64m
+    logging: *log-limits
+  mqtt-broker:
+    mem_limit: 128m
+    mem_reservation: 32m
+    logging: *log-limits
+
+  api-gateway:
+    <<: *java-limits
+  identity-service:
+    <<: *java-limits
+  catalog-service:
+    <<: *java-limits
+  machine-service:
+    <<: *java-limits
+  operation-service:
+    <<: *java-limits
+  order-service:
+    <<: *java-limits
+  reporting-service:
+    <<: *java-limits
+  notification-service:
+    <<: *java-limits
+
+  mock-payment-web:
+    mem_limit: 128m
+    mem_reservation: 32m
+    logging: *log-limits
+  mock-payment-web-https:
+    mem_limit: 128m
+    mem_reservation: 32m
+    logging: *log-limits
+
+  alertmanager-secret-init:
+    mem_limit: 32m
+    logging: *log-limits
+  alertmanager:
+    mem_limit: 128m
+    mem_reservation: 32m
+    logging: *log-limits
+  prometheus:
+    mem_limit: 384m
+    mem_reservation: 96m
+    logging: *log-limits
+  grafana:
+    mem_limit: 256m
+    mem_reservation: 64m
+    logging: *log-limits

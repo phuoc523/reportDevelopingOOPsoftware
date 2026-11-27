@@ -1,5 +1,7 @@
 const TOKEN_KEY = 'scentstation.admin.jwt'
 const GET_CACHE_TTL_MS = 10_000
+const env = (import.meta as { env?: Record<string, string | undefined> }).env ?? {}
+const API_BASE_URL = (env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 
 const getCache = new Map<string, { expiresAt: number; data: unknown }>()
 const inFlightGets = new Map<string, Promise<unknown>>()
@@ -78,7 +80,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
     let response: Response
     try {
-      response = await fetch(path, { ...init, headers })
+      response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
     } catch (error) {
       throw new ApiError('Không thể kết nối đến máy chủ backend.', 0, error)
     }
@@ -122,7 +124,7 @@ export async function download(path: string, filename: string, accept = 'applica
   const headers = new Headers({ Accept: accept })
   const token = authToken.get()
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  const response = await fetch(path, { headers })
+  const response = await fetch(`${API_BASE_URL}${path}`, { headers })
   if (!response.ok) {
     const payload = await response.json().catch(() => undefined)
     throw new ApiError(errorMessage(payload, response.status), response.status, payload)

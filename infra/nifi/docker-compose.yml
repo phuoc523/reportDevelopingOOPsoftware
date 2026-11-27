@@ -8,13 +8,24 @@ services:
       args:
         MYSQL_DRIVER_VERSION: "${MYSQL_DRIVER_VERSION:-8.4.0}"
     image: scentstation/nifi:2.4.0-mysql
-    restart: unless-stopped
+    # NiFi is opt-in because it is the heaviest local container.
+    restart: "no"
+    mem_limit: 1536m
+    mem_reservation: 512m
+    stop_grace_period: 60s
     ports:
       - "127.0.0.1:8443:8443"
     environment:
       NIFI_WEB_HTTPS_PORT: "8443"
       SINGLE_USER_CREDENTIALS_USERNAME: "${NIFI_USERNAME:?NIFI_USERNAME is required}"
       SINGLE_USER_CREDENTIALS_PASSWORD: "${NIFI_PASSWORD:?NIFI_PASSWORD is required}"
+      NIFI_JVM_HEAP_INIT: "256m"
+      NIFI_JVM_HEAP_MAX: "768m"
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "2"
     volumes:
       - nifi_conf:/opt/nifi/nifi-current/conf
       - nifi_database_repository:/opt/nifi/nifi-current/database_repository

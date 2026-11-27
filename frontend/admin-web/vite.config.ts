@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         '/api': {
-          target: env.VITE_GATEWAY_URL || process.env.VITE_GATEWAY_URL || 'http://127.0.0.1:8088',
+          target: env.VITE_GATEWAY_URL || process.env.VITE_GATEWAY_URL || 'http://127.0.0.1:8080',
           changeOrigin: true,
         },
       },

@@ -32,8 +32,15 @@ function Write-MonitorLog {
 function Invoke-Compose {
     param([string[]]$Arguments)
 
+    $previousErrorActionPreference = $ErrorActionPreference
     Push-Location $repositoryRoot
     try {
+        # Docker Compose writes normal progress messages (for example
+        # "Container ... Recreate") to stderr. Windows PowerShell turns those
+        # lines into error records when the script preference is Stop, even
+        # when Docker exits successfully. Capture both streams and decide from
+        # the native exit code instead.
+        $ErrorActionPreference = 'Continue'
         $output = @(& docker compose --profile https -f $composeFile @Arguments 2>&1)
         $exitCode = $LASTEXITCODE
         if ($exitCode -ne 0) {
@@ -43,6 +50,7 @@ function Invoke-Compose {
         return $true
     }
     finally {
+        $ErrorActionPreference = $previousErrorActionPreference
         Pop-Location
     }
 }
@@ -78,10 +86,12 @@ function Get-RunningComposeServices {
 
 function Test-OrderSchemaSafeForRestart {
     $query = "SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('orders','order_items','payments','payment_callback_events','payment_event_outbox','dispensing_commands','dispense_event_outbox','transaction_reviews')), (SELECT COUNT(*) FROM information_schema.columns WHERE TABLE_SCHEMA=DATABASE() AND ((TABLE_NAME='orders' AND COLUMN_NAME='order_type') OR (TABLE_NAME='payment_event_outbox' AND COLUMN_NAME IN ('tenant_id','machine_id','slot_id','product_id'))));"
-    $shellCommand = 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names --user="$MYSQL_USER" --database="$MYSQL_DATABASE" --execute "' + $query + '"'
+    # Send SQL over stdin so PowerShell, Docker Compose and the container shell
+    # cannot reinterpret the nested quotes used by the schema predicates.
+    $shellCommand = 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names --user="$MYSQL_USER" --database="$MYSQL_DATABASE"'
     Push-Location $repositoryRoot
     try {
-        $output = @(& docker compose -f $composeFile exec -T order-db sh -c $shellCommand 2>$null)
+        $output = @($query | & docker compose -f $composeFile exec -T order-db sh -c $shellCommand 2>$null)
         $exitCode = $LASTEXITCODE
     }
     finally {

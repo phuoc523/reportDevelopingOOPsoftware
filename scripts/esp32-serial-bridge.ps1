@@ -20,13 +20,36 @@ function Find-Esp32Port {
     try {
         $pnp = Get-CimInstance Win32_PnPEntity -Filter "Name LIKE '%(COM%)'" -ErrorAction SilentlyContinue
         foreach ($dev in $pnp) {
-            if ($dev.Name -match '(CP210|Silicon Labs|CH340|CH910|USB-SERIAL|USB Serial|UART|JTAG).*\((COM\d+)\)') {
+            if ($dev.ConfigManagerErrorCode -eq 0 -and
+                $dev.Name -notmatch 'Bluetooth' -and
+                $dev.Name -match '(CP210|Silicon Labs|CH340|CH341|CH910|USB-SERIAL|USB Serial|UART|JTAG|ESP32).*\((COM\d+)\)') {
                 $candidate = $Matches[2]
                 if ($available -contains $candidate) { return $candidate }
             }
         }
     } catch { }
-    return ($available | Sort-Object | Select-Object -First 1)
+    return $null
+}
+
+function Get-Esp32UsbIssue {
+    try {
+        $usbDevice = Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.Name -match '(CP210|Silicon Labs|CH340|CH341|CH910|USB-SERIAL|USB Serial|UART|JTAG|ESP32)' -or
+                $_.PNPDeviceID -match 'VID_10C4&PID_EA60'
+            } |
+            Select-Object -First 1
+
+        if ($null -ne $usbDevice) {
+            if ([int]$usbDevice.ConfigManagerErrorCode -eq 28) {
+                return "Windows da nhan $($usbDevice.Name) nhung chua cai driver USB-to-UART (ma loi 28). Hay cai CP210x VCP driver, rut/cam lai ESP32 roi thu lai."
+            }
+            if ([int]$usbDevice.ConfigManagerErrorCode -ne 0) {
+                return "Windows da nhan $($usbDevice.Name) nhung thiet bi dang loi (ConfigManagerErrorCode=$($usbDevice.ConfigManagerErrorCode))."
+            }
+        }
+    } catch { }
+    return 'Chua phat hien ESP32 cam qua USB. Hay kiem tra cap USB data, driver va thu cong USB khac.'
 }
 
 $targetPort = if ([string]::IsNullOrWhiteSpace($Port)) { Find-Esp32Port } else { $Port.Trim() }
@@ -35,7 +58,7 @@ if ([string]::IsNullOrWhiteSpace($targetPort)) {
         ok = $false
         connected = $false
         port = $null
-        error = 'Chua phat hien ESP32 cam qua cong USB (khong tim thay cong COM).'
+        error = Get-Esp32UsbIssue
     }
     exit 0
 }

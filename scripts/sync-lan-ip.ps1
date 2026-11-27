@@ -71,16 +71,44 @@ if (Test-Path $secretsPath) {
     Write-Host "Updated MQTT_HOST=$ip in $secretsPath" -ForegroundColor Yellow
 }
 
-# 4. Recreate mock-payment-web-https (and order-service only if base URL changed, waiting until healthy)
+# 4. Apply the new configuration without starting business services before
+# their dependencies. This script is intentionally safe to run before the
+# staged Docker startup documented for developer machines.
+function Test-ComposeServiceRunning([string]$service) {
+    $containerId = docker compose ps -q $service 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($containerId)) { return $false }
+    $running = docker inspect --format '{{.State.Running}}' $containerId 2>$null
+    return $LASTEXITCODE -eq 0 -and $running.Trim() -eq 'true'
+}
+
+$orderRunning = Test-ComposeServiceRunning 'order-service'
+$gatewayRunning = Test-ComposeServiceRunning 'api-gateway'
 $prevPref = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
+
 if ($envChanged) {
-    docker compose --profile https up -d --no-deps --force-recreate --wait mock-payment-web-https order-service
-} else {
-    docker compose --profile https up -d --no-deps --force-recreate mock-payment-web-https
+    if ($orderRunning) {
+        docker compose up -d --no-deps --force-recreate --wait order-service
+        $orderExit = $LASTEXITCODE
+        if ($orderExit -ne 0) {
+            $ErrorActionPreference = $prevPref
+            throw "order-service recreate failed with exit code $orderExit."
+        }
+    }
 }
-$dockerExit = $LASTEXITCODE
+
+if ($gatewayRunning) {
+    docker compose --profile https up -d --no-deps --force-recreate mock-payment-web-https
+    $httpsExit = $LASTEXITCODE
+    if ($httpsExit -ne 0) {
+        $ErrorActionPreference = $prevPref
+        throw "mock-payment-web-https recreate failed with exit code $httpsExit."
+    }
+}
 $ErrorActionPreference = $prevPref
-if ($dockerExit -ne 0) { throw "docker compose recreate failed with exit code $dockerExit." }
+
+if (-not $orderRunning -or -not $gatewayRunning) {
+    Write-Host 'Backend is not running; updated containers were left stopped for the staged startup.' -ForegroundColor Yellow
+}
 
 Write-Host "LAN IP & TLS sync complete for $ip!" -ForegroundColor Green
