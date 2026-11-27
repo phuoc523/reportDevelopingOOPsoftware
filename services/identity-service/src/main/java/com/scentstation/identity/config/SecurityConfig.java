@@ -28,8 +28,9 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(ex -> ex.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/auth/health").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/register-staff", "/api/auth/register-staff-account", "/api/auth/login").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/auth/health", "/api/auth/tenants").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/change-password", "/api/auth/change-username", "/api/auth/staff-role-request").authenticated()
                 .requestMatchers(HttpMethod.GET, "/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers(HttpMethod.POST, "/internal/notifications/authorize-service").permitAll()

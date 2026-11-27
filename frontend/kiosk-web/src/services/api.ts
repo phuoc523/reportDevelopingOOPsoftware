@@ -147,6 +147,12 @@ export const kioskApi = {
     authToken.set(response.token)
     return response
   },
+  async register(payload: { username: string; email: string; password: string; fullName: string }) {
+    return request<AuthResponse>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }, false)
+  },
   me: () => request<Principal>('/api/auth/me'),
   logout: async () => {
     try { await request<void>('/api/auth/logout', { method: 'POST' }) }

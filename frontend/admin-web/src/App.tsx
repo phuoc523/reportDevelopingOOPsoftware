@@ -3,9 +3,9 @@ import type { FormEvent } from 'react'
 import './Admin.css'
 import { ApiError, authToken, clearApiCache } from './api/client'
 import { backend } from './api/scentStation'
-import type { Account, Alert, Bottle, BottleInstallation, Campaign, InventoryBatch, Location, Machine, MaintenanceTicket, Order, Payment, PaymentReview, Permission, Principal, Product, Slot, Tenant } from './api/types'
+import type { Account, Alert, Bottle, BottleInstallation, Campaign, InventoryBatch, Location, Machine, MaintenanceTicket, Order, Payment, PaymentReview, Permission, Principal, Product, PublicTenantSummary, Role, Slot, Tenant } from './api/types'
 import { CampaignForm, ProductPriceForm } from './components/CatalogForms'
-import { TenantForm, UserForm } from './components/IdentityForms'
+import { AccountSettingsModal, TenantForm, UserForm } from './components/IdentityForms'
 import { LocationForm, MachineForm, SlotForm } from './components/MachineForms'
 import { InventoryDisposeForm, InventoryForm, InventoryWorkflowForm, MaintenanceForm, MaintenanceWorkflowForm } from './components/OperationForms'
 import type { InventoryDisposeTarget, InventoryWorkflowPrefill } from './components/OperationForms'
@@ -118,8 +118,8 @@ const pages: Array<{ id: Page; label: string; icon: string; permissions?: Permis
 
 const labels: Record<string, string> = {
   id: 'ID', kind: 'Loại dữ liệu', name: 'Tên', code: 'Mã', status: 'Trạng thái', tenantId: 'Mã thương hiệu', tenantName: 'Thương hiệu', productId: 'Mã sản phẩm', productName: 'Sản phẩm', machineId: 'Máy',
-  username: 'Tài khoản', fullName: 'Họ tên', email: 'Email', roles: 'Vai trò', active: 'Hoạt động', locked: 'Đã khóa',
-  defaultPrice: 'Phí trải nghiệm', bottlePrice: 'Giá bán chai', bottleVolumeMl: 'Dung tích chai (ml)', warehouseVolumeMl: 'Tổng dung tích kho (ml)', bottleStock: 'Tồn chai bán lẻ', orderType: 'Loại đơn', available: 'Khả dụng', fragranceNotes: 'Nhóm hương', serialNumber: 'Serial', locationId: 'Địa điểm', machineName: 'Kiosk',
+  username: 'Tài khoản', fullName: 'Họ tên', email: 'Email', roles: 'Vai trò', active: 'Hoạt động', locked: 'Đã khóa', pendingApproval: 'Chờ duyệt vai trò',
+  defaultPrice: 'Phí trải nghiệm', bottlePrice: 'Giá bán chai', bottleVolumeMl: 'Dung tích chai (ml)', bottleStock: 'Tồn chai bán lẻ', orderType: 'Loại đơn', available: 'Khả dụng', fragranceNotes: 'Nhóm hương', serialNumber: 'Serial', locationId: 'Địa điểm', machineName: 'Kiosk',
   operationalStatus: 'Vận hành', deviceRegistrationStatus: 'Đăng ký thiết bị', slotNumber: 'Đầu phun', slotCode: 'Mã đầu phun', cartridgeId: 'Mã hộp hương', doseMl: 'Lưu lượng (ml/lượt)', installedBottleCode: 'Chai đang lắp', remainingMl: 'Còn lại (ml)', estimatedSprays: 'Lượt xịt ước tính', stockThreshold: 'Ngưỡng tồn', price: 'Giá xịt thử', locationName: 'Địa điểm', imageUrl: 'Hình ảnh',
   summary: 'Nội dung', severity: 'Mức độ', type: 'Loại', title: 'Tiêu đề', priority: 'Ưu tiên', critical: 'Khẩn cấp',
   totalAmount: 'Tổng tiền', currency: 'Tiền tệ', reference: 'Tham chiếu', orderId: 'Đơn hàng', amount: 'Số tiền', items: 'Sản phẩm',
@@ -129,7 +129,7 @@ const labels: Record<string, string> = {
   open: 'Đang mở', acknowledged: 'Đã xác nhận', assigned: 'Đã phân công', escalated: 'Đã chuyển cấp', resolved: 'Đã xử lý',
   bottles: 'Tổng số chai', installed: 'Đã lắp', nearlyEmpty: 'Sắp hết', empty: 'Đã hết', damaged: 'Hư hỏng',
   batchCode: 'Mã lô', bottleCode: 'Mã chai',
-  initialQuantity: 'Dung tích ban đầu (ml)', currentQuantity: 'Còn lại (ml)', calibratedConsumptionPerSpray: 'Mỗi lượt xịt (ml)',
+  initialQuantity: 'Dung tích ban đầu (ml)', currentQuantity: 'Tổng dung tích trong kho (ml)', calibratedConsumptionPerSpray: 'Mỗi lượt xịt (ml)', quantityBefore: 'Dung tích trước (ml)', quantityAfter: 'Dung tích sau (ml)',
   contactPhone: 'Điện thoại', machineCount: 'Số máy', onlineMachineCount: 'Máy online', adminCount: 'Quản trị viên', assignedTo: 'Người xử lý', assignedToActorId: 'Kỹ thuật viên', dispensingStatus: 'Kết quả phun',
   dueAt: 'Hạn xử lý', receivedAt: 'Ngày nhập', expiryDate: 'Hạn sử dụng', slotId: 'Slot', movementType: 'Loại biến động', reason: 'Lý do', reconciliationFlag: 'Đối soát phun', manualReviewRequired: 'Cần đối soát thủ công', manualReviewReason: 'Lý do đối soát', resolvedAt: 'Xử lý lúc', paidAt: 'Thanh toán lúc', contactEmail: 'Email liên hệ', approved: 'Duyệt phiếu',
 }
@@ -175,14 +175,135 @@ function display(value: unknown, key = ''): string {
 }
 
 function Login({ done, sessionNotice }: { done: (principal: Principal) => void; sessionNotice?: string }) {
-  const [username, setUsername] = useState(''); const [password, setPassword] = useState('')
-  const [error, setError] = useState(''); const [loading, setLoading] = useState(false)
-  async function submit(event: FormEvent) {
-    event.preventDefault(); setError(''); setLoading(true)
-    try { await backend.login(username.trim(), password); done(await backend.me()) }
-    catch (reason) { authToken.clear(); setError(errorText(reason)) } finally { setLoading(false) }
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [registerStep, setRegisterStep] = useState<1 | 2>(1)
+  const [fullName, setFullName] = useState(''); const [email, setEmail] = useState('')
+  const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [loading, setLoading] = useState(false)
+
+  function handleNextStep(event: FormEvent) {
+    event.preventDefault(); setError('')
+    if (!fullName.trim() || !email.trim()) { setError('Vui lòng nhập đầy đủ họ tên và email.'); return }
+    setRegisterStep(2)
   }
-  return <main className="login-shell"><section className="login-art"><div className="brand-mark">S.</div><p>SCENTSTATION</p><h1>Vận hành mọi điểm chạm hương thơm.</h1><span>Trung tâm quản trị vận hành</span></section><section className="login-panel"><form onSubmit={submit} className="login-card"><p className="eyebrow">TRUY CẬP QUẢN TRỊ AN TOÀN</p><h2>Đăng nhập</h2><p>Sử dụng tài khoản quản trị được cấp. Phiên đăng nhập được bảo vệ bằng JWT.</p>{sessionNotice && !error && <div className="error-box">{sessionNotice}</div>}<label>Tên đăng nhập<input autoFocus required value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" /></label><label>Mật khẩu<input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" /></label>{error && <div className="error-box">{error}</div>}<button className="primary" disabled={loading}>{loading ? 'Đang xác thực…' : 'Đăng nhập'}</button></form></section></main>
+
+  async function submit(event: FormEvent) {
+    event.preventDefault(); setError(''); setNotice(''); setLoading(true)
+    try {
+      if (authMode === 'login') {
+        await backend.login(username.trim(), password)
+        done(await backend.me())
+      } else {
+        if (password.length < 4) { setError('Mật khẩu phải có ít nhất 4 ký tự.'); setLoading(false); return }
+        if (password !== confirmPassword) { setError('Mật khẩu xác nhận không khớp.'); setLoading(false); return }
+        await backend.registerStaffAccount({ username: username.trim(), email: email.trim(), password, fullName: fullName.trim() })
+        setNotice('Đăng ký tài khoản nhân viên thành công! Hãy đăng nhập để gửi phiếu yêu cầu thương hiệu và chức vụ cho Quản trị thương hiệu.')
+        setPassword(''); setConfirmPassword(''); setRegisterStep(1); setAuthMode('login')
+      }
+    } catch (reason) {
+      if (authMode === 'login') authToken.clear()
+      setError(errorText(reason))
+    } finally { setLoading(false) }
+  }
+
+  return <main className="login-shell"><section className="login-art"><div className="brand-mark">S.</div><p>SCENTSTATION</p><h1>Vận hành mọi điểm chạm hương thơm.</h1><span>Trung tâm quản trị dành cho nhân sự &amp; thương hiệu</span></section><section className="login-panel"><form onSubmit={authMode === 'register' && registerStep === 1 ? handleNextStep : submit} className="login-card"><p className="eyebrow">CỔNG QUẢN TRỊ &amp; NHÂN VIÊN</p><h2>{authMode === 'login' ? 'Đăng nhập' : registerStep === 1 ? 'Đăng ký nhân viên (Bước 1/2)' : 'Tạo tài khoản (Bước 2/2)'}</h2><nav className="order-tabs" style={{ justifyContent: 'flex-start' }}><button type="button" className={authMode === 'login' ? 'active' : ''} onClick={() => { setAuthMode('login'); setError('') }}>Đăng nhập</button><button type="button" className={authMode === 'register' ? 'active' : ''} onClick={() => { setAuthMode('register'); setRegisterStep(1); setError(''); setNotice('') }}>Đăng ký nhân viên</button></nav>{sessionNotice && !error && !notice && <div className="error-box">{sessionNotice}</div>}{notice && <div className="notice">✓ {notice}</div>}{authMode === 'login' ? (<><label>Tên đăng nhập<input autoFocus required value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" /></label><label>Mật khẩu<input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" /></label></>) : registerStep === 1 ? (<><label>Họ và tên<input autoFocus required maxLength={120} placeholder="Nhập họ tên của bạn" value={fullName} onChange={(event) => setFullName(event.target.value)} /></label><label>Email<input required type="email" maxLength={160} placeholder="email@example.com" value={email} onChange={(event) => setEmail(event.target.value)} /></label></>) : (<><small style={{ color: '#6e7872' }}>Thông tin: <strong>{fullName}</strong> ({email})</small><label>Tên đăng nhập<input autoFocus required minLength={3} maxLength={80} value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" /></label><label>Mật khẩu (tối thiểu 4 ký tự)<input required type="password" minLength={4} maxLength={72} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" /></label><label>Xác nhận mật khẩu<input required type="password" minLength={4} maxLength={72} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" /></label></>)}{error && <div className="error-box">{error}</div>}<div style={{ display: 'flex', gap: 10 }}>{authMode === 'register' && registerStep === 2 && <button type="button" style={{ flex: '0 0 auto' }} onClick={() => { setRegisterStep(1); setError('') }}>← Quay lại</button>}<button className="primary" style={{ flex: 1 }} disabled={loading}>{loading ? 'Đang xử lý…' : authMode === 'login' ? 'Đăng nhập' : registerStep === 1 ? 'Tiếp tục →' : 'Hoàn tất đăng ký'}</button></div></form></section></main>
+}
+
+function StaffOnboarding({ principal, refreshPrincipal, exit }: { principal: Principal; refreshPrincipal: (next: Principal) => void; exit: () => void }) {
+  const [tenants, setTenants] = useState<PublicTenantSummary[]>([])
+  const [tenantId, setTenantId] = useState(principal.tenantId ? String(principal.tenantId) : '')
+  const [requestedRole, setRequestedRole] = useState<Role>('OPERATIONS_MANAGER')
+  const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [notice, setNotice] = useState('')
+  const [showAccountSettings, setShowAccountSettings] = useState(false)
+  const isPending = Boolean(principal.tenantId && principal.grants.length === 0)
+
+  useEffect(() => {
+    void backend.publicTenants().then((list) => {
+      setTenants(list)
+      if (!tenantId && list[0]) setTenantId(String(list[0].id))
+    }).catch(() => undefined)
+  }, [])
+
+  async function submitRequest(event: FormEvent) {
+    event.preventDefault(); setError(''); setNotice(''); setBusy(true)
+    try {
+      const res = await backend.submitStaffRoleRequest({ tenantId: Number(tenantId), requestedRole })
+      setNotice(res.message)
+      refreshPrincipal(await backend.me())
+    } catch (reason) {
+      setError(errorText(reason))
+    } finally { setBusy(false) }
+  }
+
+  async function recheck() {
+    setBusy(true); setError('')
+    try {
+      const latest = await backend.me()
+      refreshPrincipal(latest)
+      if (!latest.grants.length) setNotice('Phiếu yêu cầu vẫn đang chờ Quản trị thương hiệu phê duyệt.')
+    } catch (reason) { setError(errorText(reason)) } finally { setBusy(false) }
+  }
+
+  async function logout() { try { await backend.logout() } catch { /* ignore */ } clearApiCache(); authToken.clear(); exit() }
+
+  const brandName = tenants.find((t) => String(t.id) === String(principal.tenantId))?.name ?? (principal.tenantId ? `Thương hiệu #${principal.tenantId}` : '—')
+  return (
+    <main className="login-shell">
+      <section className="login-art">
+        <div className="brand-mark">S.</div>
+        <p>SCENTSTATION</p>
+        <h1>Phiếu yêu cầu gia nhập thương hiệu.</h1>
+        <span>Xin chào <strong>{principal.username}</strong> — hoàn tất thông tin làm việc để Quản trị thương hiệu phê duyệt vai trò.</span>
+      </section>
+      <section className="login-panel">
+        <div className="login-card">
+          <p className="eyebrow">YÊU CẦU CẤP VAI TRÒ NHÂN VIÊN</p>
+          <h2>{isPending ? 'Đang chờ phê duyệt' : 'Gửi phiếu yêu cầu'}</h2>
+          {notice && <div className="notice">✓ {notice}</div>}
+          {error && <div className="error-box">{error}</div>}
+          {isPending ? (
+            <>
+              <div className="slot-sync-box">
+                <p style={{ margin: '0 0 6px' }}><strong>Tài khoản:</strong> {principal.username}</p>
+                <p style={{ margin: '0 0 6px' }}><strong>Thương hiệu:</strong> {brandName}</p>
+                <p style={{ margin: 0 }}><strong>Chức vụ đề nghị:</strong> {principal.roles.map((r) => valueLabels[r] ?? r).join(', ')}</p>
+              </div>
+              <p style={{ margin: 0, color: '#6e7872', fontSize: 13 }}>Phiếu yêu cầu đã được gửi tới Quản trị thương hiệu. Sau khi được phê duyệt, bạn có thể vào hệ thống làm việc ngay.</p>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button type="button" className="primary" style={{ flex: 1 }} disabled={busy} onClick={() => void recheck()}>{busy ? 'Đang kiểm tra…' : '↻ Kiểm tra trạng thái duyệt'}</button>
+                <button type="button" onClick={() => setShowAccountSettings(true)}>⚙ Tài khoản</button>
+                <button type="button" onClick={() => void logout()}>Đăng xuất</button>
+              </div>
+            </>
+          ) : (
+            <form onSubmit={submitRequest} style={{ display: 'grid', gap: 14 }}>
+              <label>
+                Tên thương hiệu
+                <select required value={tenantId} onChange={(e) => setTenantId(e.target.value)}>
+                  <option value="">— Chọn thương hiệu —</option>
+                  {tenants.map((t) => <option key={t.id} value={String(t.id)}>{t.name} ({t.code})</option>)}
+                </select>
+              </label>
+              <label>
+                Chức vụ / vai trò đề nghị
+                <select required value={requestedRole} onChange={(e) => setRequestedRole(e.target.value as Role)}>
+                  <option value="OPERATIONS_MANAGER">Quản lý vận hành</option>
+                  <option value="TECHNICIAN">Kỹ thuật viên</option>
+                  <option value="INVENTORY_STAFF">Nhân viên kho</option>
+                </select>
+              </label>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button className="primary" style={{ flex: 1 }} disabled={busy || !tenantId}>{busy ? 'Đang gửi…' : 'Gửi phiếu yêu cầu'}</button>
+                <button type="button" onClick={() => setShowAccountSettings(true)}>⚙ Tài khoản</button>
+                <button type="button" onClick={() => void logout()}>Đăng xuất</button>
+              </div>
+            </form>
+          )}
+        </div>
+      </section>
+      {showAccountSettings && <AccountSettingsModal principal={principal} brandCode={tenants.find((t) => String(t.id) === String(principal.tenantId || tenantId))?.code} close={() => setShowAccountSettings(false)} savedUsername={(next, message) => { refreshPrincipal(next); setNotice(message) }} savedPassword={(message) => setNotice(message)} />}
+    </main>
+  )
 }
 
 function Table({ rows, columns, action }: { rows: Row[]; columns: string[]; action: (row: Row) => React.ReactNode }) {
@@ -275,7 +396,7 @@ function ProductForm({ tenantId, product, close, saved }: { tenantId: number; pr
   return <div className="modal-backdrop"><form className="modal" onSubmit={submit}><h3>{product ? `Cập nhật: ${product.name}` : 'Thêm sản phẩm'}</h3><label>Tên<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Nhóm hương<input value={form.fragranceNotes} onChange={(event) => setForm({ ...form, fragranceNotes: event.target.value })} /></label><label>Mô tả<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><label>Đường dẫn hình ảnh<input type="url" value={form.imageUrl} onChange={(event) => setForm({ ...form, imageUrl: event.target.value })} /></label><label>Phí trải nghiệm (VND)<input required min="0" step="1" type="number" placeholder="VD: 10000" value={form.defaultPrice} onChange={(event) => setForm({ ...form, defaultPrice: event.target.value })} /></label><label>Giá bán chai (VND)<input required min="1" step="1" type="number" placeholder="VD: 100000" value={form.bottlePrice} onChange={(event) => setForm({ ...form, bottlePrice: event.target.value })} /></label><label>Dung tích chai (ml)<input required min="1" step="1" type="number" value={form.bottleVolumeMl} onChange={(event) => setForm({ ...form, bottleVolumeMl: event.target.value })} /></label><label>Tồn chai bán lẻ<input required min="0" step="1" type="number" value={form.bottleStock} onChange={(event) => setForm({ ...form, bottleStock: event.target.value })} /></label><label className="switch"><input type="checkbox" checked={form.available} onChange={(event) => setForm({ ...form, available: event.target.checked })} />Đang kinh doanh</label>{error && <div className="error-box">{error}</div>}<div className="modal-actions"><button type="button" onClick={close}>Hủy</button><button className="primary" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu sản phẩm'}</button></div></form></div>
 }
 
-function Admin({ principal, exit }: { principal: Principal; exit: () => void }) {
+function Admin({ principal, refreshPrincipal, exit }: { principal: Principal; refreshPrincipal: (next: Principal) => void; exit: () => void }) {
   const platform = principal.roles.includes('PLATFORM_SUPER_ADMIN')
   const isAdminRole = platform || principal.roles.includes('BRAND_ADMIN')
   const hasBrandProfile = !platform && can(principal, ['BRAND_PROFILE_READ'])
@@ -307,6 +428,8 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([])
   const [locations, setLocations] = useState<Location[]>([]); const [machineEditor, setMachineEditor] = useState<Machine | 'new' | null>(null); const [slotEditor, setSlotEditor] = useState<Slot | 'new' | null>(null); const [showLocation, setShowLocation] = useState(false)
   const [inventoryBatches, setInventoryBatches] = useState<InventoryBatch[]>([]); const [inventoryBottles, setInventoryBottles] = useState<Bottle[]>([]); const [showInventoryForm, setShowInventoryForm] = useState(false); const [inventoryInitialProductId, setInventoryInitialProductId] = useState<number | undefined>(undefined); const [showInventoryWorkflow, setShowInventoryWorkflow] = useState(false); const [inventoryWorkflowPrefill, setInventoryWorkflowPrefill] = useState<InventoryWorkflowPrefill | undefined>(undefined); const [inventoryDisposeTarget, setInventoryDisposeTarget] = useState<InventoryDisposeTarget | null>(null); const [maintenanceEditor, setMaintenanceEditor] = useState<MaintenanceTicket | 'new' | null>(null); const [maintenanceWorkflow, setMaintenanceWorkflow] = useState<MaintenanceTicket | null>(null)
+  const [showAccountSettings, setShowAccountSettings] = useState(false)
+  const [pendingStaffCount, setPendingStaffCount] = useState(0)
   const [transactionFilters, setTransactionFilters] = useState<TransactionFilters>({})
 
   const refreshTenants = useCallback(async () => {
@@ -315,6 +438,14 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
     return list
   }, [platform])
   useEffect(() => { void refreshTenants().catch((reason) => { if ((reason as ApiError).status !== 403) setError(errorText(reason)) }) }, [refreshTenants])
+  const refreshPendingStaff = useCallback(async () => {
+    if (!can(principal, ['BRAND_USER_MANAGE'])) { setPendingStaffCount(0); return }
+    try {
+      const list = await backend.users(platform, tenantId)
+      setPendingStaffCount(list.filter((acc) => acc.pendingApproval).length)
+    } catch { /* ignore */ }
+  }, [principal, platform, tenantId])
+  useEffect(() => { void refreshPendingStaff() }, [refreshPendingStaff])
   useEffect(() => {
     setNotice('')
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${page}`)
@@ -421,28 +552,16 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
           }))
           break
         }
-        case 'users': data = await backend.users(platform, tenantId) as unknown as Row[]; break
+        case 'users': {
+          const userList = await backend.users(platform, tenantId)
+          setPendingStaffCount(userList.filter((acc) => acc.pendingApproval).length)
+          data = userList as unknown as Row[]
+          break
+        }
         case 'products': {
-          const groups = await Promise.all(targetTenantIds.map(async (id) => {
-            const [products, bottles] = await Promise.all([
-              backend.products(id),
-              can(principal, ['INVENTORY_READ']) ? backend.bottles(id).catch(() => []) : Promise.resolve([]),
-            ])
-            return { products, bottles }
-          }))
-          const products = groups.flatMap((g) => g.products)
-          const bottles = groups.flatMap((g) => g.bottles)
-          const volumeByProduct = new Map<number, number>()
-          for (const bottle of bottles) {
-            if (['DAMAGED', 'EXPIRED'].includes(String(bottle.status).toUpperCase())) continue
-            volumeByProduct.set(bottle.productId, Math.round(((volumeByProduct.get(bottle.productId) ?? 0) + Number(bottle.currentQuantity ?? 0)) * 1000) / 1000)
-          }
+          const products = (await Promise.all(targetTenantIds.map((id) => backend.products(id)))).flat()
           setCatalogProducts(products)
-          data = products.map((product) => ({
-            ...product,
-            tenantName: tenantNameOf(product.tenantId),
-            warehouseVolumeMl: volumeByProduct.get(product.id) ?? 0,
-          })) as unknown as Row[]
+          data = products.map((product) => ({ ...product, tenantName: tenantNameOf(product.tenantId) })) as unknown as Row[]
           break
         }
         case 'campaigns': { const groups = await Promise.all(targetTenantIds.map(async (id) => { const [campaigns, products] = await Promise.all([backend.campaigns(id), backend.products(id)]); return { campaigns, products } })); const products = groups.flatMap((group) => group.products); setCatalogProducts(products); const productMap = new Map(products.map((p) => [p.id, p.name])); data = groups.flatMap((group) => group.campaigns).map((campaign) => ({ ...campaign, tenantName: tenantNameOf(campaign.tenantId), productName: productMap.get(campaign.productId) ?? `#${campaign.productId}` })) as unknown as Row[]; break }
@@ -483,9 +602,18 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
                 updatedAt: opTime,
               }
             })
+            const activeProductIds = new Set(
+              group.bottles
+                .filter((b) => !['DAMAGED', 'EXPIRED'].includes(String(b.status).toUpperCase()))
+                .map((b) => b.productId),
+            )
+            const visibleBottles = group.bottles.filter((b) => {
+              const disposed = ['DAMAGED', 'EXPIRED'].includes(String(b.status).toUpperCase())
+              return !disposed || !activeProductIds.has(b.productId)
+            })
             return [
               ...group.batches.map((item) => ({ kind: 'BATCH', tenantName, ...item, status: item.status ?? 'ACTIVE', reason: item.cancelReason ?? undefined, productName: productName(item.productId), bottleVolumeMl: productVolume(item.productId), updatedAt: item.cancelledAt ?? item.updatedAt ?? item.createdAt ?? item.receivedAt })),
-              ...group.bottles.map((item) => ({ kind: 'BOTTLE', tenantName, ...item, productName: productName(item.productId), bottleVolumeMl: productVolume(item.productId) })),
+              ...visibleBottles.map((item) => ({ kind: 'BOTTLE', tenantName, ...item, productName: productName(item.productId), bottleVolumeMl: productVolume(item.productId) })),
               ...batchMovements,
               ...group.movements.map((item) => ({ kind: 'MOVEMENT', tenantName, ...item, updatedAt: item.createdAt ?? item.updatedAt, productName: productName(bottleMap.get(Number(item.bottleId))) })),
             ]
@@ -504,7 +632,7 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
         case 'audit': data = await backend.audit(tenantId); break
       }
       setRows(data)
-      const map: Record<Page, string[]> = { dashboard: [], tenants: ['id', 'code', 'name', 'status', 'contactEmail', 'contactPhone', 'machineCount', 'onlineMachineCount', 'adminCount'], users: ['id', 'username', 'fullName', 'email', 'roles', 'tenantId', 'active', 'locked'], products: ['imageUrl', 'tenantName', 'name', 'fragranceNotes', 'defaultPrice', 'bottlePrice', 'bottleVolumeMl', 'bottleStock', 'warehouseVolumeMl', 'available', 'updatedAt'], campaigns: ['tenantName', 'id', 'name', 'productName', 'discountType', 'discountValue', 'active', 'startAt', 'endAt'], machines: ['tenantName', 'id', 'name', 'serialNumber', 'locationName', 'deviceRegistrationStatus', 'operationalStatus', 'lastSeenAt'], inventory: ['tenantName', 'kind', 'id', 'productName', 'batchCode', 'bottleCode', 'bottleVolumeMl', 'movementType', 'machineId', 'slotId', 'initialQuantity', 'currentQuantity', 'calibratedConsumptionPerSpray', 'receivedAt', 'expiryDate', 'reason', 'status', 'updatedAt'], alerts: ['tenantName', 'id', 'severity', 'status', 'type', 'summary', 'machineId', 'locationId', 'assignedTo', 'lastSeenAt'], maintenance: ['tenantName', 'id', 'severity', 'status', 'approved', 'title', 'machineId', 'priority', 'assignedToActorId', 'dueAt', 'updatedAt'], orders: ['kind', 'tenantName', 'id', 'reference', 'orderId', 'orderType', 'items', 'totalAmount', 'amount', 'currency', 'status', 'dispensingStatus', 'reconciliationFlag', 'manualReviewRequired', 'createdAt'], transactions: ['id', 'reference', 'orderId', 'tenantId', 'machineId', 'productId', 'amount', 'currency', 'status', 'createdAt', 'paidAt'], audit: ['id', 'occurredAt', 'actorId', 'tenantId', 'action', 'targetType', 'targetId', 'outcome'] }
+      const map: Record<Page, string[]> = { dashboard: [], tenants: ['id', 'code', 'name', 'status', 'contactEmail', 'contactPhone', 'machineCount', 'onlineMachineCount', 'adminCount'], users: ['id', 'username', 'fullName', 'email', 'roles', 'tenantId', 'pendingApproval', 'active', 'locked'], products: ['imageUrl', 'tenantName', 'name', 'fragranceNotes', 'defaultPrice', 'bottlePrice', 'bottleVolumeMl', 'bottleStock', 'available', 'updatedAt'], campaigns: ['tenantName', 'id', 'name', 'productName', 'discountType', 'discountValue', 'active', 'startAt', 'endAt'], machines: ['tenantName', 'id', 'name', 'serialNumber', 'locationName', 'deviceRegistrationStatus', 'operationalStatus', 'lastSeenAt'], inventory: ['tenantName', 'kind', 'id', 'productName', 'batchCode', 'bottleCode', 'bottleVolumeMl', 'movementType', 'machineId', 'slotId', 'currentQuantity', 'calibratedConsumptionPerSpray', 'quantityBefore', 'quantityAfter', 'receivedAt', 'expiryDate', 'reason', 'status', 'updatedAt'], alerts: ['tenantName', 'id', 'severity', 'status', 'type', 'summary', 'machineId', 'locationId', 'assignedTo', 'lastSeenAt'], maintenance: ['tenantName', 'id', 'severity', 'status', 'approved', 'title', 'machineId', 'priority', 'assignedToActorId', 'dueAt', 'updatedAt'], orders: ['kind', 'tenantName', 'id', 'reference', 'orderId', 'orderType', 'items', 'totalAmount', 'amount', 'currency', 'status', 'dispensingStatus', 'reconciliationFlag', 'manualReviewRequired', 'createdAt'], transactions: ['id', 'reference', 'orderId', 'tenantId', 'machineId', 'productId', 'amount', 'currency', 'status', 'createdAt', 'paidAt'], audit: ['id', 'occurredAt', 'actorId', 'tenantId', 'action', 'targetType', 'targetId', 'outcome'] }
       setColumns(map[page].filter((key) => data.some((item) => key in item)))
     } catch (reason) { setRows([]); setError(errorText(reason)) } finally { setLoading(false) }
   }, [page, tenantId, platform, principal, transactionFilters, tenants, dashboardPeriod])
@@ -633,15 +761,24 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
     if (page === 'orders' && orderKind === 'ORDER') return columns.filter((col) => !['reference', 'orderId', 'amount'].includes(col))
     if (page === 'orders' && orderKind === 'PAYMENT') return columns.filter((col) => !['id', 'orderType', 'items', 'totalAmount', 'dispensingStatus', 'reconciliationFlag', 'manualReviewRequired'].includes(col))
     if (page === 'orders' && orderKind === 'REVIEW') return columns.filter((col) => !['id', 'orderType', 'items', 'totalAmount', 'amount', 'currency', 'dispensingStatus'].includes(col))
-    if (page === 'inventory' && inventoryKind === 'BATCH') return columns.filter((col) => !['bottleCode', 'movementType', 'machineId', 'slotId', 'initialQuantity', 'currentQuantity', 'calibratedConsumptionPerSpray'].includes(col))
-    if (page === 'inventory' && inventoryKind === 'BOTTLE') return columns.filter((col) => !['batchCode', 'movementType', 'machineId', 'slotId', 'receivedAt', 'expiryDate', 'reason'].includes(col))
-    if (page === 'inventory' && inventoryKind === 'MOVEMENT') return columns.filter((col) => !['bottleCode', 'initialQuantity', 'currentQuantity', 'calibratedConsumptionPerSpray', 'receivedAt', 'expiryDate', 'status'].includes(col))
+    if (page === 'inventory' && inventoryKind === 'BATCH') return columns.filter((col) => !['bottleCode', 'movementType', 'machineId', 'slotId', 'currentQuantity', 'calibratedConsumptionPerSpray', 'quantityBefore', 'quantityAfter'].includes(col))
+    if (page === 'inventory' && inventoryKind === 'BOTTLE') return columns.filter((col) => !['batchCode', 'movementType', 'machineId', 'slotId', 'quantityBefore', 'quantityAfter', 'receivedAt', 'expiryDate', 'reason'].includes(col))
+    if (page === 'inventory' && inventoryKind === 'MOVEMENT') return columns.filter((col) => !['bottleCode', 'bottleVolumeMl', 'currentQuantity', 'calibratedConsumptionPerSpray', 'receivedAt', 'expiryDate', 'status'].includes(col))
     return columns
   }, [isViewingMachineSlots, page, orderKind, inventoryKind, columns])
   async function mutate(job: () => Promise<unknown>, message: string) { try { setError(''); await job(); setNotice(message); await load() } catch (reason) { setError(errorText(reason)) } }
   function action(row: Row) {
     if (page === 'tenants') { const tenant = row as unknown as Tenant; const editable = platform || can(principal, ['BRAND_PROFILE_EDIT']); if (!editable) return null; return <><button onClick={() => setTenantEditor(tenant)}>Chỉnh sửa</button>{platform && <button className={tenant.status === 'ACTIVE' ? 'danger' : ''} onClick={() => { if (tenant.status === 'ACTIVE' && !window.confirm(`Thương hiệu ${tenant.name} đang hoạt động. Tạm ngưng sẽ chặn các nghiệp vụ thuộc thương hiệu này. Bạn chắc chắn muốn tiếp tục?`)) return; void mutate(() => backend.updateTenantStatus(tenant.id, tenant.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'), tenant.status === 'ACTIVE' ? 'Đã tạm ngưng thương hiệu.' : 'Đã kích hoạt thương hiệu.') }}>{tenant.status === 'ACTIVE' ? 'Tạm ngưng' : 'Kích hoạt'}</button>}</> }
-    if (page === 'users') { const account = row as unknown as Account; return <><button onClick={() => setUserEditor(account)}>Quản lý</button><button className={account.locked ? '' : 'danger'} onClick={() => { if (!account.locked && !window.confirm(`Bạn có chắc chắn muốn khóa tài khoản ${account.username}? Phiên đăng nhập hiện tại của tài khoản này sẽ bị vô hiệu hóa.`)) return; void mutate(() => backend.updateUserStatus(platform, account.id, account.active, !account.locked), account.locked ? 'Đã mở khóa tài khoản.' : 'Đã khóa tài khoản.') }}>{account.locked ? 'Mở khóa' : 'Khóa'}</button></> }
+    if (page === 'users') {
+      const account = row as unknown as Account
+      if (account.pendingApproval) {
+        return <>
+          <button className="primary" onClick={() => void mutate(() => backend.approveUser(platform, account.id), `Đã phê duyệt vai trò nhân viên cho ${account.username}.`)}>Phê duyệt vai trò</button>
+          <button className="danger" onClick={() => { if (!window.confirm(`Từ chối yêu cầu đăng ký nhân viên của ${account.username}?`)) return; void mutate(() => backend.rejectUser(platform, account.id), `Đã từ chối yêu cầu của ${account.username}.`) }}>Từ chối</button>
+        </>
+      }
+      return <><button onClick={() => setUserEditor(account)}>Quản lý</button><button className={account.locked ? '' : 'danger'} onClick={() => { if (!account.locked && !window.confirm(`Bạn có chắc chắn muốn khóa tài khoản ${account.username}? Phiên đăng nhập hiện tại của tài khoản này sẽ bị vô hiệu hóa.`)) return; void mutate(() => backend.updateUserStatus(platform, account.id, account.active, !account.locked), account.locked ? 'Đã mở khóa tài khoản.' : 'Đã khóa tài khoản.') }}>{account.locked ? 'Mở khóa' : 'Khóa'}</button></>
+    }
     if (page === 'products' && tenantId && !platform && can(principal, ['CATALOG_MANAGE'])) { const product = row as unknown as Product; return <><button onClick={() => setProductEditor(product)}>Chỉnh sửa</button><button onClick={() => setProductPriceEditor(product)}>Cập nhật nhanh giá</button><button onClick={() => void mutate(() => backend.setProductAvailability(product.id, !product.available), 'Đã cập nhật sản phẩm.')}>{product.available ? 'Tạm ngưng' : 'Mở bán'}</button></> }
     if (page === 'campaigns' && tenantId && can(principal, ['CAMPAIGN_MANAGE'])) { const campaign = row as unknown as Campaign; return <><button onClick={() => setCampaignEditor(campaign)}>Chỉnh sửa</button><button className="danger" onClick={() => { if (!window.confirm(`Bạn có chắc chắn muốn xóa chiến dịch "${campaign.name}"?`)) return; void mutate(() => backend.deleteCampaign(campaign.id, tenantId), 'Đã xóa chiến dịch.') }}>Xóa</button></> }
     if (page === 'inventory' && !platform && can(principal, ['INVENTORY_MANAGE'])) {
@@ -687,6 +824,7 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
       return null
     }
     if (isViewingMachineSlots && selectedMachine) {
+      if (platform) return null
       const canConfigureSlot = can(principal, ['MACHINE_CONFIGURE'])
       const canSwapBottle = can(principal, ['INVENTORY_MANAGE'])
       if (!canConfigureSlot && !canSwapBottle) return null
@@ -698,7 +836,11 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
         {canConfigureSlot && <button onClick={() => void (async () => { try { await backend.setSlotEnabled(selectedMachine.id, slot.id, !slot.enabled); await loadMachineSlots(selectedMachine); setNotice(slot.enabled ? 'Đã tắt đầu phun.' : 'Đã bật đầu phun.') } catch (reason) { setError(errorText(reason)) } })()}>{slot.enabled ? 'Tắt' : 'Bật'}</button>}
       </>
     }
-    if (page === 'machines') { const machine = row as unknown as Machine; return <><button onClick={() => openMachineSlots(machine)}>Xem đầu phun</button>{tenantId && can(principal, ['MACHINE_CONFIGURE']) && <button onClick={() => setMachineEditor(machine)}>Chỉnh sửa</button>}{can(principal, ['MACHINE_CONTROL']) && <>{(machine.operationalStatus === 'OFFLINE' || machine.operationalStatus === 'UNSTABLE') && <button className="primary" onClick={() => void mutate(() => backend.setMachineOperationalStatus(machine.id, 'ONLINE'), 'Đã đưa kiosk về trạng thái trực tuyến.')}>Đưa về trực tuyến</button>}<button onClick={() => void mutate(() => backend.controlMachine(machine.id, machine.operationalStatus === 'DISABLED' ? 'ENABLE' : 'DISABLE'), machine.operationalStatus === 'DISABLED' ? 'Đã bật máy.' : 'Đã tắt máy.')}>{machine.operationalStatus === 'DISABLED' ? 'Bật máy' : 'Tắt máy'}</button>{machine.operationalStatus !== 'MAINTENANCE' && <button onClick={() => void mutate(() => backend.controlMachine(machine.id, 'ENTER_MAINTENANCE'), 'Đã chuyển máy sang trạng thái bảo trì.')}>Bảo trì</button>}</>}</> }
+    if (page === 'machines') {
+      const machine = row as unknown as Machine
+      if (platform) return <button onClick={() => openMachineSlots(machine)}>Xem đầu phun</button>
+      return <><button onClick={() => openMachineSlots(machine)}>Xem đầu phun</button>{tenantId && can(principal, ['MACHINE_CONFIGURE']) && <button onClick={() => setMachineEditor(machine)}>Chỉnh sửa</button>}{can(principal, ['MACHINE_CONTROL']) && <>{(machine.operationalStatus === 'OFFLINE' || machine.operationalStatus === 'UNSTABLE') && <button className="primary" onClick={() => void mutate(() => backend.setMachineOperationalStatus(machine.id, 'ONLINE'), 'Đã đưa kiosk về trạng thái trực tuyến.')}>Đưa về trực tuyến</button>}<button onClick={() => void mutate(() => backend.controlMachine(machine.id, machine.operationalStatus === 'DISABLED' ? 'ENABLE' : 'DISABLE'), machine.operationalStatus === 'DISABLED' ? 'Đã bật máy.' : 'Đã tắt máy.')}>{machine.operationalStatus === 'DISABLED' ? 'Bật máy' : 'Tắt máy'}</button>{machine.operationalStatus !== 'MAINTENANCE' && <button onClick={() => void mutate(() => backend.controlMachine(machine.id, 'ENTER_MAINTENANCE'), 'Đã chuyển máy sang trạng thái bảo trì.')}>Bảo trì</button>}</>}</>
+    }
     if (page === 'alerts') {
       if (isAdminRole) return null
       const alert = row as unknown as Alert
@@ -759,7 +901,8 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
 
   const activeBrand = !platform ? (tenants[0] ?? (rows[0] as unknown as Tenant | undefined) ?? null) : null
 
-  return <div className="app-shell"><aside><div className="sidebar-brand"><strong>S.</strong><span>SCENTSTATION<small>TRUNG TÂM QUẢN TRỊ</small></span></div><nav>{menu.map((item) => <button key={item.id} className={page === item.id ? 'active' : ''} onClick={() => { clearApiCache(); closeMachineSlots(); setPage(item.id) }}><i>{item.icon}</i>{item.label}</button>)}</nav><div className="sidebar-user"><span>{principal.username.slice(0, 2).toUpperCase()}</span><div><strong>{principal.username}</strong><small>{principal.roles.map((role) => valueLabels[role] ?? role).join(', ')}</small></div></div></aside><main className="workspace"><header><div><span className="live-dot" /> Hệ thống đang trực tuyến</div><div className="header-actions">{(platform || tenants.length > 1) && !!tenants.length && <label>Phạm vi thương hiệu<select value={tenantId ?? ''} onChange={(event) => { clearApiCache(); closeMachineSlots(); setTenantId(event.target.value ? Number(event.target.value) : undefined) }}>{platform && <option value="">Toàn nền tảng</option>}{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name} ({tenant.code})</option>)}</select></label>}{can(principal, ['NOTIFICATION_READ']) && <NotificationCenter principal={principal} tenantId={tenantId} />}{hasBrandProfile && <button type="button" className={`profile-trigger ${page === 'tenants' ? 'active' : ''}`} title="Hồ sơ thương hiệu" onClick={() => { clearApiCache(); closeMachineSlots(); setPage('tenants') }}><span className="profile-avatar">{(activeBrand?.name || principal.username).slice(0, 2).toUpperCase()}</span><span>{activeBrand?.name || 'Hồ sơ thương hiệu'}<small>Hồ sơ thương hiệu</small></span></button>}<button onClick={() => void logout()}>Đăng xuất</button></div></header><div className="content"><div className="page-heading"><div><p className="eyebrow">SCENTSTATION · QUẢN TRỊ VẬN HÀNH</p><h1>{isViewingMachineSlots ? `Đầu phun: ${selectedMachine.name}` : (!platform && page === 'tenants' ? 'Hồ sơ thương hiệu' : titles[page][0])}</h1><p>{isViewingMachineSlots ? `Máy #${selectedMachine.id} (${selectedMachine.serialNumber})` : (page === 'alerts' && isAdminRole ? 'Theo dõi sự cố thiết bị (Nhân viên vận hành và kỹ thuật viên phụ trách xử lý)' : page === 'maintenance' && isAdminRole ? 'Theo dõi tiến độ và chấp nhận phiếu bảo trì' : page === 'inventory' && platform ? 'Theo dõi lô nhập, chai nước hoa và lịch sử biến động tồn kho toàn nền tảng' : titles[page][1])}</p></div><div className="heading-actions">{isViewingMachineSlots && <button onClick={closeMachineSlots}>← Danh sách máy</button>}{page === 'tenants' && platform && <button className="primary" onClick={() => setTenantEditor('new')}>＋ Tạo thương hiệu</button>}{page === 'tenants' && !platform && activeBrand && can(principal, ['BRAND_PROFILE_EDIT']) && <button className="primary" onClick={() => setTenantEditor(activeBrand)}>✎ Chỉnh sửa hồ sơ</button>}{page === 'users' && <button className="primary" onClick={() => setUserEditor('new')}>＋ Tạo tài khoản</button>}{page === 'products' && tenantId && can(principal, ['CATALOG_MANAGE']) && <button className="primary" onClick={() => setShowProduct(true)}>＋ Thêm sản phẩm</button>}{page === 'campaigns' && tenantId && can(principal, ['CAMPAIGN_MANAGE']) && <button className="primary" onClick={() => setCampaignEditor('new')}>＋ Tạo chiến dịch</button>}{page === 'machines' && tenantId && principal.tenantId && can(principal, ['MACHINE_CONFIGURE']) && <>{!isViewingMachineSlots && <button onClick={() => setShowLocation(true)}>＋ Địa điểm</button>}<button className="primary" onClick={() => isViewingMachineSlots ? setSlotEditor('new') : setMachineEditor('new')}>＋ {isViewingMachineSlots ? 'Tạo đầu phun' : 'Đăng ký máy'}</button></>}{page === 'inventory' && !platform && tenantId && can(principal, ['INVENTORY_MANAGE', 'INVENTORY_ADJUST']) && <button className="primary" onClick={() => setShowInventoryForm(true)}>＋ Nghiệp vụ kho</button>}{page === 'maintenance' && (isOpsManager || isTechnician) && tenantId && can(principal, ['MAINTENANCE_MANAGE']) && <button className="primary" onClick={() => setMaintenanceEditor('new')}>＋ Tạo phiếu</button>}<button onClick={() => { clearApiCache(); if (isViewingMachineSlots && selectedMachine) void loadMachineSlots(selectedMachine); else void load() }} disabled={activeLoading}>↻ {activeLoading ? 'Đang tải' : 'Làm mới'}</button></div></div>{error && <div className="error-box"><span>{error}</span><button onClick={() => { if (isViewingMachineSlots && selectedMachine) void loadMachineSlots(selectedMachine); else void load() }}>Thử lại</button></div>}{notice && <div className="notice">✓ {notice}</div>}{page === 'dashboard' ? <Dashboard data={dashboard} operational={operationalReport} period={dashboardPeriod} setPeriod={setDashboardPeriod} principal={principal} /> : page === 'tenants' && !platform ? <section className="panel">{activeLoading ? <div className="empty"><span className="spinner" /> Đang tải hồ sơ thương hiệu…</div> : activeBrand ? <div className="brand-profile-card"><div className="brand-profile-head"><div className="brand-profile-identity">{activeBrand.logoUrl ? <img className="brand-profile-logo" src={activeBrand.logoUrl} alt={activeBrand.name} /> : <div className="brand-profile-logo">{activeBrand.name.slice(0, 1).toUpperCase()}</div>}<div><h2>{activeBrand.name}</h2><span className={`badge ${activeBrand.status.toLowerCase()}`}>{display(activeBrand.status, 'status')}</span></div></div>{can(principal, ['BRAND_PROFILE_EDIT']) && <button className="primary" onClick={() => setTenantEditor(activeBrand)}>Chỉnh sửa thông tin thương hiệu</button>}</div><div className="brand-profile-grid"><div className="brand-profile-item"><span>Mã thương hiệu</span><strong>{activeBrand.code}</strong></div><div className="brand-profile-item"><span>ID hệ thống</span><strong>#{activeBrand.id}</strong></div><div className="brand-profile-item"><span>Email liên hệ</span><strong>{activeBrand.contactEmail || '—'}</strong></div><div className="brand-profile-item"><span>Số điện thoại</span><strong>{activeBrand.contactPhone || '—'}</strong></div><div className="brand-profile-item full"><span>Mô tả thương hiệu</span><strong>{activeBrand.description || 'Chưa cập nhật mô tả.'}</strong></div><div className="brand-profile-item full"><span>Nội dung hiển thị trên Kiosk</span><strong>{activeBrand.kioskContent || 'Chưa cập nhật nội dung Kiosk.'}</strong></div></div></div> : <div className="empty">Không tìm thấy hồ sơ thương hiệu.</div>}</section> : <>{page === 'transactions' && <ReportingTools filters={transactionFilters} apply={setTransactionFilters} canExport={can(principal, ['REPORT_EXPORT'])} tenantId={tenantId} />}{page === 'orders' && <OrderOverview counts={orderCounts} selected={orderKind} select={(kind) => { setOrderKind(kind); setOrderStatusFilter('') }} />}{page === 'inventory' && <section className="panel toolbar"><nav className="order-tabs" aria-label="Phân loại tồn kho">{([['ALL', 'Tất cả', inventoryUnseen.batches + inventoryUnseen.bottles + inventoryUnseen.movements], ['BATCH', 'Lô hàng', inventoryUnseen.batches], ['BOTTLE', 'Chai nước hoa', inventoryUnseen.bottles], ['MOVEMENT', 'Biến động kho', inventoryUnseen.movements]] as const).map(([key, label, unseen]) => <button type="button" key={key} className={inventoryKind === key ? 'active' : ''} onClick={() => { setInventoryKind(key); if (key === 'ALL') markInventoryKindsSeen(['BATCH', 'BOTTLE', 'MOVEMENT'], rows); else markInventoryKindsSeen([key], rows) }}>{label}{unseen > 0 && <small>+{unseen}</small>}</button>)}</nav>{lowStockBottleCount > 0 && <span className="badge error">⚠ {lowStockBottleCount} chai gần hết / hết / hết hạn</span>}</section>}<section className="panel"><div className="toolbar"><label className="search">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm trong dữ liệu đã tải…" /></label><div className="toolbar-filters">{page === 'orders' && <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span>Trạng thái:</span><select aria-label="Lọc trạng thái" value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value)}>{orderKind === 'REVIEW' ? <><option value="">Mọi trạng thái đối soát</option><option value="OPEN">Đang mở</option><option value="RESOLVED">Đã xử lý</option></> : orderKind === 'PAYMENT' ? <><option value="">Mọi trạng thái thanh toán</option><option value="PENDING">Đang chờ</option><option value="PAID">Đã thanh toán</option><option value="FAILED">Thất bại</option><option value="EXPIRED">Hết hạn</option><option value="REFUNDED">Đã hoàn tiền</option></> : <><option value="">{orderKind === 'ORDER' ? 'Mọi trạng thái đơn' : 'Mọi trạng thái'}</option><option value="PENDING">Đang chờ</option><option value="PAID">Đã thanh toán</option><option value="FAILED">Thất bại</option><option value="EXPIRED">Hết hạn</option><option value="CANCELLED">Đã hủy</option><option value="REFUNDED">Đã hoàn tiền</option></>}</select></label>}{page === 'alerts' && <><select aria-label="Lọc mức độ cảnh báo" value={alertSeverityFilter} onChange={(event) => setAlertSeverityFilter(event.target.value)}><option value="">Mọi mức độ</option><option value="LOW">Thấp</option><option value="MEDIUM">Trung bình</option><option value="HIGH">Cao</option><option value="CRITICAL">Nghiêm trọng</option></select><select aria-label="Lọc trạng thái cảnh báo" value={alertStatusFilter} onChange={(event) => setAlertStatusFilter(event.target.value)}><option value="">Mọi trạng thái</option><option value="OPEN">Đang mở</option><option value="ACKNOWLEDGED">Đã xác nhận</option><option value="ASSIGNED">Đã phân công</option><option value="ESCALATED">Đã chuyển cấp</option><option value="RESOLVED">Đã xử lý</option></select></>}{page === 'maintenance' && <label className="switch"><input type="checkbox" checked={onlyMyTickets} onChange={(event) => setOnlyMyTickets(event.target.checked)} />Chỉ phiếu được giao cho tôi</label>}<span>{filtered.length} bản ghi</span></div></div>{activeLoading ? <div className="empty"><span className="spinner" /> Đang tải dữ liệu thực…</div> : <Table rows={filtered} columns={visibleColumns} action={action} />}</section></>}</div></main>
+  return <div className="app-shell"><aside><div className="sidebar-brand"><strong>S.</strong><span>SCENTSTATION<small>TRUNG TÂM QUẢN TRỊ</small></span></div><nav>{menu.map((item) => <button key={item.id} className={page === item.id ? 'active' : ''} onClick={() => { clearApiCache(); closeMachineSlots(); setPage(item.id) }}><i>{item.icon}</i><span style={{ flex: 1 }}>{item.label}</span>{item.id === 'users' && pendingStaffCount > 0 && <span className="badge pending" style={{ padding: '2px 7px', fontSize: 10 }}>+{pendingStaffCount}</span>}</button>)}</nav><div className="sidebar-user" role="button" tabIndex={0} title="Nhấn để đổi tên đăng nhập hoặc mật khẩu" style={{ cursor: 'pointer' }} onClick={() => setShowAccountSettings(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setShowAccountSettings(true) }}><span>{principal.username.slice(0, 2).toUpperCase()}</span><div><strong>{principal.username}</strong><small>{principal.roles.map((role) => valueLabels[role] ?? role).join(', ')} · ⚙ Tài khoản</small></div></div></aside><main className="workspace"><header><div><span className="live-dot" /> Hệ thống đang trực tuyến</div><div className="header-actions">{(platform || tenants.length > 1) && !!tenants.length && <label>Phạm vi thương hiệu<select value={tenantId ?? ''} onChange={(event) => { clearApiCache(); closeMachineSlots(); setTenantId(event.target.value ? Number(event.target.value) : undefined) }}>{platform && <option value="">Toàn nền tảng</option>}{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name} ({tenant.code})</option>)}</select></label>}{can(principal, ['NOTIFICATION_READ']) && <NotificationCenter principal={principal} tenantId={tenantId} />}{hasBrandProfile && <button type="button" className={`profile-trigger ${page === 'tenants' ? 'active' : ''}`} title="Hồ sơ thương hiệu" onClick={() => { clearApiCache(); closeMachineSlots(); setPage('tenants') }}><span className="profile-avatar">{(activeBrand?.name || principal.username).slice(0, 2).toUpperCase()}</span><span>{activeBrand?.name || 'Hồ sơ thương hiệu'}<small>Hồ sơ thương hiệu</small></span></button>}<button type="button" onClick={() => setShowAccountSettings(true)}>Tài khoản</button><button onClick={() => void logout()}>Đăng xuất</button></div></header><div className="content"><div className="page-heading"><div><p className="eyebrow">SCENTSTATION · QUẢN TRỊ VẬN HÀNH</p><h1>{isViewingMachineSlots ? `Đầu phun: ${selectedMachine.name}` : (!platform && page === 'tenants' ? 'Hồ sơ thương hiệu' : titles[page][0])}</h1><p>{isViewingMachineSlots ? `Máy #${selectedMachine.id} (${selectedMachine.serialNumber})` : (page === 'alerts' && isAdminRole ? 'Theo dõi sự cố thiết bị (Nhân viên vận hành và kỹ thuật viên phụ trách xử lý)' : page === 'maintenance' && isAdminRole ? 'Theo dõi tiến độ và chấp nhận phiếu bảo trì' : page === 'inventory' && platform ? 'Theo dõi lô nhập, chai nước hoa và lịch sử biến động tồn kho toàn nền tảng' : titles[page][1])}</p></div><div className="heading-actions">{isViewingMachineSlots && <button onClick={closeMachineSlots}>← Danh sách máy</button>}{page === 'tenants' && platform && <button className="primary" onClick={() => setTenantEditor('new')}>＋ Tạo thương hiệu</button>}{page === 'tenants' && !platform && activeBrand && can(principal, ['BRAND_PROFILE_EDIT']) && <button className="primary" onClick={() => setTenantEditor(activeBrand)}>✎ Chỉnh sửa hồ sơ</button>}{page === 'users' && <button className="primary" onClick={() => setUserEditor('new')}>＋ Tạo tài khoản</button>}{page === 'products' && !platform && tenantId && can(principal, ['CATALOG_MANAGE']) && <button className="primary" onClick={() => setShowProduct(true)}>＋ Thêm sản phẩm</button>}{page === 'campaigns' && !platform && tenantId && can(principal, ['CAMPAIGN_MANAGE']) && <button className="primary" onClick={() => setCampaignEditor('new')}>＋ Tạo chiến dịch</button>}{page === 'machines' && !platform && tenantId && principal.tenantId && can(principal, ['MACHINE_CONFIGURE']) && <>{!isViewingMachineSlots && <button onClick={() => setShowLocation(true)}>＋ Địa điểm</button>}<button className="primary" onClick={() => isViewingMachineSlots ? setSlotEditor('new') : setMachineEditor('new')}>＋ {isViewingMachineSlots ? 'Tạo đầu phun' : 'Đăng ký máy'}</button></>}{page === 'inventory' && !platform && tenantId && can(principal, ['INVENTORY_MANAGE', 'INVENTORY_ADJUST']) && <button className="primary" onClick={() => setShowInventoryForm(true)}>＋ Nghiệp vụ kho</button>}{page === 'maintenance' && (isOpsManager || isTechnician) && tenantId && can(principal, ['MAINTENANCE_MANAGE']) && <button className="primary" onClick={() => setMaintenanceEditor('new')}>＋ Tạo phiếu</button>}<button onClick={() => { clearApiCache(); if (isViewingMachineSlots && selectedMachine) void loadMachineSlots(selectedMachine); else void load() }} disabled={activeLoading}>↻ {activeLoading ? 'Đang tải' : 'Làm mới'}</button></div></div>{error && <div className="error-box"><span>{error}</span><button onClick={() => { if (isViewingMachineSlots && selectedMachine) void loadMachineSlots(selectedMachine); else void load() }}>Thử lại</button></div>}{notice && <div className="notice">✓ {notice}</div>}{page === 'users' && pendingStaffCount > 0 && <div className="notice" style={{ background: '#fff8e7', color: '#7a5c18', borderColor: '#e4cd8f' }}><span>🔔 Có <strong>{pendingStaffCount}</strong> yêu cầu đăng ký tài khoản nhân viên đang chờ Quản trị thương hiệu phê duyệt vai trò bên dưới.</span></div>}{page === 'dashboard' ? <Dashboard data={dashboard} operational={operationalReport} period={dashboardPeriod} setPeriod={setDashboardPeriod} principal={principal} /> : page === 'tenants' && !platform ? <section className="panel">{activeLoading ? <div className="empty"><span className="spinner" /> Đang tải hồ sơ thương hiệu…</div> : activeBrand ? <div className="brand-profile-card"><div className="brand-profile-head"><div className="brand-profile-identity">{activeBrand.logoUrl ? <img className="brand-profile-logo" src={activeBrand.logoUrl} alt={activeBrand.name} /> : <div className="brand-profile-logo">{activeBrand.name.slice(0, 1).toUpperCase()}</div>}<div><h2>{activeBrand.name}</h2><span className={`badge ${activeBrand.status.toLowerCase()}`}>{display(activeBrand.status, 'status')}</span></div></div>{can(principal, ['BRAND_PROFILE_EDIT']) && <button className="primary" onClick={() => setTenantEditor(activeBrand)}>Chỉnh sửa thông tin thương hiệu</button>}</div><div className="brand-profile-grid"><div className="brand-profile-item"><span>Mã thương hiệu</span><strong>{activeBrand.code}</strong></div><div className="brand-profile-item"><span>ID hệ thống</span><strong>#{activeBrand.id}</strong></div><div className="brand-profile-item"><span>Email liên hệ</span><strong>{activeBrand.contactEmail || '—'}</strong></div><div className="brand-profile-item"><span>Số điện thoại</span><strong>{activeBrand.contactPhone || '—'}</strong></div><div className="brand-profile-item full"><span>Mô tả thương hiệu</span><strong>{activeBrand.description || 'Chưa cập nhật mô tả.'}</strong></div><div className="brand-profile-item full"><span>Nội dung hiển thị trên Kiosk</span><strong>{activeBrand.kioskContent || 'Chưa cập nhật nội dung Kiosk.'}</strong></div></div></div> : <div className="empty">Không tìm thấy hồ sơ thương hiệu.</div>}</section> : <>{page === 'transactions' && <ReportingTools filters={transactionFilters} apply={setTransactionFilters} canExport={can(principal, ['REPORT_EXPORT'])} tenantId={tenantId} />}{page === 'orders' && <OrderOverview counts={orderCounts} selected={orderKind} select={(kind) => { setOrderKind(kind); setOrderStatusFilter('') }} />}{page === 'inventory' && <section className="panel toolbar"><nav className="order-tabs" aria-label="Phân loại tồn kho">{([['ALL', 'Tất cả', inventoryUnseen.batches + inventoryUnseen.bottles + inventoryUnseen.movements], ['BATCH', 'Lô hàng', inventoryUnseen.batches], ['BOTTLE', 'Chai nước hoa', inventoryUnseen.bottles], ['MOVEMENT', 'Biến động kho', inventoryUnseen.movements]] as const).map(([key, label, unseen]) => <button type="button" key={key} className={inventoryKind === key ? 'active' : ''} onClick={() => { setInventoryKind(key); if (key === 'ALL') markInventoryKindsSeen(['BATCH', 'BOTTLE', 'MOVEMENT'], rows); else markInventoryKindsSeen([key], rows) }}>{label}{unseen > 0 && <small>+{unseen}</small>}</button>)}</nav>{lowStockBottleCount > 0 && <span className="badge error">⚠ {lowStockBottleCount} chai gần hết / hết / hết hạn</span>}</section>}<section className="panel"><div className="toolbar"><label className="search">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm trong dữ liệu đã tải…" /></label><div className="toolbar-filters">{page === 'orders' && <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span>Trạng thái:</span><select aria-label="Lọc trạng thái" value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value)}>{orderKind === 'REVIEW' ? <><option value="">Mọi trạng thái đối soát</option><option value="OPEN">Đang mở</option><option value="RESOLVED">Đã xử lý</option></> : orderKind === 'PAYMENT' ? <><option value="">Mọi trạng thái thanh toán</option><option value="PENDING">Đang chờ</option><option value="PAID">Đã thanh toán</option><option value="FAILED">Thất bại</option><option value="EXPIRED">Hết hạn</option><option value="REFUNDED">Đã hoàn tiền</option></> : <><option value="">{orderKind === 'ORDER' ? 'Mọi trạng thái đơn' : 'Mọi trạng thái'}</option><option value="PENDING">Đang chờ</option><option value="PAID">Đã thanh toán</option><option value="FAILED">Thất bại</option><option value="EXPIRED">Hết hạn</option><option value="CANCELLED">Đã hủy</option><option value="REFUNDED">Đã hoàn tiền</option></>}</select></label>}{page === 'alerts' && <><select aria-label="Lọc mức độ cảnh báo" value={alertSeverityFilter} onChange={(event) => setAlertSeverityFilter(event.target.value)}><option value="">Mọi mức độ</option><option value="LOW">Thấp</option><option value="MEDIUM">Trung bình</option><option value="HIGH">Cao</option><option value="CRITICAL">Nghiêm trọng</option></select><select aria-label="Lọc trạng thái cảnh báo" value={alertStatusFilter} onChange={(event) => setAlertStatusFilter(event.target.value)}><option value="">Mọi trạng thái</option><option value="OPEN">Đang mở</option><option value="ACKNOWLEDGED">Đã xác nhận</option><option value="ASSIGNED">Đã phân công</option><option value="ESCALATED">Đã chuyển cấp</option><option value="RESOLVED">Đã xử lý</option></select></>}{page === 'maintenance' && <label className="switch"><input type="checkbox" checked={onlyMyTickets} onChange={(event) => setOnlyMyTickets(event.target.checked)} />Chỉ phiếu được giao cho tôi</label>}<span>{filtered.length} bản ghi</span></div></div>{activeLoading ? <div className="empty"><span className="spinner" /> Đang tải dữ liệu thực…</div> : <Table rows={filtered} columns={visibleColumns} action={action} />}</section></>}</div></main>
+    {showAccountSettings && <AccountSettingsModal principal={principal} brandCode={activeBrand?.code ?? tenants.find((t) => t.id === principal.tenantId)?.code} close={() => setShowAccountSettings(false)} savedUsername={(next, message) => { refreshPrincipal(next); setNotice(message) }} savedPassword={(message) => setNotice(message)} />}
     {showProduct && tenantId && <ProductForm tenantId={tenantId} close={() => setShowProduct(false)} saved={() => void load()} />}
     {productEditor && productEditor !== 'new' && tenantId && <ProductForm tenantId={tenantId} product={productEditor} close={() => setProductEditor(null)} saved={() => { setNotice('Đã cập nhật đầy đủ thông tin sản phẩm.'); void load() }} />}
     {tenantEditor && <TenantForm tenant={tenantEditor === 'new' ? undefined : tenantEditor} platform={platform} close={() => setTenantEditor(null)} saved={() => { setNotice('Đã lưu thông tin thương hiệu.'); void refreshTenants(); void load() }} />}
@@ -805,7 +948,10 @@ export default function App() {
     }
   }, [])
   if (restoring) return <div className="boot"><span className="spinner" /> Đang khôi phục phiên bảo mật…</div>
-  return principal
-    ? <Admin principal={principal} exit={() => { setSessionNotice(''); setPrincipal(null) }} />
-    : <Login done={(next) => { setSessionNotice(''); setPrincipal(next) }} sessionNotice={sessionNotice} />
+  if (!principal) return <Login done={(next) => { setSessionNotice(''); setPrincipal(next) }} sessionNotice={sessionNotice} />
+  const needsStaffOnboarding = !principal.roles.includes('PLATFORM_SUPER_ADMIN') && principal.grants.length === 0
+  if (needsStaffOnboarding) {
+    return <StaffOnboarding principal={principal} refreshPrincipal={(next) => setPrincipal(next)} exit={() => { setSessionNotice(''); setPrincipal(null) }} />
+  }
+  return <Admin principal={principal} refreshPrincipal={(next) => setPrincipal(next)} exit={() => { setSessionNotice(''); setPrincipal(null) }} />
 }

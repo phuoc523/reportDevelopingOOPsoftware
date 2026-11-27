@@ -20,7 +20,8 @@ public interface CurrentActorContext {
     Set<String> getPermissions();
 
     default void requirePermission(String permission) {
-        if (!getPermissions().contains(permission)) {
+        if (!getPermissions().contains(permission)
+                && !(CatalogPermissions.READ.equals(permission) && getPermissions().contains("KIOSK_BROWSE"))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Catalog permission required");
         }
     }
@@ -29,7 +30,7 @@ public interface CurrentActorContext {
     default Long requireTenant(Long claimedTenantId) {
         Long tenantId = getTenantId();
         if (tenantId == null) {
-            if (getRoles().contains("PLATFORM_SUPER_ADMIN")
+            if ((getRoles().contains("PLATFORM_SUPER_ADMIN") || getRoles().contains("CUSTOMER"))
                     && claimedTenantId != null && claimedTenantId > 0) {
                 return claimedTenantId;
             }

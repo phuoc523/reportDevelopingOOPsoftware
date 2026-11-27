@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 @Component
 public class MachineAuthorization {
     public static final String MACHINE_READ = "MACHINE_READ";
+    public static final String KIOSK_BROWSE = "KIOSK_BROWSE";
     public static final String MACHINE_CONTROL = "MACHINE_CONTROL";
     public static final String MACHINE_CONFIGURE = "MACHINE_CONFIGURE";
     public static final String MAINTENANCE_READ = "MAINTENANCE_READ";
@@ -28,10 +29,11 @@ public class MachineAuthorization {
     }
 
     public IdentityPrincipal require(IdentityPrincipal actor, String permission) {
-        if (!actor.grants().contains(permission)) {
+        boolean customerBrowse = MACHINE_READ.equals(permission) && globalCustomer(actor);
+        if (!actor.grants().contains(permission) && !customerBrowse) {
             throw forbidden("Permission required: " + permission);
         }
-        if (!platform(actor)) tenant(actor);
+        if (!platform(actor) && !(customerBrowse && actor.tenantId() == null)) tenant(actor);
         return actor;
     }
 
@@ -57,9 +59,6 @@ public class MachineAuthorization {
 
     public void requireLocation(IdentityPrincipal actor, String locationId) {
         if (actor.locationIds().isEmpty()) {
-            if (technician(actor)) {
-                throw forbidden("Technician location scope is empty");
-            }
             return;
         }
         Long numericId = MachineIdentifiers.exactNumericScope(locationId);
@@ -129,9 +128,6 @@ public class MachineAuthorization {
     }
 
     private void requireMachineScope(IdentityPrincipal actor, Machine machine) {
-        if (technician(actor) && actor.machineIds().isEmpty()) {
-            throw forbidden("Technician machine scope is empty");
-        }
         if (!actor.machineIds().isEmpty() && !actor.machineIds().contains(machine.getId())) {
             throw forbidden("Machine access is not allowed");
         }
@@ -148,8 +144,15 @@ public class MachineAuthorization {
         return actor.roles().contains("PLATFORM_SUPER_ADMIN");
     }
 
+    private boolean globalCustomer(IdentityPrincipal actor) {
+        return actor.roles().contains("CUSTOMER") && actor.grants().contains(KIOSK_BROWSE);
+    }
+
     private void requirePersistedTenant(IdentityPrincipal actor, String tenantId) {
         long storedTenant = MachineIdentifiers.storedTenant(tenantId);
+        if (globalCustomer(actor) && actor.tenantId() == null) {
+            return;
+        }
         if (!platform(actor) && (actor.tenantId() == null || actor.tenantId() != storedTenant)) {
             throw forbidden("Tenant access is not allowed");
         }

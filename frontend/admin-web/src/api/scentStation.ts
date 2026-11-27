@@ -1,11 +1,24 @@
 import { api, authToken, download, query } from './client.ts'
-import type { Account, AccountCreateInput, Alert, AuthResponse, Bottle, BottleInstallation, Campaign, CampaignInput, Dashboard, DeviceRegistration, InventoryBatch, JsonRecord, Location, Machine, MachineInput, MaintenanceHistory, MaintenanceTicket, NotificationItem, NotificationPage, OperationalReport, Order, PageResponse, Payment, PaymentReview, Permission, Principal, Product, RevenueBreakdown, Role, Slot, SlotInput, Tenant, TenantInput, Transaction } from './types'
+import type { Account, AccountCreateInput, Alert, AuthResponse, Bottle, BottleInstallation, Campaign, CampaignInput, Dashboard, DeviceRegistration, InventoryBatch, JsonRecord, Location, Machine, MachineInput, MaintenanceHistory, MaintenanceTicket, NotificationItem, NotificationPage, OperationalReport, Order, PageResponse, Payment, PaymentReview, Permission, Principal, Product, PublicTenantSummary, RevenueBreakdown, Role, Slot, SlotInput, StaffRegisterResponse, Tenant, TenantInput, Transaction } from './types'
 
 export const backend = {
   async login(username: string, password: string) {
     const result = await api<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) })
     authToken.set(result.token)
     return result
+  },
+  publicTenants: () => api<PublicTenantSummary[]>('/api/auth/tenants'),
+  registerStaffAccount: (data: { username: string; email: string; password: string; fullName: string }) => api<AuthResponse>('/api/auth/register-staff-account', { method: 'POST', body: JSON.stringify(data) }),
+  submitStaffRoleRequest: async (data: { tenantId: number; requestedRole: Role }) => {
+    const res = await api<StaffRegisterResponse>('/api/auth/staff-role-request', { method: 'POST', body: JSON.stringify(data) })
+    if (res.token) authToken.set(res.token)
+    return res
+  },
+  changeOwnPassword: (currentPassword: string, newPassword: string) => api<void>('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+  changeOwnUsername: async (newUsername: string) => {
+    const res = await api<AuthResponse>('/api/auth/change-username', { method: 'POST', body: JSON.stringify({ newUsername }) })
+    if (res.token) authToken.set(res.token)
+    return res
   },
   me: () => api<Principal>('/api/auth/me'),
   logout: () => api<void>('/api/auth/logout', { method: 'POST' }),
@@ -17,11 +30,13 @@ export const backend = {
   users: (platform: boolean, tenantId?: number) => api<Account[]>(`${platform ? '/api/platform/users' : '/api/brand/users'}${query({ tenantId: platform ? tenantId : undefined })}`),
   user: (platform: boolean, id: number) => api<Account>(`${platform ? '/api/platform/users' : '/api/brand/users'}/${id}`),
   createUser: (platform: boolean, data: AccountCreateInput) => api<Account>(`${platform ? '/api/platform/users' : '/api/brand/users'}`, { method: 'POST', body: JSON.stringify(data) }),
-  updateUserProfile: (platform: boolean, id: number, email: string, fullName: string) => api<Account>(`${platform ? '/api/platform/users' : '/api/brand/users'}/${id}`, { method: 'PATCH', body: JSON.stringify({ email, fullName }) }),
+  updateUserProfile: (platform: boolean, id: number, email: string, fullName: string, username?: string) => api<Account>(`${platform ? '/api/platform/users' : '/api/brand/users'}/${id}`, { method: 'PATCH', body: JSON.stringify({ email, fullName, username }) }),
   updateUserRoles: (platform: boolean, id: number, roles: Role[]) => api<Account>(`${platform ? '/api/platform/users' : '/api/brand/users'}/${id}/roles`, { method: 'PATCH', body: JSON.stringify({ roles }) }),
   updateUserGrants: (platform: boolean, id: number, permissions: Permission[]) => api<Account>(`${platform ? '/api/platform/users' : '/api/brand/users'}/${id}/grants`, { method: 'PATCH', body: JSON.stringify({ permissions }) }),
   updateUserScopes: (platform: boolean, id: number, locationIds: number[], machineIds: number[]) => api<Account>(`${platform ? '/api/platform/users' : '/api/brand/users'}/${id}/scopes`, { method: 'PATCH', body: JSON.stringify({ locationIds, machineIds }) }),
   resetUserPassword: (platform: boolean, id: number, newPassword: string) => api<void>(`${platform ? '/api/platform/users' : '/api/brand/users'}/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ newPassword }) }),
+  approveUser: (platform: boolean, id: number) => api<Account>(`${platform ? '/api/platform/users' : '/api/brand/users'}/${id}/approve`, { method: 'POST' }),
+  rejectUser: (platform: boolean, id: number) => api<Account>(`${platform ? '/api/platform/users' : '/api/brand/users'}/${id}/reject`, { method: 'POST' }),
   updateUserStatus: (platform: boolean, id: number, active: boolean, locked: boolean) => api<Account>(`${platform ? '/api/platform/users' : '/api/brand/users'}/${id}/status`, { method: 'PATCH', body: JSON.stringify({ active, locked }) }),
   products: (tenantId?: number) => api<Product[]>(`/api/products${query({ tenantId })}`),
   createProduct: (data: Pick<Product, 'tenantId' | 'name' | 'description' | 'fragranceNotes' | 'imageUrl' | 'defaultPrice' | 'bottlePrice' | 'bottleVolumeMl' | 'bottleStock' | 'available'>) => api<Product>('/api/products', { method: 'POST', body: JSON.stringify(data) }),

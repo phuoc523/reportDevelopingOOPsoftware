@@ -47,6 +47,11 @@ public class OrderJpaAdapter implements OrderRepository {
     }
 
     @Override
+    public List<Order> findAllByCustomerId(Long customerId) {
+        return repository.findAllByCustomerIdOrderByIdAsc(customerId);
+    }
+
+    @Override
     public void deleteAll() {
         repository.deleteAll();
     }

@@ -15,8 +15,11 @@ public record AccountPrincipal(
 ) {
     public static AccountPrincipal from(User user) {
         Set<Role> roles = RolePermissions.effectiveRoles(user.getRoles(), user.getRole());
+        Set<Permission> grants = user.isPendingApproval()
+            ? Set.of()
+            : RolePermissions.effectivePermissions(roles, user.getPermissionGrants());
         return new AccountPrincipal(user.getId(), user.getUsername(), user.getTenantId(), roles,
-            RolePermissions.effectivePermissions(roles, user.getPermissionGrants()), Set.copyOf(user.getLocationIds()),
+            grants, Set.copyOf(user.getLocationIds()),
             Set.copyOf(user.getMachineIds()));
     }
 }

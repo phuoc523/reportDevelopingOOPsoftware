@@ -18,6 +18,8 @@ public interface SpringDataOrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findAllByTenantIdAndCustomerIdOrderByIdAsc(String tenantId, Long customerId);
 
+    List<Order> findAllByCustomerIdOrderByIdAsc(Long customerId);
+
     Optional<Order> findByIdAndTenantId(Long id, String tenantId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

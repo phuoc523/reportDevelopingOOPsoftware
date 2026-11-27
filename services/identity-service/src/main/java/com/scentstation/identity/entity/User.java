@@ -25,6 +25,8 @@ public class User {
     private boolean active = true;
     @Column(nullable = false)
     private boolean locked = false;
+    @Column(name = "pending_approval", nullable = false, columnDefinition = "bit(1) default 0")
+    private boolean pendingApproval = false;
     @Column(name = "tenant_id")
     private Long tenantId;
     @Column(nullable = false)
@@ -71,6 +73,7 @@ public class User {
     public Role getRole() { return role; }
     public boolean isActive() { return active; }
     public boolean isLocked() { return locked; }
+    public boolean isPendingApproval() { return pendingApproval; }
     public Long getTenantId() { return tenantId; }
     public long getTokenVersion() { return tokenVersion; }
     public Set<Role> getRoles() { return roles == null ? Set.of() : roles; }
@@ -81,7 +84,9 @@ public class User {
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public void setActive(boolean active) { this.active = active; revokeSessions(); }
     public void setLocked(boolean locked) { this.locked = locked; revokeSessions(); }
+    public void setPendingApproval(boolean pendingApproval) { this.pendingApproval = pendingApproval; }
     public void setPassword(String hash) { this.password = hash; revokeSessions(); }
+    public void setUsername(String username) { this.username = username; revokeSessions(); }
     public void setEmail(String email) { this.email = email; }
     public void setFullName(String fullName) { this.fullName = fullName; }
     public void setRoles(Set<Role> roles) {

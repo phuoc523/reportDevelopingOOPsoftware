@@ -67,6 +67,12 @@ function App() {
   const [error, setError] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [registerStep, setRegisterStep] = useState<1 | 2>(1)
+  const [regFullName, setRegFullName] = useState('')
+  const [regEmail, setRegEmail] = useState('')
+  const [regConfirmPassword, setRegConfirmPassword] = useState('')
+  const [authNotice, setAuthNotice] = useState('')
   const [wifiModalOpen, setWifiModalOpen] = useState(false)
   const creatingRef = useRef(false)
   const paymentReference = payment?.reference
@@ -81,19 +87,23 @@ function App() {
 
   const loadCatalog = useCallback(async (actor: Principal) => {
     if (!Number.isInteger(configuredMachineId) || configuredMachineId <= 0) throw new Error('VITE_KIOSK_MACHINE_ID phải là mã máy hợp lệ.')
-    if (!actor.tenantId) throw new Error('Tài khoản khách chưa được gán thương hiệu (tenant).')
     if (!actor.grants.includes('KIOSK_ORDER')) throw new Error('Tài khoản chưa có quyền tạo đơn tại Kiosk.')
-    const [machineData, slotData, productData] = await Promise.all([
-      kioskApi.machine(configuredMachineId), kioskApi.slots(configuredMachineId), kioskApi.products(actor.tenantId),
+    const [machineData, slotData] = await Promise.all([
+      kioskApi.machine(configuredMachineId), kioskApi.slots(configuredMachineId),
     ])
-    if (Number(machineData.tenantId) !== actor.tenantId) throw new Error('Máy Kiosk không thuộc thương hiệu của tài khoản đang đăng nhập.')
+    const machineTenantId = Number(machineData.tenantId)
+    if (!Number.isInteger(machineTenantId) || machineTenantId <= 0) throw new Error('Máy Kiosk chưa có mã thương hiệu hợp lệ.')
+    if (actor.tenantId && !actor.roles.includes('CUSTOMER') && machineTenantId !== actor.tenantId) {
+      throw new Error('Máy Kiosk không thuộc thương hiệu của tài khoản đang đăng nhập.')
+    }
+    const productData = await kioskApi.products(machineTenantId)
     const products = new Map(productData.map((product) => [String(product.id), product]))
     const linked = slotData.flatMap((slot) => {
       const product = slot.productId ? products.get(slot.productId) : undefined
       return product ? [{ slot, product }] : []
     })
     const kioskItems = await Promise.all(linked.map(async ({ slot, product }) => ({
-      slot, product, pricing: await kioskApi.pricing(actor.tenantId as number, product.id),
+      slot, product, pricing: await kioskApi.pricing(machineTenantId, product.id),
     })))
     setMachine(machineData); setItems(kioskItems); setBackendOffline(false)
     setSelected((current) => kioskItems.find((item) => item.slot.id === current?.slot.id) || null)
@@ -249,7 +259,26 @@ function App() {
   const resumablePayment = Boolean(payment?.status === 'PENDING' && order && selected && String(order.slotId) === String(selected.slot.id))
 
   async function submitLogin(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError('')
+    event.preventDefault(); setError(''); setAuthNotice('')
+    if (authMode === 'register') {
+      if (registerStep === 1) {
+        if (!regFullName.trim() || !regEmail.trim()) { setError('Vui lòng nhập đầy đủ họ tên và email.'); return }
+        setRegisterStep(2)
+        return
+      }
+      if (password.length < 4) { setError('Mật khẩu phải có ít nhất 4 ký tự.'); return }
+      if (password !== regConfirmPassword) { setError('Mật khẩu xác nhận không khớp.'); return }
+      setBusy(true)
+      try {
+        await kioskApi.register({ username: username.trim(), email: regEmail.trim(), password, fullName: regFullName.trim() })
+        setAuthNotice('Đăng ký tài khoản khách hàng thành công! Bạn có thể đăng nhập ngay bây giờ.')
+        setPassword(''); setRegConfirmPassword(''); setRegisterStep(1); setAuthMode('login')
+      } catch (reason) {
+        setError(readableError(reason))
+      } finally { setBusy(false) }
+      return
+    }
+    setBusy(true)
     try {
       await kioskApi.login(username.trim(), password)
       const actor = await kioskApi.me()
@@ -343,7 +372,7 @@ function App() {
       const created = currentOrder && ['PENDING', 'CONFIRMED'].includes(currentOrder.status)
         ? currentOrder
         : await kioskApi.createOrder({
-          customerId: principal.id, tenantId: String(principal.tenantId), machineId: String(selected.slot.machineId), slotId: String(selected.slot.id),
+          customerId: principal.id, tenantId: String(machine?.tenantId ?? principal.tenantId ?? ''), machineId: String(selected.slot.machineId), slotId: String(selected.slot.id),
           orderType: type,
           items: [{ productId: selected.product.id, productName: selected.product.name, unitPrice: type === 'BOTTLE' ? Number(selected.product.bottlePrice) : selected.pricing.effectivePrice, quantity: 1 }],
         })
@@ -429,8 +458,38 @@ function App() {
       <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01" /></svg>
     </button>
     <section className="login-card">
-      <div className="brand-emblem">S</div><p className="eyebrow">SCENTSTATION · KIOSK</p><h1>Bắt đầu trải nghiệm hương thơm</h1><p>Đăng nhập tài khoản khách được cấp cho máy này để tiếp tục.</p>
-      <form onSubmit={submitLogin}><label>Tên đăng nhập<input autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required /></label><label>Mật khẩu<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>{error && <div className="error-box" role="alert">{error}</div>}<button className="primary" disabled={busy}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button></form><small>Máy cấu hình: #{configuredMachineId}</small>
+      <div className="brand-emblem">S</div><p className="eyebrow">SCENTSTATION · KIOSK</p>
+      <h1>{authMode === 'login' ? 'Bắt đầu trải nghiệm hương thơm' : registerStep === 1 ? 'Đăng ký khách hàng (Bước 1/2)' : 'Tạo tài khoản (Bước 2/2)'}</h1>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 14 }}>
+        <button type="button" className={authMode === 'login' ? 'primary' : 'secondary'} style={{ padding: '8px 16px', fontSize: 13 }} onClick={() => { setAuthMode('login'); setError('') }}>Đăng nhập</button>
+        <button type="button" className={authMode === 'register' ? 'primary' : 'secondary'} style={{ padding: '8px 16px', fontSize: 13 }} onClick={() => { setAuthMode('register'); setRegisterStep(1); setError(''); setAuthNotice('') }}>Đăng ký tài khoản</button>
+      </div>
+      {authNotice && <div className="pending-payment-note" style={{ margin: '0 0 12px', textAlign: 'left' }}>✓ {authNotice}</div>}
+      <form onSubmit={submitLogin}>
+        {authMode === 'login' ? (
+          <>
+            <label>Tên đăng nhập<input autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required /></label>
+            <label>Mật khẩu<input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+          </>
+        ) : registerStep === 1 ? (
+          <>
+            <label>Họ và tên<input autoFocus maxLength={120} placeholder="Nhập họ tên của bạn" value={regFullName} onChange={(event) => setRegFullName(event.target.value)} required /></label>
+            <label>Email<input type="email" maxLength={160} placeholder="email@example.com" value={regEmail} onChange={(event) => setRegEmail(event.target.value)} required /></label>
+          </>
+        ) : (
+          <>
+            <p style={{ margin: '0 0 10px', fontSize: 13 }}>Thông tin: <strong>{regFullName}</strong> ({regEmail})</p>
+            <label>Tên đăng nhập<input autoFocus minLength={3} maxLength={80} autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required /></label>
+            <label>Mật khẩu (tối thiểu 4 ký tự)<input type="password" minLength={4} maxLength={72} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+            <label>Xác nhận mật khẩu<input type="password" minLength={4} maxLength={72} autoComplete="new-password" value={regConfirmPassword} onChange={(event) => setRegConfirmPassword(event.target.value)} required /></label>
+          </>
+        )}
+        {error && <div className="error-box" role="alert">{error}</div>}
+        <div style={{ display: 'flex', gap: 10 }}>
+          {authMode === 'register' && registerStep === 2 && <button type="button" className="secondary" onClick={() => { setRegisterStep(1); setError('') }}>← Quay lại</button>}
+          <button className="primary" style={{ flex: 1 }} disabled={busy}>{busy ? 'Đang xử lý…' : authMode === 'login' ? 'Đăng nhập' : registerStep === 1 ? 'Tiếp tục →' : 'Hoàn tất đăng ký'}</button>
+        </div>
+      </form><small>Máy cấu hình: #{configuredMachineId}</small>
     </section>
     <WifiSetupModal open={wifiModalOpen} onClose={() => setWifiModalOpen(false)} />
   </main>

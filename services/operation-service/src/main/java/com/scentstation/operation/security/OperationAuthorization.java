@@ -46,9 +46,6 @@ public class OperationAuthorization {
     }
 
     public void requireMachineScope(IdentityPrincipal actor, Long machineId, Long locationId) {
-        if (technician(actor) && actor.machineIds().isEmpty()) {
-            throw forbidden("Technician machine scope is empty");
-        }
         if (!actor.machineIds().isEmpty() && !actor.machineIds().contains(machineId)) {
             throw forbidden("Machine access is not allowed");
         }

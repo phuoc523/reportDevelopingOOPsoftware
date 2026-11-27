@@ -88,4 +88,20 @@ public class AdminUserController {
     @PostMapping("/brand/users/{id}/reset-password") @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("@accessPolicy.has('BRAND_USER_MANAGE')")
     public void resetBrand(@PathVariable Long id, @Valid @RequestBody Password r) { service.resetPassword(id, r, false); }
+
+    @PostMapping("/platform/users/{id}/approve")
+    @PreAuthorize("@accessPolicy.platform()")
+    public AccountResponse approvePlatform(@PathVariable Long id) { return service.approveRegistration(id, true); }
+
+    @PostMapping("/brand/users/{id}/approve")
+    @PreAuthorize("@accessPolicy.has('BRAND_USER_MANAGE')")
+    public AccountResponse approveBrand(@PathVariable Long id) { return service.approveRegistration(id, false); }
+
+    @PostMapping("/platform/users/{id}/reject")
+    @PreAuthorize("@accessPolicy.platform()")
+    public AccountResponse rejectPlatform(@PathVariable Long id) { return service.rejectRegistration(id, true); }
+
+    @PostMapping("/brand/users/{id}/reject")
+    @PreAuthorize("@accessPolicy.has('BRAND_USER_MANAGE')")
+    public AccountResponse rejectBrand(@PathVariable Long id) { return service.rejectRegistration(id, false); }
 }

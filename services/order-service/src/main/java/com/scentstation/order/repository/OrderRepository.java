@@ -19,5 +19,7 @@ public interface OrderRepository {
 
     List<Order> findAllByTenantIdAndCustomerId(String tenantId, Long customerId);
 
+    List<Order> findAllByCustomerId(Long customerId);
+
     void deleteAll();
 }

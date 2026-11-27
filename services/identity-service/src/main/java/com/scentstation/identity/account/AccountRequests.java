@@ -20,8 +20,13 @@ public final class AccountRequests {
     ) {}
     public record Profile(
         @NotBlank @Email @Size(max=160) String email,
-        @NotBlank @Size(max=120) String fullName
-    ) {}
+        @NotBlank @Size(max=120) String fullName,
+        @Size(min=3, max=80) String username
+    ) {
+        public Profile(String email, String fullName) {
+            this(email, fullName, null);
+        }
+    }
     public record Roles(@NotEmpty Set<@NotNull Role> roles) {}
     public record Grants(@NotNull Set<@NotNull Permission> permissions) {}
     public record Status(@NotNull Boolean active, @NotNull Boolean locked) {}

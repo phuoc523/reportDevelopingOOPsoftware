@@ -119,9 +119,25 @@ public class AccountAdminService {
         if (!u.getEmail().equals(email) && users.existsByEmail(email)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists");
         }
+        String beforeUsername = u.getUsername();
+        if (r.username() != null && !r.username().isBlank()) {
+            String nextUsername = r.username().trim();
+            if (nextUsername.length() < 3 || nextUsername.length() > 80 || nextUsername.chars().anyMatch(Character::isWhitespace)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tên đăng nhập phải từ 3 đến 80 ký tự và không chứa khoảng trắng.");
+            }
+            if (!beforeUsername.equals(nextUsername)) {
+                if (users.existsByUsername(nextUsername)) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Tên đăng nhập đã tồn tại.");
+                }
+                u.setUsername(nextUsername);
+            }
+        }
         u.setEmail(email);
         u.setFullName(r.fullName().trim());
-        audit.record(access.current().id(), u.getTenantId(), "ACCOUNT_PROFILE_UPDATED", "USER", id(u), null, "profile fields updated");
+        String summary = beforeUsername.equals(u.getUsername())
+            ? "profile fields updated"
+            : "username:" + beforeUsername + "->" + u.getUsername();
+        audit.record(access.current().id(), u.getTenantId(), "ACCOUNT_PROFILE_UPDATED", "USER", id(u), beforeUsername, summary);
         return AccountResponse.from(u);
     }
 
@@ -180,8 +196,43 @@ public class AccountAdminService {
     @Transactional
     public void resetPassword(Long id, Password r, boolean platform) {
         User u = target(id, platform);
+        Set<Role> targetRoles = RolePermissions.effectiveRoles(u.getRoles(), u.getRole());
+        if (targetRoles.contains(Role.CUSTOMER)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "Quản trị viên không có quyền xem hoặc đặt lại mật khẩu tài khoản khách hàng.");
+        }
         u.setPassword(encoder.encode(r.newPassword()));
         audit.record(access.current().id(), u.getTenantId(), "PASSWORD_RESET", "USER", id(u), null, "reset");
+    }
+
+    @Transactional
+    public AccountResponse approveRegistration(Long id, boolean platform) {
+        User u = target(id, platform);
+        if (!u.isPendingApproval()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Tài khoản này không ở trạng thái chờ phê duyệt.");
+        }
+        u.setPendingApproval(false);
+        if (!u.isActive()) u.setActive(true);
+        if (u.isLocked()) u.setLocked(false);
+        users.save(u);
+        audit.record(access.current().id(), u.getTenantId(), "STAFF_REGISTRATION_APPROVED", "USER", id(u),
+            "PENDING_APPROVAL", u.getRoles().toString());
+        return AccountResponse.from(u);
+    }
+
+    @Transactional
+    public AccountResponse rejectRegistration(Long id, boolean platform) {
+        User u = target(id, platform);
+        if (!u.isPendingApproval()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Tài khoản này không ở trạng thái chờ phê duyệt.");
+        }
+        u.setPendingApproval(false);
+        u.setActive(false);
+        u.setLocked(true);
+        users.save(u);
+        audit.record(access.current().id(), u.getTenantId(), "STAFF_REGISTRATION_REJECTED", "USER", id(u),
+            "PENDING_APPROVAL", "REJECTED");
+        return AccountResponse.from(u);
     }
 
     private static String id(User u) { return u.getId().toString(); }

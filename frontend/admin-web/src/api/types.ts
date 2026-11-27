@@ -26,8 +26,10 @@ export interface Principal {
 }
 
 export interface AuthResponse { token: string; tokenType: string; userId: number; username: string; role: string }
+export interface PublicTenantSummary { id: number; code: string; name: string }
+export interface StaffRegisterResponse { userId: number; username: string; tenantId: number; requestedRole: string; status: string; message: string; token?: string | null }
 export interface Tenant { id: number; code: string; name: string; logoUrl: string | null; description: string | null; contactEmail: string | null; contactPhone: string | null; kioskContent: string | null; status: 'ACTIVE' | 'SUSPENDED' }
-export interface Account { id: number; username: string; email: string; fullName: string; tenantId: number | null; roles: Role[]; explicitGrants: Permission[]; locationIds: number[]; machineIds: number[]; active: boolean; locked: boolean }
+export interface Account { id: number; username: string; email: string; fullName: string; tenantId: number | null; roles: Role[]; explicitGrants: Permission[]; locationIds: number[]; machineIds: number[]; active: boolean; locked: boolean; pendingApproval?: boolean }
 export interface TenantProfileInput { logoUrl: string | null; description: string | null; contactEmail: string | null; contactPhone: string | null; kioskContent: string | null }
 export interface TenantInput { code?: string; name: string; profile: TenantProfileInput }
 export interface AccountCreateInput { username: string; email: string; password: string; fullName: string; tenantId: number | null; roles: Role[]; locationIds: number[]; machineIds: number[] }

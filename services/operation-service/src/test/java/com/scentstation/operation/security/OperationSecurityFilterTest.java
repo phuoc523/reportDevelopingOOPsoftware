@@ -134,10 +134,10 @@ class OperationSecurityFilterTest {
     }
 
     @Test
-    void technicianWithNoAssignedMachineIsDenied() throws Exception {
+    void technicianWithEmptyScopeCanAccessOwnTenantTickets() throws Exception {
         stub("tech-none", principal(Set.of("MAINTENANCE_READ"), Set.of(), Set.of(), "TECHNICIAN"));
         when(tickets.findByIdAndTenantId(8L, 1L)).thenReturn(Optional.of(ticket(8L, 10L, 20L)));
-        assertEquals(403, execute(bearer("GET", "/api/maintenance/tickets/8", "tech-none"), null).getStatus());
+        assertEquals(200, execute(bearer("GET", "/api/maintenance/tickets/8", "tech-none"), null).getStatus());
     }
 
     @Test
@@ -151,7 +151,7 @@ class OperationSecurityFilterTest {
 
     @Test
     void technicianCannotCreateTicketForUnassignedMachine() throws Exception {
-        stub("tech-create", principal(Set.of("MAINTENANCE_MANAGE"), Set.of(), Set.of(), "TECHNICIAN"));
+        stub("tech-create", principal(Set.of("MAINTENANCE_MANAGE"), Set.of(), Set.of(20L), "TECHNICIAN"));
         MockHttpServletRequest request = json("POST", "/api/maintenance/tickets", "tech-create",
                 "{\"tenantId\":1,\"machineId\":10,\"reportedByActorId\":999}");
         assertEquals(403, execute(request, null).getStatus());

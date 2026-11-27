@@ -101,7 +101,7 @@ public class OrderService {
         if (statusMetadataCache == null) {
             return OrderStatusMetadataCache.statusMetadata();
         }
-        if (authorization.isPlatform(actor)) {
+        if (authorization.isPlatform(actor) || authorization.isGlobalCustomer(actor)) {
             return OrderStatusMetadataCache.statusMetadata();
         }
         String tenantId = authorization.tenant(actor);
@@ -115,9 +115,12 @@ public class OrderService {
 
     public OrderResponse createOrder(CreateOrderRequest request, IdentityPrincipal actor) {
         authorization.require(actor, OrderAuthorization.KIOSK_ORDER);
-        String tenantId = authorization.tenant(actor);
+        boolean globalCustomer = authorization.isGlobalCustomer(actor);
         long requestTenantId = OrderIdentifiers.request(request.tenantId(), "tenantId");
-        if (actor.tenantId() == null || actor.tenantId() != requestTenantId
+        String tenantId = globalCustomer
+                ? OrderIdentifiers.canonical(requestTenantId, "tenantId")
+                : authorization.tenant(actor);
+        if ((!globalCustomer && (actor.tenantId() == null || actor.tenantId() != requestTenantId))
                 || !actor.id().equals(request.customerId())) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.FORBIDDEN,
@@ -200,8 +203,12 @@ public class OrderService {
             orders = orderRepository.findAllByTenantId(tenantId);
         } else {
             authorization.require(actor, OrderAuthorization.KIOSK_ORDER);
-            String tenantId = authorization.tenant(actor);
-            orders = orderRepository.findAllByTenantIdAndCustomerId(tenantId, actor.id());
+            if (authorization.isGlobalCustomer(actor)) {
+                orders = orderRepository.findAllByCustomerId(actor.id());
+            } else {
+                String tenantId = authorization.tenant(actor);
+                orders = orderRepository.findAllByTenantIdAndCustomerId(tenantId, actor.id());
+            }
         }
         return orders.stream()
                 .map(this::expireIfNecessary)
@@ -298,7 +305,7 @@ public class OrderService {
     }
 
     private Order findOrderForActor(Long id, IdentityPrincipal actor) {
-        if (!authorization.isPlatform(actor)) {
+        if (!authorization.isPlatform(actor) && !authorization.isGlobalCustomer(actor)) {
             authorization.tenant(actor);
         }
         Order order = expireIfNecessary(orderRepository.findById(id)
