@@ -3,12 +3,12 @@ import type { FormEvent } from 'react'
 import './Admin.css'
 import { ApiError, authToken, clearApiCache } from './api/client'
 import { backend } from './api/scentStation'
-import type { Account, Alert, Bottle, Campaign, InventoryBatch, Location, Machine, MaintenanceTicket, Order, Payment, PaymentReview, Permission, Principal, Product, Slot, Tenant } from './api/types'
+import type { Account, Alert, Bottle, BottleInstallation, Campaign, InventoryBatch, Location, Machine, MaintenanceTicket, Order, Payment, PaymentReview, Permission, Principal, Product, Slot, Tenant } from './api/types'
 import { CampaignForm, ProductPriceForm } from './components/CatalogForms'
 import { TenantForm, UserForm } from './components/IdentityForms'
 import { LocationForm, MachineForm, SlotForm } from './components/MachineForms'
 import { InventoryDisposeForm, InventoryForm, InventoryWorkflowForm, MaintenanceForm, MaintenanceWorkflowForm } from './components/OperationForms'
-import type { InventoryDisposeTarget } from './components/OperationForms'
+import type { InventoryDisposeTarget, InventoryWorkflowPrefill } from './components/OperationForms'
 import { NotificationCenter } from './components/NotificationCenter'
 import { ReportingTools } from './components/ReportingTools'
 import type { TransactionFilters } from './components/ReportingTools'
@@ -108,7 +108,7 @@ const pages: Array<{ id: Page; label: string; icon: string; permissions?: Permis
   { id: 'products', label: 'Sản phẩm', icon: '◈', permissions: ['CATALOG_READ'] },
   { id: 'campaigns', label: 'Chiến dịch', icon: '◷', permissions: ['CATALOG_READ', 'CAMPAIGN_MANAGE'] },
   { id: 'machines', label: 'Kiosk', icon: '▣', permissions: ['MACHINE_READ'] },
-  { id: 'inventory', label: 'Tồn kho', icon: '▤', permissions: ['INVENTORY_READ'] },
+  { id: 'inventory', label: 'Kho', icon: '▤', permissions: ['INVENTORY_READ'] },
   { id: 'alerts', label: 'Cảnh báo', icon: '⚑', permissions: ['ALERT_READ'] },
   { id: 'maintenance', label: 'Bảo trì', icon: '⚙', permissions: ['MAINTENANCE_READ'] },
   { id: 'orders', label: 'Đơn hàng & thanh toán', icon: '▧', permissions: ['ORDER_READ'] },
@@ -119,8 +119,8 @@ const pages: Array<{ id: Page; label: string; icon: string; permissions?: Permis
 const labels: Record<string, string> = {
   id: 'ID', kind: 'Loại dữ liệu', name: 'Tên', code: 'Mã', status: 'Trạng thái', tenantId: 'Mã thương hiệu', tenantName: 'Thương hiệu', productId: 'Mã sản phẩm', productName: 'Sản phẩm', machineId: 'Máy',
   username: 'Tài khoản', fullName: 'Họ tên', email: 'Email', roles: 'Vai trò', active: 'Hoạt động', locked: 'Đã khóa',
-  defaultPrice: 'Phí trải nghiệm', bottlePrice: 'Giá bán chai', bottleVolumeMl: 'Dung tích chai (ml)', bottleStock: 'Tồn chai bán lẻ', orderType: 'Loại đơn', available: 'Khả dụng', fragranceNotes: 'Nhóm hương', serialNumber: 'Serial', locationId: 'Địa điểm', machineName: 'Kiosk',
-  operationalStatus: 'Vận hành', deviceRegistrationStatus: 'Đăng ký thiết bị', slotNumber: 'Đầu phun', slotCode: 'Mã đầu phun', stockThreshold: 'Ngưỡng tồn', price: 'Giá xịt thử', locationName: 'Địa điểm', imageUrl: 'Hình ảnh',
+  defaultPrice: 'Phí trải nghiệm', bottlePrice: 'Giá bán chai', bottleVolumeMl: 'Dung tích chai (ml)', warehouseVolumeMl: 'Tổng dung tích kho (ml)', bottleStock: 'Tồn chai bán lẻ', orderType: 'Loại đơn', available: 'Khả dụng', fragranceNotes: 'Nhóm hương', serialNumber: 'Serial', locationId: 'Địa điểm', machineName: 'Kiosk',
+  operationalStatus: 'Vận hành', deviceRegistrationStatus: 'Đăng ký thiết bị', slotNumber: 'Đầu phun', slotCode: 'Mã đầu phun', cartridgeId: 'Mã hộp hương', doseMl: 'Lưu lượng (ml/lượt)', installedBottleCode: 'Chai đang lắp', remainingMl: 'Còn lại (ml)', estimatedSprays: 'Lượt xịt ước tính', stockThreshold: 'Ngưỡng tồn', price: 'Giá xịt thử', locationName: 'Địa điểm', imageUrl: 'Hình ảnh',
   summary: 'Nội dung', severity: 'Mức độ', type: 'Loại', title: 'Tiêu đề', priority: 'Ưu tiên', critical: 'Khẩn cấp',
   totalAmount: 'Tổng tiền', currency: 'Tiền tệ', reference: 'Tham chiếu', orderId: 'Đơn hàng', amount: 'Số tiền', items: 'Sản phẩm',
   createdAt: 'Tạo lúc', updatedAt: 'Cập nhật', lastSeenAt: 'Gần nhất', occurredAt: 'Thời gian', action: 'Hành động', outcome: 'Kết quả',
@@ -131,14 +131,14 @@ const labels: Record<string, string> = {
   batchCode: 'Mã lô', bottleCode: 'Mã chai',
   initialQuantity: 'Dung tích ban đầu (ml)', currentQuantity: 'Còn lại (ml)', calibratedConsumptionPerSpray: 'Mỗi lượt xịt (ml)',
   contactPhone: 'Điện thoại', machineCount: 'Số máy', onlineMachineCount: 'Máy online', adminCount: 'Quản trị viên', assignedTo: 'Người xử lý', assignedToActorId: 'Kỹ thuật viên', dispensingStatus: 'Kết quả phun',
-  dueAt: 'Hạn xử lý', receivedAt: 'Ngày nhập', expiryDate: 'Hạn sử dụng', slotId: 'Slot', movementType: 'Loại biến động', reason: 'Lý do', reconciliationFlag: 'Đối soát phun', approved: 'Duyệt phiếu',
+  dueAt: 'Hạn xử lý', receivedAt: 'Ngày nhập', expiryDate: 'Hạn sử dụng', slotId: 'Slot', movementType: 'Loại biến động', reason: 'Lý do', reconciliationFlag: 'Đối soát phun', manualReviewRequired: 'Cần đối soát thủ công', manualReviewReason: 'Lý do đối soát', resolvedAt: 'Xử lý lúc', paidAt: 'Thanh toán lúc', contactEmail: 'Email liên hệ', approved: 'Duyệt phiếu',
 }
 
 const titles: Record<Page, [string, string]> = {
   dashboard: ['Tổng quan vận hành', 'Số liệu tổng hợp theo thời gian thực từ các dịch vụ'], tenants: ['Thương hiệu', 'Hồ sơ và trạng thái hoạt động của từng thương hiệu'],
   users: ['Tài khoản & phân quyền', 'Quản lý vai trò, quyền bổ sung và phạm vi vận hành'], products: ['Danh mục sản phẩm', 'Sản phẩm nước hoa theo từng thương hiệu'],
   campaigns: ['Chiến dịch khuyến mãi', 'Mức giảm giá và thời gian áp dụng theo sản phẩm'], machines: ['Kiosk', 'Trạng thái kết nối, địa điểm lắp đặt và quản lý đầu phun'],
-  inventory: ['Tồn kho', 'Lô nhập, chai nước hoa và lịch sử thay đổi tồn kho'], alerts: ['Cảnh báo', 'Theo dõi và xử lý sự cố thiết bị'],
+  inventory: ['Kho', 'Lô nhập, chai nước hoa và lịch sử biến động kho'], alerts: ['Cảnh báo', 'Theo dõi và xử lý sự cố thiết bị'],
   maintenance: ['Bảo trì', 'Phiếu bảo trì theo phạm vi vận hành'], orders: ['Đơn hàng & thanh toán', 'Theo dõi đơn hàng, giao dịch thanh toán và đối soát'],
   transactions: ['Giao dịch & báo cáo', 'Dữ liệu giao dịch được đồng bộ từ dịch vụ đơn hàng'], audit: ['Nhật ký hệ thống', 'Lịch sử thao tác được backend ghi nhận'],
 }
@@ -147,7 +147,7 @@ const valueLabels: Record<string, string> = {
   TRIAL: 'Trải nghiệm xịt thử', BOTTLE: 'Mua chai',
   ACTIVE: 'Đang hoạt động', SUSPENDED: 'Tạm ngưng', ONLINE: 'Trực tuyến', OFFLINE: 'Ngoại tuyến', UNSTABLE: 'Không ổn định', DISABLED: 'Đã tắt', ERROR: 'Lỗi', MAINTENANCE: 'Đang bảo trì',
   AVAILABLE: 'Sẵn sàng', INSTALLED: 'Đã lắp', NEARLY_EMPTY: 'Sắp hết', EMPTY: 'Đã hết', DAMAGED: 'Hư hỏng', EXPIRED: 'Hết hạn',
-  INSTALL: 'Lắp vào máy', REMOVE: 'Tháo khỏi máy', REPLACE: 'Thay chai', REFILL: 'Refill', CUSTOMER_CONSUMPTION: 'Khách phun', DIAGNOSTIC_CONSUMPTION: 'Phun kiểm tra', DISPOSE: 'Hủy / thanh lý', ADJUSTMENT: 'Điều chỉnh',
+  INSTALL: 'Lắp vào máy', REMOVE: 'Tháo khỏi máy', REPLACE: 'Thay chai', REFILL: 'Nạp thêm dung dịch', BATCH_RECEIVE: 'Nhập lô hàng', BATCH_CANCEL: 'Hủy lô hàng', CUSTOMER_CONSUMPTION: 'Khách phun', DIAGNOSTIC_CONSUMPTION: 'Phun kiểm tra', DISPOSE: 'Hủy / thanh lý', ADJUSTMENT: 'Điều chỉnh',
   OPEN: 'Đang mở', ACKNOWLEDGED: 'Đã xác nhận', ASSIGNED: 'Đã phân công', ESCALATED: 'Đã chuyển cấp', RESOLVED: 'Đã xử lý',
   PENDING: 'Đang chờ', PAID: 'Đã thanh toán', FAILED: 'Thất bại', CONFIRMED: 'Đã xác nhận', DISPENSED: 'Đã phun', PROCESSING: 'Đang xử lý', SHIPPED: 'Đang giao', DELIVERED: 'Hoàn tất', CANCELLED: 'Đã hủy', REFUNDED: 'Đã hoàn tiền',
   LOW: 'Thấp', MEDIUM: 'Trung bình', HIGH: 'Cao', CRITICAL: 'Nghiêm trọng', URGENT: 'Khẩn cấp',
@@ -202,7 +202,7 @@ function Dashboard({ data, operational, period, setPeriod, principal }: { data: 
           ? 'Góc nhìn Nhân viên kho: tồn kho chai/lõi, sản phẩm sắp hết, refill và phát hiện tiêu hao bất thường.'
           : 'Góc nhìn Kỹ thuật viên: phiếu bảo trì, máy được phân công và tình trạng sự cố.'
   if (!data) return <div className="empty">Không có dữ liệu tổng quan.</div>
-  const groupNames: Record<string, string> = { transactions: 'Giao dịch', machines: 'Kiosk', alerts: 'Cảnh báo', inventory: 'Tồn kho' }
+  const groupNames: Record<string, string> = { transactions: 'Giao dịch', machines: 'Kiosk', alerts: 'Cảnh báo', inventory: 'Kho' }
   const primaryFields: Record<string, string> = { transactions: 'totalTransactions', machines: 'total', alerts: 'total', inventory: 'bottles' }
   const groups = ['transactions', 'machines', 'alerts', 'inventory'].map((key) => [key, (data[key] ?? {}) as Row] as const)
   const sprays = (operational?.sprays ?? null) as Row | null
@@ -232,10 +232,10 @@ function Dashboard({ data, operational, period, setPeriod, principal }: { data: 
           <small>Đơn PAID chưa xác nhận phun: {display(sprays.paidWithoutSprayConfirmation ?? 0)}{unpaidOrders.length ? ` (${unpaidOrders.slice(0, 5).join(', ')})` : ''}</small>
         </article>}
         {invPerf && <article className="metric-card">
-          <span>Tồn kho & Refill</span>
+          <span>Kho & Nạp thêm</span>
           <strong>{refillCandidates.length} chai</strong>
-          <small>Chai cần refill / sắp hết: {refillCandidates.length} · Tổng còn lại: {display(invPerf.totalRemaining ?? 0, 'quantity')} ml</small>
-          <small>Refill: {display(invPerf.refills ?? 0)} · Thay chai: {display(invPerf.replacements ?? 0)} · Điều chỉnh: {display(invPerf.adjustments ?? 0)}</small>
+          <small>Chai cần nạp thêm / sắp hết: {refillCandidates.length} · Tổng còn lại: {display(invPerf.totalRemaining ?? 0, 'quantity')} ml</small>
+          <small>Nạp thêm: {display(invPerf.refills ?? 0)} · Thay chai: {display(invPerf.replacements ?? 0)} · Điều chỉnh: {display(invPerf.adjustments ?? 0)}</small>
           <small>Tiêu hao bất thường: {abnormalConsumptions.length}</small>
         </article>}
         {incPerf && <article className="metric-card">
@@ -272,32 +272,41 @@ function ProductForm({ tenantId, product, close, saved }: { tenantId: number; pr
     try { if (product) await backend.updateProduct(product.id, payload); else await backend.createProduct({ ...payload, tenantId }); saved(); close() }
     catch (reason) { setError(errorText(reason)) } finally { setSaving(false) }
   }
-  return <div className="modal-backdrop"><form className="modal" onSubmit={submit}><h3>{product ? `Cập nhật: ${product.name}` : 'Thêm sản phẩm'}</h3><label>Tên<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Nhóm hương<input value={form.fragranceNotes} onChange={(event) => setForm({ ...form, fragranceNotes: event.target.value })} /></label><label>Mô tả<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><label>Đường dẫn hình ảnh<input type="url" value={form.imageUrl} onChange={(event) => setForm({ ...form, imageUrl: event.target.value })} /></label><label>Phí trải nghiệm<input required min="0" step="1000" type="number" value={form.defaultPrice} onChange={(event) => setForm({ ...form, defaultPrice: event.target.value })} /></label><label>Giá bán chai<input required min="1" step="1000" type="number" value={form.bottlePrice} onChange={(event) => setForm({ ...form, bottlePrice: event.target.value })} /></label><label>Dung tích chai (ml)<input required min="1" type="number" value={form.bottleVolumeMl} onChange={(event) => setForm({ ...form, bottleVolumeMl: event.target.value })} /></label><label>Tồn chai bán lẻ<input required min="0" type="number" value={form.bottleStock} onChange={(event) => setForm({ ...form, bottleStock: event.target.value })} /></label><label className="switch"><input type="checkbox" checked={form.available} onChange={(event) => setForm({ ...form, available: event.target.checked })} />Đang kinh doanh</label>{error && <div className="error-box">{error}</div>}<div className="modal-actions"><button type="button" onClick={close}>Hủy</button><button className="primary" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu sản phẩm'}</button></div></form></div>
+  return <div className="modal-backdrop"><form className="modal" onSubmit={submit}><h3>{product ? `Cập nhật: ${product.name}` : 'Thêm sản phẩm'}</h3><label>Tên<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Nhóm hương<input value={form.fragranceNotes} onChange={(event) => setForm({ ...form, fragranceNotes: event.target.value })} /></label><label>Mô tả<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label><label>Đường dẫn hình ảnh<input type="url" value={form.imageUrl} onChange={(event) => setForm({ ...form, imageUrl: event.target.value })} /></label><label>Phí trải nghiệm (VND)<input required min="0" step="1" type="number" placeholder="VD: 10000" value={form.defaultPrice} onChange={(event) => setForm({ ...form, defaultPrice: event.target.value })} /></label><label>Giá bán chai (VND)<input required min="1" step="1" type="number" placeholder="VD: 100000" value={form.bottlePrice} onChange={(event) => setForm({ ...form, bottlePrice: event.target.value })} /></label><label>Dung tích chai (ml)<input required min="1" step="1" type="number" value={form.bottleVolumeMl} onChange={(event) => setForm({ ...form, bottleVolumeMl: event.target.value })} /></label><label>Tồn chai bán lẻ<input required min="0" step="1" type="number" value={form.bottleStock} onChange={(event) => setForm({ ...form, bottleStock: event.target.value })} /></label><label className="switch"><input type="checkbox" checked={form.available} onChange={(event) => setForm({ ...form, available: event.target.checked })} />Đang kinh doanh</label>{error && <div className="error-box">{error}</div>}<div className="modal-actions"><button type="button" onClick={close}>Hủy</button><button className="primary" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu sản phẩm'}</button></div></form></div>
 }
 
 function Admin({ principal, exit }: { principal: Principal; exit: () => void }) {
   const platform = principal.roles.includes('PLATFORM_SUPER_ADMIN')
   const isAdminRole = platform || principal.roles.includes('BRAND_ADMIN')
+  const hasBrandProfile = !platform && can(principal, ['BRAND_PROFILE_READ'])
   const isOpsManager = principal.roles.includes('OPERATIONS_MANAGER')
   const isTechnician = principal.roles.includes('TECHNICIAN')
-  const menu = useMemo(() => pages.filter((item) => can(principal, item.permissions)), [principal])
+  const menu = useMemo(
+    () => pages.filter((item) => can(principal, item.permissions) && (platform || item.id !== 'tenants')),
+    [principal, platform],
+  )
+  const canAccessPage = useCallback(
+    (target: Page) => menu.some((item) => item.id === target) || (target === 'tenants' && hasBrandProfile),
+    [menu, hasBrandProfile],
+  )
   const hashPage = window.location.hash.slice(1) as Page
-  const [page, setPage] = useState<Page>(menu.some((item) => item.id === hashPage) ? hashPage : (menu[0]?.id ?? 'products'))
+  const [page, setPage] = useState<Page>(canAccessPage(hashPage) ? hashPage : (menu[0]?.id ?? 'products'))
   const [tenants, setTenants] = useState<Tenant[]>([]); const [tenantId, setTenantId] = useState<number | undefined>(principal.tenantId ?? undefined)
   const [rows, setRows] = useState<Row[]>([]); const [dashboard, setDashboard] = useState<Row | null>(null); const [operationalReport, setOperationalReport] = useState<Row | null>(null); const [dashboardPeriod, setDashboardPeriod] = useState<DashboardPeriod>('month'); const [columns, setColumns] = useState<string[]>([])
   const [loading, setLoading] = useState(false); const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [search, setSearch] = useState('')
   const [orderKind, setOrderKind] = useState<'ALL' | 'ORDER' | 'PAYMENT' | 'REVIEW'>('ALL'); const [orderStatusFilter, setOrderStatusFilter] = useState('')
   const [inventoryKind, setInventoryKind] = useState<'ALL' | 'BATCH' | 'BOTTLE' | 'MOVEMENT'>('ALL')
+  const [seenInventory, setSeenInventory] = useState<Record<string, string[]>>({})
   const [alertSeverityFilter, setAlertSeverityFilter] = useState(''); const [alertStatusFilter, setAlertStatusFilter] = useState('')
   const [onlyMyTickets, setOnlyMyTickets] = useState(false)
   const [maintenancePrefill, setMaintenancePrefill] = useState<{ machineId?: number; title?: string; description?: string; category?: string; severity?: string } | undefined>(undefined)
-  const [productEditor, setProductEditor] = useState<Product | 'new' | null>(null); const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null); const [machineSlots, setMachineSlots] = useState<Row[]>([]); const [slotsLoading, setSlotsLoading] = useState(false)
+  const [productEditor, setProductEditor] = useState<Product | 'new' | null>(null); const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null); const [machineSlots, setMachineSlots] = useState<Row[]>([]); const [machineInstallations, setMachineInstallations] = useState<BottleInstallation[]>([]); const [slotsLoading, setSlotsLoading] = useState(false)
   const showProduct = productEditor === 'new'; const setShowProduct = (show: boolean) => setProductEditor(show ? 'new' : null)
   const [tenantEditor, setTenantEditor] = useState<Tenant | 'new' | null>(null); const [userEditor, setUserEditor] = useState<Account | 'new' | null>(null)
   const [productPriceEditor, setProductPriceEditor] = useState<Product | null>(null); const [campaignEditor, setCampaignEditor] = useState<Campaign | 'new' | null>(null)
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([])
   const [locations, setLocations] = useState<Location[]>([]); const [machineEditor, setMachineEditor] = useState<Machine | 'new' | null>(null); const [slotEditor, setSlotEditor] = useState<Slot | 'new' | null>(null); const [showLocation, setShowLocation] = useState(false)
-  const [inventoryBatches, setInventoryBatches] = useState<InventoryBatch[]>([]); const [inventoryBottles, setInventoryBottles] = useState<Bottle[]>([]); const [showInventoryForm, setShowInventoryForm] = useState(false); const [showInventoryWorkflow, setShowInventoryWorkflow] = useState(false); const [inventoryDisposeTarget, setInventoryDisposeTarget] = useState<InventoryDisposeTarget | null>(null); const [maintenanceEditor, setMaintenanceEditor] = useState<MaintenanceTicket | 'new' | null>(null); const [maintenanceWorkflow, setMaintenanceWorkflow] = useState<MaintenanceTicket | null>(null)
+  const [inventoryBatches, setInventoryBatches] = useState<InventoryBatch[]>([]); const [inventoryBottles, setInventoryBottles] = useState<Bottle[]>([]); const [showInventoryForm, setShowInventoryForm] = useState(false); const [inventoryInitialProductId, setInventoryInitialProductId] = useState<number | undefined>(undefined); const [showInventoryWorkflow, setShowInventoryWorkflow] = useState(false); const [inventoryWorkflowPrefill, setInventoryWorkflowPrefill] = useState<InventoryWorkflowPrefill | undefined>(undefined); const [inventoryDisposeTarget, setInventoryDisposeTarget] = useState<InventoryDisposeTarget | null>(null); const [maintenanceEditor, setMaintenanceEditor] = useState<MaintenanceTicket | 'new' | null>(null); const [maintenanceWorkflow, setMaintenanceWorkflow] = useState<MaintenanceTicket | null>(null)
   const [transactionFilters, setTransactionFilters] = useState<TransactionFilters>({})
 
   const refreshTenants = useCallback(async () => {
@@ -311,16 +320,16 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
     window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${page}`)
   }, [page])
   useEffect(() => {
-    if (menu.length && !menu.some((item) => item.id === page)) {
+    if (menu.length && !canAccessPage(page)) {
       setPage(menu[0].id)
       setError('Quyền truy cập của bạn đã thay đổi. Đã chuyển về trang được phép.')
     }
-  }, [menu, page])
+  }, [menu, page, canAccessPage])
   useEffect(() => {
     const onHashChange = () => {
       const requested = window.location.hash.slice(1) as Page
       if (!requested || requested === page) return
-      if (menu.some((item) => item.id === requested)) {
+      if (canAccessPage(requested)) {
         setSelectedMachine(null)
         setPage(requested)
       } else {
@@ -330,7 +339,7 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
     }
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
-  }, [menu, page])
+  }, [page, canAccessPage])
 
   const load = useCallback(async () => {
     setLoading(true); setError(''); setDashboard(null); setOperationalReport(null)
@@ -413,10 +422,81 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
           break
         }
         case 'users': data = await backend.users(platform, tenantId) as unknown as Row[]; break
-        case 'products': { const products = (await Promise.all(targetTenantIds.map((id) => backend.products(id)))).flat(); setCatalogProducts(products); data = products.map((product) => ({ ...product, tenantName: tenantNameOf(product.tenantId) })) as unknown as Row[]; break }
+        case 'products': {
+          const groups = await Promise.all(targetTenantIds.map(async (id) => {
+            const [products, bottles] = await Promise.all([
+              backend.products(id),
+              can(principal, ['INVENTORY_READ']) ? backend.bottles(id).catch(() => []) : Promise.resolve([]),
+            ])
+            return { products, bottles }
+          }))
+          const products = groups.flatMap((g) => g.products)
+          const bottles = groups.flatMap((g) => g.bottles)
+          const volumeByProduct = new Map<number, number>()
+          for (const bottle of bottles) {
+            if (['DAMAGED', 'EXPIRED'].includes(String(bottle.status).toUpperCase())) continue
+            volumeByProduct.set(bottle.productId, Math.round(((volumeByProduct.get(bottle.productId) ?? 0) + Number(bottle.currentQuantity ?? 0)) * 1000) / 1000)
+          }
+          setCatalogProducts(products)
+          data = products.map((product) => ({
+            ...product,
+            tenantName: tenantNameOf(product.tenantId),
+            warehouseVolumeMl: volumeByProduct.get(product.id) ?? 0,
+          })) as unknown as Row[]
+          break
+        }
         case 'campaigns': { const groups = await Promise.all(targetTenantIds.map(async (id) => { const [campaigns, products] = await Promise.all([backend.campaigns(id), backend.products(id)]); return { campaigns, products } })); const products = groups.flatMap((group) => group.products); setCatalogProducts(products); const productMap = new Map(products.map((p) => [p.id, p.name])); data = groups.flatMap((group) => group.campaigns).map((campaign) => ({ ...campaign, tenantName: tenantNameOf(campaign.tenantId), productName: productMap.get(campaign.productId) ?? `#${campaign.productId}` })) as unknown as Row[]; break }
         case 'machines': { const groups = await Promise.all(targetTenantIds.map(async (id) => { const [machines, machineLocations] = await Promise.all([backend.machines(id), backend.locations(id)]); return { machines, machineLocations } })); const machineLocations = groups.flatMap((group) => group.machineLocations); setLocations(machineLocations); const locMap = new Map(machineLocations.map((l) => [l.locationId, l.name])); data = groups.flatMap((group) => group.machines).map((machine) => ({ ...machine, kind: 'MACHINE', tenantName: tenantNameOf(machine.tenantId), locationName: locMap.get(machine.locationId) ?? machine.locationId })) as unknown as Row[]; break }
-        case 'inventory': { const groups = await Promise.all(targetTenantIds.map(async (id) => { const [batches, bottles, movements, products] = await Promise.all([backend.batches(id), backend.bottles(id), backend.movements(id), can(principal, ['CATALOG_READ']) ? backend.products(id) : Promise.resolve([])]); return { id, batches, bottles, movements, products } })); setInventoryBatches(groups.flatMap((group) => group.batches)); setInventoryBottles(groups.flatMap((group) => group.bottles)); data = groups.flatMap((group) => { const tenantName = tenantNameOf(group.id); const productMap = new Map(group.products.map((p) => [p.id, p.name])); const bottleMap = new Map(group.bottles.map((b) => [b.id, b.productId])); const productName = (productId?: number) => (productId ? (productMap.get(productId) ?? `Sản phẩm #${productId}`) : '—'); return [...group.batches.map((item) => ({ kind: 'BATCH', tenantName, ...item, status: item.status ?? 'ACTIVE', reason: item.cancelReason ?? undefined, productName: productName(item.productId) })), ...group.bottles.map((item) => ({ kind: 'BOTTLE', tenantName, ...item, productName: productName(item.productId) })), ...group.movements.map((item) => ({ kind: 'MOVEMENT', tenantName, ...item, productName: productName(bottleMap.get(Number(item.bottleId))) }))] }) as unknown as Row[]; break }
+        case 'inventory': {
+          const groups = await Promise.all(targetTenantIds.map(async (id) => {
+            const [batches, bottles, movements, products] = await Promise.all([
+              backend.batches(id), backend.bottles(id), backend.movements(id),
+              can(principal, ['CATALOG_READ']) ? backend.products(id) : Promise.resolve([]),
+            ])
+            return { id, batches, bottles, movements, products }
+          }))
+          setInventoryBatches(groups.flatMap((group) => group.batches))
+          setInventoryBottles(groups.flatMap((group) => group.bottles))
+          const rowTime = (item: Row) => {
+            const raw = item.updatedAt ?? item.createdAt ?? item.cancelledAt ?? item.receivedAt
+            const parsed = typeof raw === 'string' ? Date.parse(raw) : NaN
+            return Number.isNaN(parsed) ? 0 : parsed
+          }
+          data = groups.flatMap((group) => {
+            const tenantName = tenantNameOf(group.id)
+            const productObjMap = new Map(group.products.map((p) => [p.id, p]))
+            const bottleMap = new Map(group.bottles.map((b) => [b.id, b.productId]))
+            const productName = (productId?: number) => (productId ? (productObjMap.get(productId)?.name ?? `Sản phẩm #${productId}`) : '—')
+            const productVolume = (productId?: number) => (productId ? (productObjMap.get(productId)?.bottleVolumeMl ?? null) : null)
+            const batchMovements = group.batches.map((item) => {
+              const opTime = item.cancelledAt ?? item.updatedAt ?? item.createdAt ?? item.receivedAt
+              return {
+                kind: 'MOVEMENT',
+                id: `batch-${item.id}`,
+                tenantName,
+                productName: productName(item.productId),
+                batchCode: item.batchCode,
+                movementType: item.status === 'CANCELLED' ? 'BATCH_CANCEL' : 'BATCH_RECEIVE',
+                reason: item.status === 'CANCELLED'
+                  ? `Hủy lô ${item.batchCode}: ${item.cancelReason ?? ''}`
+                  : `Nhập lô ${item.batchCode} (SL nhận: ${item.receivedQuantity})`,
+                updatedAt: opTime,
+              }
+            })
+            return [
+              ...group.batches.map((item) => ({ kind: 'BATCH', tenantName, ...item, status: item.status ?? 'ACTIVE', reason: item.cancelReason ?? undefined, productName: productName(item.productId), bottleVolumeMl: productVolume(item.productId), updatedAt: item.cancelledAt ?? item.updatedAt ?? item.createdAt ?? item.receivedAt })),
+              ...group.bottles.map((item) => ({ kind: 'BOTTLE', tenantName, ...item, productName: productName(item.productId), bottleVolumeMl: productVolume(item.productId) })),
+              ...batchMovements,
+              ...group.movements.map((item) => ({ kind: 'MOVEMENT', tenantName, ...item, updatedAt: item.createdAt ?? item.updatedAt, productName: productName(bottleMap.get(Number(item.bottleId))) })),
+            ]
+          }) as unknown as Row[]
+          data.sort((a, b) => {
+            const diff = rowTime(b) - rowTime(a)
+            if (diff !== 0) return diff
+            return Number(b.id ?? 0) - Number(a.id ?? 0)
+          })
+          break
+        }
         case 'alerts': { const alertGroups = await Promise.all(targetTenantIds.map((id) => backend.alerts(id))); data = alertGroups.flat().map((alert) => ({ ...alert, tenantName: tenantNameOf(alert.tenantId) })) as unknown as Row[]; break }
         case 'maintenance': { const groups = await Promise.all(targetTenantIds.map(async (id) => ({ id, tickets: await backend.maintenance(id) }))); data = groups.flatMap((group) => group.tickets.map((ticket) => ({ ...ticket, tenantName: tenantNameOf(group.id) }))) as unknown as Row[]; break }
         case 'orders': { const reviews = can(principal, ['ORDER_REVIEW']) ? backend.reviews() : Promise.resolve([]); const [orders, payments, paymentReviews] = await Promise.all([backend.orders(), backend.payments(), reviews]); const orderTenantMap = new Map(orders.map((order) => [order.id, order.tenantId])); const visibleOrders = tenantId ? orders.filter((order) => String(order.tenantId) === String(tenantId)) : orders; const visibleOrderIds = new Set(visibleOrders.map((order) => order.id)); const visiblePayments = payments.filter((payment) => visibleOrderIds.has(payment.orderId)); const visibleReviews = paymentReviews.filter((review) => visibleOrderIds.has(review.orderId)); data = [...visibleOrders.map((item) => { const needsCheck = item.manualReviewRequired || item.dispensingStatus === 'FAILED' || (item.status === 'PAID' && item.dispensingStatus !== 'DISPENSED'); return { kind: 'ORDER', ...item, reconciliationFlag: needsCheck ? '⚠ Cần đối soát / chưa xác nhận phun' : 'Bình thường', tenantName: tenantNameOf(item.tenantId), items: item.items.map((orderItem) => `${orderItem.productName} ×${orderItem.quantity}`).join(', ') } }), ...visiblePayments.map((item) => ({ kind: 'PAYMENT', ...item, tenantName: tenantNameOf(orderTenantMap.get(item.orderId)) })), ...visibleReviews.map((item) => ({ kind: 'REVIEW', ...item, reconciliationFlag: '⚠ Cần đối soát', tenantName: tenantNameOf(orderTenantMap.get(item.orderId)) }))] as unknown as Row[]; break }
@@ -424,7 +504,7 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
         case 'audit': data = await backend.audit(tenantId); break
       }
       setRows(data)
-      const map: Record<Page, string[]> = { dashboard: [], tenants: ['id', 'code', 'name', 'status', 'contactEmail', 'contactPhone', 'machineCount', 'onlineMachineCount', 'adminCount'], users: ['id', 'username', 'fullName', 'email', 'roles', 'tenantId', 'active', 'locked'], products: ['imageUrl', 'tenantName', 'name', 'fragranceNotes', 'defaultPrice', 'bottlePrice', 'bottleVolumeMl', 'bottleStock', 'available', 'updatedAt'], campaigns: ['tenantName', 'id', 'name', 'productName', 'discountType', 'discountValue', 'active', 'startAt', 'endAt'], machines: ['tenantName', 'id', 'name', 'serialNumber', 'locationName', 'deviceRegistrationStatus', 'operationalStatus', 'lastSeenAt'], inventory: ['tenantName', 'kind', 'id', 'productName', 'batchCode', 'bottleCode', 'movementType', 'machineId', 'slotId', 'initialQuantity', 'currentQuantity', 'calibratedConsumptionPerSpray', 'receivedAt', 'expiryDate', 'reason', 'status', 'updatedAt'], alerts: ['tenantName', 'id', 'severity', 'status', 'type', 'summary', 'machineId', 'locationId', 'assignedTo', 'lastSeenAt'], maintenance: ['tenantName', 'id', 'severity', 'status', 'approved', 'title', 'machineId', 'priority', 'assignedToActorId', 'dueAt', 'updatedAt'], orders: ['kind', 'tenantName', 'id', 'reference', 'orderId', 'orderType', 'items', 'totalAmount', 'amount', 'currency', 'status', 'dispensingStatus', 'reconciliationFlag', 'manualReviewRequired', 'createdAt'], transactions: ['id', 'reference', 'orderId', 'tenantId', 'machineId', 'productId', 'amount', 'currency', 'status', 'createdAt', 'paidAt'], audit: ['id', 'occurredAt', 'actorId', 'tenantId', 'action', 'targetType', 'targetId', 'outcome'] }
+      const map: Record<Page, string[]> = { dashboard: [], tenants: ['id', 'code', 'name', 'status', 'contactEmail', 'contactPhone', 'machineCount', 'onlineMachineCount', 'adminCount'], users: ['id', 'username', 'fullName', 'email', 'roles', 'tenantId', 'active', 'locked'], products: ['imageUrl', 'tenantName', 'name', 'fragranceNotes', 'defaultPrice', 'bottlePrice', 'bottleVolumeMl', 'bottleStock', 'warehouseVolumeMl', 'available', 'updatedAt'], campaigns: ['tenantName', 'id', 'name', 'productName', 'discountType', 'discountValue', 'active', 'startAt', 'endAt'], machines: ['tenantName', 'id', 'name', 'serialNumber', 'locationName', 'deviceRegistrationStatus', 'operationalStatus', 'lastSeenAt'], inventory: ['tenantName', 'kind', 'id', 'productName', 'batchCode', 'bottleCode', 'bottleVolumeMl', 'movementType', 'machineId', 'slotId', 'initialQuantity', 'currentQuantity', 'calibratedConsumptionPerSpray', 'receivedAt', 'expiryDate', 'reason', 'status', 'updatedAt'], alerts: ['tenantName', 'id', 'severity', 'status', 'type', 'summary', 'machineId', 'locationId', 'assignedTo', 'lastSeenAt'], maintenance: ['tenantName', 'id', 'severity', 'status', 'approved', 'title', 'machineId', 'priority', 'assignedToActorId', 'dueAt', 'updatedAt'], orders: ['kind', 'tenantName', 'id', 'reference', 'orderId', 'orderType', 'items', 'totalAmount', 'amount', 'currency', 'status', 'dispensingStatus', 'reconciliationFlag', 'manualReviewRequired', 'createdAt'], transactions: ['id', 'reference', 'orderId', 'tenantId', 'machineId', 'productId', 'amount', 'currency', 'status', 'createdAt', 'paidAt'], audit: ['id', 'occurredAt', 'actorId', 'tenantId', 'action', 'targetType', 'targetId', 'outcome'] }
       setColumns(map[page].filter((key) => data.some((item) => key in item)))
     } catch (reason) { setRows([]); setError(errorText(reason)) } finally { setLoading(false) }
   }, [page, tenantId, platform, principal, transactionFilters, tenants, dashboardPeriod])
@@ -433,14 +513,37 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
   const loadMachineSlots = useCallback(async (machine: Machine) => {
     setSlotsLoading(true); setError('')
     try {
-      const [slots, products] = await Promise.all([
+      const machineTenantId = Number(machine.tenantId)
+      const [slots, products, bottles, installations] = await Promise.all([
         backend.slots(machine.id),
-        can(principal, ['CATALOG_READ']) ? backend.products(Number(machine.tenantId)).catch(() => []) : Promise.resolve([]),
+        can(principal, ['CATALOG_READ']) ? backend.products(machineTenantId).catch(() => []) : Promise.resolve([]),
+        can(principal, ['INVENTORY_READ']) ? backend.bottles(machineTenantId).catch(() => []) : Promise.resolve([]),
+        can(principal, ['INVENTORY_READ']) ? backend.installations(machineTenantId, machine.id).catch(() => []) : Promise.resolve([]),
       ])
+      setCatalogProducts(products)
+      setInventoryBottles(bottles)
+      setMachineInstallations(installations)
       const productMap = new Map(products.map((p) => [String(p.id), p.name]))
-      setMachineSlots(slots.map((s) => ({ ...s, productName: s.productId ? (productMap.get(String(s.productId)) ?? `Sản phẩm #${s.productId}`) : '—' })) as unknown as Row[])
+      const bottleMap = new Map(bottles.map((b) => [b.id, b]))
+      const installationBySlot = new Map(installations.map((inst) => [inst.slotId, inst]))
+      setMachineSlots(slots.map((s) => {
+        const inst = installationBySlot.get(s.id)
+        const bottle = inst ? bottleMap.get(inst.bottleId) : undefined
+        const effectiveDose = s.doseMl ?? bottle?.calibratedConsumptionPerSpray ?? null
+        const estimatedSprays = bottle && effectiveDose && effectiveDose > 0
+          ? Math.floor(bottle.currentQuantity / effectiveDose)
+          : null
+        return {
+          ...s,
+          productName: s.productId ? (productMap.get(String(s.productId)) ?? `Sản phẩm #${s.productId}`) : '—',
+          installedBottleCode: bottle ? bottle.bottleCode : 'Chưa lắp chai',
+          remainingMl: bottle ? `${bottle.currentQuantity} / ${bottle.initialQuantity} ml` : '—',
+          estimatedSprays: estimatedSprays !== null ? `${estimatedSprays} lượt` : '—',
+        }
+      }) as unknown as Row[])
     } catch (reason) {
       setMachineSlots([])
+      setMachineInstallations([])
       setError(errorText(reason))
     } finally {
       setSlotsLoading(false)
@@ -448,13 +551,13 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
   }, [principal])
 
   const openMachineSlots = useCallback((machine: Machine) => {
-    setNotice(''); setError(''); setSearch(''); setMachineSlots([])
+    setNotice(''); setError(''); setSearch(''); setMachineSlots([]); setMachineInstallations([])
     setSelectedMachine(machine)
     void loadMachineSlots(machine)
   }, [loadMachineSlots])
 
   const closeMachineSlots = useCallback(() => {
-    setSelectedMachine(null); setMachineSlots([]); setNotice(''); setError(''); setSearch('')
+    setSelectedMachine(null); setMachineSlots([]); setMachineInstallations([]); setNotice(''); setError(''); setSearch('')
   }, [])
 
   const isViewingMachineSlots = page === 'machines' && selectedMachine !== null
@@ -470,16 +573,69 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
     return JSON.stringify(item).toLowerCase().includes(search.trim().toLowerCase())
   })
   const lowStockBottleCount = inventoryBottles.filter((b) => ['NEARLY_EMPTY', 'EMPTY', 'EXPIRED'].includes(String(b.status).toUpperCase())).length
-  const inventoryCounts = { batches: rows.filter((item) => item.kind === 'BATCH').length, bottles: rows.filter((item) => item.kind === 'BOTTLE').length, movements: rows.filter((item) => item.kind === 'MOVEMENT').length }
+  const inventorySeenKey = `scentstation.inventory.seen.${principal.id}.${tenantId ?? 'all'}`
+  const inventoryItemSig = (item: Row) => `${String(item.kind)}:${String(item.id)}:${String(item.updatedAt ?? item.createdAt ?? item.status ?? '')}`
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(inventorySeenKey)
+      setSeenInventory(raw ? (JSON.parse(raw) as Record<string, string[]>) : {})
+    } catch {
+      setSeenInventory({})
+    }
+  }, [inventorySeenKey])
+
+  const markInventoryKindsSeen = useCallback((kinds: Array<'BATCH' | 'BOTTLE' | 'MOVEMENT'>, sourceRows: Row[]) => {
+    if (!sourceRows.length) return
+    setSeenInventory((prev) => {
+      const next: Record<string, string[]> = { ...prev }
+      let changed = false
+      for (const kind of kinds) {
+        const sigs = sourceRows.filter((item) => item.kind === kind).map(inventoryItemSig)
+        const existing = new Set(prev[kind] ?? [])
+        const merged = Array.from(new Set([...existing, ...sigs]))
+        if (merged.length !== existing.size) {
+          next[kind] = merged
+          changed = true
+        }
+      }
+      if (!changed) return prev
+      try { window.localStorage.setItem(inventorySeenKey, JSON.stringify(next)) } catch { /* ignore storage quota */ }
+      return next
+    })
+  }, [inventorySeenKey])
+
+  useEffect(() => {
+    if (page !== 'inventory' || loading || !rows.length) return
+    const hasBaseline = Boolean(seenInventory.BATCH || seenInventory.BOTTLE || seenInventory.MOVEMENT)
+    if (!hasBaseline) {
+      markInventoryKindsSeen(['BATCH', 'BOTTLE', 'MOVEMENT'], rows)
+    } else if (inventoryKind === 'BATCH' || inventoryKind === 'BOTTLE' || inventoryKind === 'MOVEMENT') {
+      markInventoryKindsSeen([inventoryKind], rows)
+    }
+  }, [page, loading, rows, inventoryKind, seenInventory, markInventoryKindsSeen])
+
+  const unseenInventoryCount = (kind: 'BATCH' | 'BOTTLE' | 'MOVEMENT') => {
+    if (page !== 'inventory') return 0
+    const seenList = seenInventory[kind]
+    if (!seenList) return 0
+    const seenSet = new Set(seenList)
+    return rows.filter((item) => item.kind === kind && !seenSet.has(inventoryItemSig(item))).length
+  }
+  const inventoryUnseen = {
+    batches: unseenInventoryCount('BATCH'),
+    bottles: unseenInventoryCount('BOTTLE'),
+    movements: unseenInventoryCount('MOVEMENT'),
+  }
   const orderCounts = { orders: rows.filter((item) => item.kind === 'ORDER').length, payments: rows.filter((item) => item.kind === 'PAYMENT').length, reviews: rows.filter((item) => item.kind === 'REVIEW').length }
   const visibleColumns = useMemo(() => {
-    if (isViewingMachineSlots) return ['id', 'slotNumber', 'slotCode', 'productName', 'status', 'available', 'stockThreshold', 'price']
+    if (isViewingMachineSlots) return ['slotNumber', 'slotCode', 'productName', 'cartridgeId', 'doseMl', 'installedBottleCode', 'remainingMl', 'estimatedSprays', 'price', 'status', 'available']
     if (page === 'orders' && orderKind === 'ORDER') return columns.filter((col) => !['reference', 'orderId', 'amount'].includes(col))
     if (page === 'orders' && orderKind === 'PAYMENT') return columns.filter((col) => !['id', 'orderType', 'items', 'totalAmount', 'dispensingStatus', 'reconciliationFlag', 'manualReviewRequired'].includes(col))
     if (page === 'orders' && orderKind === 'REVIEW') return columns.filter((col) => !['id', 'orderType', 'items', 'totalAmount', 'amount', 'currency', 'dispensingStatus'].includes(col))
     if (page === 'inventory' && inventoryKind === 'BATCH') return columns.filter((col) => !['bottleCode', 'movementType', 'machineId', 'slotId', 'initialQuantity', 'currentQuantity', 'calibratedConsumptionPerSpray'].includes(col))
     if (page === 'inventory' && inventoryKind === 'BOTTLE') return columns.filter((col) => !['batchCode', 'movementType', 'machineId', 'slotId', 'receivedAt', 'expiryDate', 'reason'].includes(col))
-    if (page === 'inventory' && inventoryKind === 'MOVEMENT') return columns.filter((col) => !['batchCode', 'bottleCode', 'initialQuantity', 'currentQuantity', 'calibratedConsumptionPerSpray', 'receivedAt', 'expiryDate', 'status'].includes(col))
+    if (page === 'inventory' && inventoryKind === 'MOVEMENT') return columns.filter((col) => !['bottleCode', 'initialQuantity', 'currentQuantity', 'calibratedConsumptionPerSpray', 'receivedAt', 'expiryDate', 'status'].includes(col))
     return columns
   }, [isViewingMachineSlots, page, orderKind, inventoryKind, columns])
   async function mutate(job: () => Promise<unknown>, message: string) { try { setError(''); await job(); setNotice(message); await load() } catch (reason) { setError(errorText(reason)) } }
@@ -487,17 +643,61 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
     if (page === 'tenants') { const tenant = row as unknown as Tenant; const editable = platform || can(principal, ['BRAND_PROFILE_EDIT']); if (!editable) return null; return <><button onClick={() => setTenantEditor(tenant)}>Chỉnh sửa</button>{platform && <button className={tenant.status === 'ACTIVE' ? 'danger' : ''} onClick={() => { if (tenant.status === 'ACTIVE' && !window.confirm(`Thương hiệu ${tenant.name} đang hoạt động. Tạm ngưng sẽ chặn các nghiệp vụ thuộc thương hiệu này. Bạn chắc chắn muốn tiếp tục?`)) return; void mutate(() => backend.updateTenantStatus(tenant.id, tenant.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE'), tenant.status === 'ACTIVE' ? 'Đã tạm ngưng thương hiệu.' : 'Đã kích hoạt thương hiệu.') }}>{tenant.status === 'ACTIVE' ? 'Tạm ngưng' : 'Kích hoạt'}</button>}</> }
     if (page === 'users') { const account = row as unknown as Account; return <><button onClick={() => setUserEditor(account)}>Quản lý</button><button className={account.locked ? '' : 'danger'} onClick={() => { if (!account.locked && !window.confirm(`Bạn có chắc chắn muốn khóa tài khoản ${account.username}? Phiên đăng nhập hiện tại của tài khoản này sẽ bị vô hiệu hóa.`)) return; void mutate(() => backend.updateUserStatus(platform, account.id, account.active, !account.locked), account.locked ? 'Đã mở khóa tài khoản.' : 'Đã khóa tài khoản.') }}>{account.locked ? 'Mở khóa' : 'Khóa'}</button></> }
     if (page === 'products' && tenantId && !platform && can(principal, ['CATALOG_MANAGE'])) { const product = row as unknown as Product; return <><button onClick={() => setProductEditor(product)}>Chỉnh sửa</button><button onClick={() => setProductPriceEditor(product)}>Cập nhật nhanh giá</button><button onClick={() => void mutate(() => backend.setProductAvailability(product.id, !product.available), 'Đã cập nhật sản phẩm.')}>{product.available ? 'Tạm ngưng' : 'Mở bán'}</button></> }
-    if (page === 'campaigns' && tenantId && can(principal, ['CAMPAIGN_MANAGE'])) return <button onClick={() => setCampaignEditor(row as unknown as Campaign)}>Chỉnh sửa</button>
+    if (page === 'campaigns' && tenantId && can(principal, ['CAMPAIGN_MANAGE'])) { const campaign = row as unknown as Campaign; return <><button onClick={() => setCampaignEditor(campaign)}>Chỉnh sửa</button><button className="danger" onClick={() => { if (!window.confirm(`Bạn có chắc chắn muốn xóa chiến dịch "${campaign.name}"?`)) return; void mutate(() => backend.deleteCampaign(campaign.id, tenantId), 'Đã xóa chiến dịch.') }}>Xóa</button></> }
     if (page === 'inventory' && !platform && can(principal, ['INVENTORY_MANAGE'])) {
-      if (row.kind === 'BATCH' && String(row.status ?? 'ACTIVE').toUpperCase() !== 'CANCELLED') {
-        return <button className="danger" onClick={() => setInventoryDisposeTarget({ kind: 'BATCH', item: row as unknown as InventoryBatch })}>Hủy lô</button>
+      if (row.kind === 'BATCH') {
+        const batch = row as unknown as InventoryBatch
+        const isCancelled = String(batch.status ?? 'ACTIVE').toUpperCase() === 'CANCELLED'
+        if (isCancelled) {
+          return <button onClick={() => { setInventoryInitialProductId(batch.productId); setShowInventoryForm(true) }}>Nhập lô mới</button>
+        }
+        return <>
+          <button onClick={() => {
+            const defaultVol = Number((row as Row).bottleVolumeMl ?? 100) || 100
+            const volInput = window.prompt(`Nhập dung tích (ml) cho chai mới xuất từ lô ${batch.batchCode}:`, String(defaultVol))
+            if (!volInput) return
+            const qty = Number(volInput)
+            if (!Number.isFinite(qty) || qty <= 0) { setError('Dung tích phải lớn hơn 0.'); return }
+            const code = `BOT-${batch.batchCode}-${Date.now().toString().slice(-4)}`
+            void mutate(() => backend.createBottle({ tenantId: batch.tenantId, productId: batch.productId, batchId: batch.id, bottleCode: code, initialQuantity: qty }), `Đã cấp chai mới "${code}" (${qty} ml) từ lô ${batch.batchCode}.`)
+          }}>Cấp chai từ lô</button>
+          <button className="danger" onClick={() => setInventoryDisposeTarget({ kind: 'BATCH', item: batch })}>Hủy lô</button>
+        </>
       }
-      if (row.kind === 'BOTTLE' && !['DAMAGED', 'EXPIRED'].includes(String(row.status ?? '').toUpperCase())) {
-        return <>{tenantId && <button onClick={() => setShowInventoryWorkflow(true)}>Refill / lắp / thay chai</button>}<button className="danger" onClick={() => setInventoryDisposeTarget({ kind: 'BOTTLE', item: row as unknown as Bottle })}>Hủy / báo hư</button></>
+      if (row.kind === 'BOTTLE') {
+        const bottle = row as unknown as Bottle
+        const isDisposed = ['DAMAGED', 'EXPIRED'].includes(String(bottle.status ?? '').toUpperCase())
+        if (!isDisposed) {
+          return <>{tenantId && <button onClick={() => { setInventoryWorkflowPrefill(undefined); setShowInventoryWorkflow(true) }}>Nạp thêm / lắp / thay chai</button>}<button className="danger" onClick={() => setInventoryDisposeTarget({ kind: 'BOTTLE', item: bottle })}>Hủy / báo hư</button></>
+        }
+        const parentBatch = inventoryBatches.find((b) => b.id === bottle.batchId)
+        if (parentBatch && String(parentBatch.status ?? 'ACTIVE').toUpperCase() !== 'CANCELLED') {
+          return <button onClick={() => {
+            const defaultVol = Number((row as Row).bottleVolumeMl ?? bottle.initialQuantity ?? 100) || 100
+            const volInput = window.prompt(`Lô ${parentBatch.batchCode} vẫn đang hoạt động. Nhập dung tích (ml) cho chai thay thế:`, String(defaultVol))
+            if (!volInput) return
+            const qty = Number(volInput)
+            if (!Number.isFinite(qty) || qty <= 0) { setError('Dung tích phải lớn hơn 0.'); return }
+            const code = `BOT-${parentBatch.batchCode}-${Date.now().toString().slice(-4)}`
+            void mutate(() => backend.createBottle({ tenantId: parentBatch.tenantId, productId: parentBatch.productId, batchId: parentBatch.id, bottleCode: code, initialQuantity: qty }), `Đã cấp chai thay thế "${code}" (${qty} ml) từ lô ${parentBatch.batchCode}.`)
+          }}>Cấp chai thay thế</button>
+        }
+        return <button onClick={() => { setInventoryInitialProductId(bottle.productId); setShowInventoryForm(true) }}>Nhập lô mới</button>
       }
       return null
     }
-    if (isViewingMachineSlots && selectedMachine) { if (!can(principal, ['MACHINE_CONFIGURE'])) return null; const slot = row as unknown as Slot; return <><button onClick={() => setSlotEditor(slot)}>Chỉnh sửa</button><button onClick={() => void (async () => { try { await backend.setSlotEnabled(selectedMachine.id, slot.id, !slot.enabled); await loadMachineSlots(selectedMachine); setNotice(slot.enabled ? 'Đã tắt đầu phun.' : 'Đã bật đầu phun.') } catch (reason) { setError(errorText(reason)) } })()}>{slot.enabled ? 'Tắt' : 'Bật'}</button></> }
+    if (isViewingMachineSlots && selectedMachine) {
+      const canConfigureSlot = can(principal, ['MACHINE_CONFIGURE'])
+      const canSwapBottle = can(principal, ['INVENTORY_MANAGE'])
+      if (!canConfigureSlot && !canSwapBottle) return null
+      const slot = row as unknown as Slot
+      const activeInst = machineInstallations.find((inst) => inst.slotId === slot.id)
+      return <>
+        {canConfigureSlot && <button onClick={() => setSlotEditor(slot)}>Chỉnh sửa</button>}
+        {canSwapBottle && <button onClick={() => { setInventoryWorkflowPrefill({ mode: activeInst ? 'replace' : 'install', machineId: selectedMachine.id, slotId: slot.id, oldBottleId: activeInst?.bottleId }); setShowInventoryWorkflow(true) }}>{activeInst ? 'Thay chai' : 'Lắp chai'}</button>}
+        {canConfigureSlot && <button onClick={() => void (async () => { try { await backend.setSlotEnabled(selectedMachine.id, slot.id, !slot.enabled); await loadMachineSlots(selectedMachine); setNotice(slot.enabled ? 'Đã tắt đầu phun.' : 'Đã bật đầu phun.') } catch (reason) { setError(errorText(reason)) } })()}>{slot.enabled ? 'Tắt' : 'Bật'}</button>}
+      </>
+    }
     if (page === 'machines') { const machine = row as unknown as Machine; return <><button onClick={() => openMachineSlots(machine)}>Xem đầu phun</button>{tenantId && can(principal, ['MACHINE_CONFIGURE']) && <button onClick={() => setMachineEditor(machine)}>Chỉnh sửa</button>}{can(principal, ['MACHINE_CONTROL']) && <>{(machine.operationalStatus === 'OFFLINE' || machine.operationalStatus === 'UNSTABLE') && <button className="primary" onClick={() => void mutate(() => backend.setMachineOperationalStatus(machine.id, 'ONLINE'), 'Đã đưa kiosk về trạng thái trực tuyến.')}>Đưa về trực tuyến</button>}<button onClick={() => void mutate(() => backend.controlMachine(machine.id, machine.operationalStatus === 'DISABLED' ? 'ENABLE' : 'DISABLE'), machine.operationalStatus === 'DISABLED' ? 'Đã bật máy.' : 'Đã tắt máy.')}>{machine.operationalStatus === 'DISABLED' ? 'Bật máy' : 'Tắt máy'}</button>{machine.operationalStatus !== 'MAINTENANCE' && <button onClick={() => void mutate(() => backend.controlMachine(machine.id, 'ENTER_MAINTENANCE'), 'Đã chuyển máy sang trạng thái bảo trì.')}>Bảo trì</button>}</>}</> }
     if (page === 'alerts') {
       if (isAdminRole) return null
@@ -557,19 +757,21 @@ function Admin({ principal, exit }: { principal: Principal; exit: () => void }) 
   }
   async function logout() { try { await backend.logout() } catch { /* kết thúc phiên cục bộ */ } clearApiCache(); authToken.clear(); exit() }
 
-  return <div className="app-shell"><aside><div className="sidebar-brand"><strong>S.</strong><span>SCENTSTATION<small>TRUNG TÂM QUẢN TRỊ</small></span></div><nav>{menu.map((item) => <button key={item.id} className={page === item.id ? 'active' : ''} onClick={() => { clearApiCache(); closeMachineSlots(); setPage(item.id) }}><i>{item.icon}</i>{item.label}</button>)}</nav><div className="sidebar-user"><span>{principal.username.slice(0, 2).toUpperCase()}</span><div><strong>{principal.username}</strong><small>{principal.roles.map((role) => valueLabels[role] ?? role).join(', ')}</small></div></div></aside><main className="workspace"><header><div><span className="live-dot" /> Hệ thống đang trực tuyến</div><div className="header-actions">{!!tenants.length && <label>Phạm vi thương hiệu<select value={tenantId ?? ''} onChange={(event) => { clearApiCache(); closeMachineSlots(); setTenantId(event.target.value ? Number(event.target.value) : undefined) }}>{platform && <option value="">Toàn nền tảng</option>}{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name} ({tenant.code})</option>)}</select></label>}{can(principal, ['NOTIFICATION_READ']) && <NotificationCenter principal={principal} tenantId={tenantId} />}<button onClick={() => void logout()}>Đăng xuất</button></div></header><div className="content"><div className="page-heading"><div><p className="eyebrow">SCENTSTATION · QUẢN TRỊ VẬN HÀNH</p><h1>{isViewingMachineSlots ? `Đầu phun: ${selectedMachine.name}` : titles[page][0]}</h1><p>{isViewingMachineSlots ? `Máy #${selectedMachine.id} (${selectedMachine.serialNumber})` : (page === 'alerts' && isAdminRole ? 'Theo dõi sự cố thiết bị (Nhân viên vận hành và kỹ thuật viên phụ trách xử lý)' : page === 'maintenance' && isAdminRole ? 'Theo dõi tiến độ và chấp nhận phiếu bảo trì' : page === 'inventory' && platform ? 'Theo dõi lô nhập, chai nước hoa và lịch sử biến động tồn kho toàn nền tảng' : titles[page][1])}</p></div><div className="heading-actions">{isViewingMachineSlots && <button onClick={closeMachineSlots}>← Danh sách máy</button>}{page === 'tenants' && platform && <button className="primary" onClick={() => setTenantEditor('new')}>＋ Tạo thương hiệu</button>}{page === 'users' && <button className="primary" onClick={() => setUserEditor('new')}>＋ Tạo tài khoản</button>}{page === 'products' && tenantId && can(principal, ['CATALOG_MANAGE']) && <button className="primary" onClick={() => setShowProduct(true)}>＋ Thêm sản phẩm</button>}{page === 'campaigns' && tenantId && can(principal, ['CAMPAIGN_MANAGE']) && <button className="primary" onClick={() => setCampaignEditor('new')}>＋ Tạo chiến dịch</button>}{page === 'machines' && tenantId && principal.tenantId && can(principal, ['MACHINE_CONFIGURE']) && <>{!isViewingMachineSlots && <button onClick={() => setShowLocation(true)}>＋ Địa điểm</button>}<button className="primary" onClick={() => isViewingMachineSlots ? setSlotEditor('new') : setMachineEditor('new')}>＋ {isViewingMachineSlots ? 'Tạo đầu phun' : 'Đăng ký máy'}</button></>}{page === 'inventory' && !platform && tenantId && can(principal, ['INVENTORY_MANAGE', 'INVENTORY_ADJUST']) && <button className="primary" onClick={() => setShowInventoryForm(true)}>＋ Nghiệp vụ tồn kho</button>}{page === 'maintenance' && (isOpsManager || isTechnician) && tenantId && can(principal, ['MAINTENANCE_MANAGE']) && <button className="primary" onClick={() => setMaintenanceEditor('new')}>＋ Tạo phiếu</button>}<button onClick={() => { clearApiCache(); if (isViewingMachineSlots && selectedMachine) void loadMachineSlots(selectedMachine); else void load() }} disabled={activeLoading}>↻ {activeLoading ? 'Đang tải' : 'Làm mới'}</button></div></div>{error && <div className="error-box"><span>{error}</span><button onClick={() => { if (isViewingMachineSlots && selectedMachine) void loadMachineSlots(selectedMachine); else void load() }}>Thử lại</button></div>}{notice && <div className="notice">✓ {notice}</div>}{page === 'dashboard' ? <Dashboard data={dashboard} operational={operationalReport} period={dashboardPeriod} setPeriod={setDashboardPeriod} principal={principal} /> : <>{page === 'transactions' && <ReportingTools filters={transactionFilters} apply={setTransactionFilters} canExport={can(principal, ['REPORT_EXPORT'])} tenantId={tenantId} />}{page === 'orders' && <OrderOverview counts={orderCounts} selected={orderKind} select={(kind) => { setOrderKind(kind); setOrderStatusFilter('') }} />}{page === 'inventory' && <section className="panel toolbar"><nav className="order-tabs" aria-label="Phân loại tồn kho">{([['ALL', 'Tất cả', inventoryCounts.batches + inventoryCounts.bottles + inventoryCounts.movements], ['BATCH', 'Lô hàng', inventoryCounts.batches], ['BOTTLE', 'Chai nước hoa', inventoryCounts.bottles], ['MOVEMENT', 'Biến động kho', inventoryCounts.movements]] as const).map(([key, label, count]) => <button type="button" key={key} className={inventoryKind === key ? 'active' : ''} onClick={() => setInventoryKind(key)}>{label}<small>{count}</small></button>)}</nav>{lowStockBottleCount > 0 && <span className="badge error">⚠ {lowStockBottleCount} chai gần hết / hết / hết hạn</span>}</section>}<section className="panel"><div className="toolbar"><label className="search">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm trong dữ liệu đã tải…" /></label><div className="toolbar-filters">{page === 'orders' && <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span>Trạng thái:</span><select aria-label="Lọc trạng thái" value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value)}>{orderKind === 'REVIEW' ? <><option value="">Mọi trạng thái đối soát</option><option value="OPEN">Đang mở</option><option value="RESOLVED">Đã xử lý</option></> : orderKind === 'PAYMENT' ? <><option value="">Mọi trạng thái thanh toán</option><option value="PENDING">Đang chờ</option><option value="PAID">Đã thanh toán</option><option value="FAILED">Thất bại</option><option value="EXPIRED">Hết hạn</option><option value="REFUNDED">Đã hoàn tiền</option></> : <><option value="">{orderKind === 'ORDER' ? 'Mọi trạng thái đơn' : 'Mọi trạng thái'}</option><option value="PENDING">Đang chờ</option><option value="PAID">Đã thanh toán</option><option value="FAILED">Thất bại</option><option value="EXPIRED">Hết hạn</option><option value="CANCELLED">Đã hủy</option><option value="REFUNDED">Đã hoàn tiền</option></>}</select></label>}{page === 'alerts' && <><select aria-label="Lọc mức độ cảnh báo" value={alertSeverityFilter} onChange={(event) => setAlertSeverityFilter(event.target.value)}><option value="">Mọi mức độ</option><option value="LOW">Thấp</option><option value="MEDIUM">Trung bình</option><option value="HIGH">Cao</option><option value="CRITICAL">Nghiêm trọng</option></select><select aria-label="Lọc trạng thái cảnh báo" value={alertStatusFilter} onChange={(event) => setAlertStatusFilter(event.target.value)}><option value="">Mọi trạng thái</option><option value="OPEN">Đang mở</option><option value="ACKNOWLEDGED">Đã xác nhận</option><option value="ASSIGNED">Đã phân công</option><option value="ESCALATED">Đã chuyển cấp</option><option value="RESOLVED">Đã xử lý</option></select></>}{page === 'maintenance' && <label className="switch"><input type="checkbox" checked={onlyMyTickets} onChange={(event) => setOnlyMyTickets(event.target.checked)} />Chỉ phiếu được giao cho tôi</label>}<span>{filtered.length} bản ghi</span></div></div>{activeLoading ? <div className="empty"><span className="spinner" /> Đang tải dữ liệu thực…</div> : <Table rows={filtered} columns={visibleColumns} action={action} />}</section></>}</div></main>
+  const activeBrand = !platform ? (tenants[0] ?? (rows[0] as unknown as Tenant | undefined) ?? null) : null
+
+  return <div className="app-shell"><aside><div className="sidebar-brand"><strong>S.</strong><span>SCENTSTATION<small>TRUNG TÂM QUẢN TRỊ</small></span></div><nav>{menu.map((item) => <button key={item.id} className={page === item.id ? 'active' : ''} onClick={() => { clearApiCache(); closeMachineSlots(); setPage(item.id) }}><i>{item.icon}</i>{item.label}</button>)}</nav><div className="sidebar-user"><span>{principal.username.slice(0, 2).toUpperCase()}</span><div><strong>{principal.username}</strong><small>{principal.roles.map((role) => valueLabels[role] ?? role).join(', ')}</small></div></div></aside><main className="workspace"><header><div><span className="live-dot" /> Hệ thống đang trực tuyến</div><div className="header-actions">{(platform || tenants.length > 1) && !!tenants.length && <label>Phạm vi thương hiệu<select value={tenantId ?? ''} onChange={(event) => { clearApiCache(); closeMachineSlots(); setTenantId(event.target.value ? Number(event.target.value) : undefined) }}>{platform && <option value="">Toàn nền tảng</option>}{tenants.map((tenant) => <option key={tenant.id} value={tenant.id}>{tenant.name} ({tenant.code})</option>)}</select></label>}{can(principal, ['NOTIFICATION_READ']) && <NotificationCenter principal={principal} tenantId={tenantId} />}{hasBrandProfile && <button type="button" className={`profile-trigger ${page === 'tenants' ? 'active' : ''}`} title="Hồ sơ thương hiệu" onClick={() => { clearApiCache(); closeMachineSlots(); setPage('tenants') }}><span className="profile-avatar">{(activeBrand?.name || principal.username).slice(0, 2).toUpperCase()}</span><span>{activeBrand?.name || 'Hồ sơ thương hiệu'}<small>Hồ sơ thương hiệu</small></span></button>}<button onClick={() => void logout()}>Đăng xuất</button></div></header><div className="content"><div className="page-heading"><div><p className="eyebrow">SCENTSTATION · QUẢN TRỊ VẬN HÀNH</p><h1>{isViewingMachineSlots ? `Đầu phun: ${selectedMachine.name}` : (!platform && page === 'tenants' ? 'Hồ sơ thương hiệu' : titles[page][0])}</h1><p>{isViewingMachineSlots ? `Máy #${selectedMachine.id} (${selectedMachine.serialNumber})` : (page === 'alerts' && isAdminRole ? 'Theo dõi sự cố thiết bị (Nhân viên vận hành và kỹ thuật viên phụ trách xử lý)' : page === 'maintenance' && isAdminRole ? 'Theo dõi tiến độ và chấp nhận phiếu bảo trì' : page === 'inventory' && platform ? 'Theo dõi lô nhập, chai nước hoa và lịch sử biến động tồn kho toàn nền tảng' : titles[page][1])}</p></div><div className="heading-actions">{isViewingMachineSlots && <button onClick={closeMachineSlots}>← Danh sách máy</button>}{page === 'tenants' && platform && <button className="primary" onClick={() => setTenantEditor('new')}>＋ Tạo thương hiệu</button>}{page === 'tenants' && !platform && activeBrand && can(principal, ['BRAND_PROFILE_EDIT']) && <button className="primary" onClick={() => setTenantEditor(activeBrand)}>✎ Chỉnh sửa hồ sơ</button>}{page === 'users' && <button className="primary" onClick={() => setUserEditor('new')}>＋ Tạo tài khoản</button>}{page === 'products' && tenantId && can(principal, ['CATALOG_MANAGE']) && <button className="primary" onClick={() => setShowProduct(true)}>＋ Thêm sản phẩm</button>}{page === 'campaigns' && tenantId && can(principal, ['CAMPAIGN_MANAGE']) && <button className="primary" onClick={() => setCampaignEditor('new')}>＋ Tạo chiến dịch</button>}{page === 'machines' && tenantId && principal.tenantId && can(principal, ['MACHINE_CONFIGURE']) && <>{!isViewingMachineSlots && <button onClick={() => setShowLocation(true)}>＋ Địa điểm</button>}<button className="primary" onClick={() => isViewingMachineSlots ? setSlotEditor('new') : setMachineEditor('new')}>＋ {isViewingMachineSlots ? 'Tạo đầu phun' : 'Đăng ký máy'}</button></>}{page === 'inventory' && !platform && tenantId && can(principal, ['INVENTORY_MANAGE', 'INVENTORY_ADJUST']) && <button className="primary" onClick={() => setShowInventoryForm(true)}>＋ Nghiệp vụ kho</button>}{page === 'maintenance' && (isOpsManager || isTechnician) && tenantId && can(principal, ['MAINTENANCE_MANAGE']) && <button className="primary" onClick={() => setMaintenanceEditor('new')}>＋ Tạo phiếu</button>}<button onClick={() => { clearApiCache(); if (isViewingMachineSlots && selectedMachine) void loadMachineSlots(selectedMachine); else void load() }} disabled={activeLoading}>↻ {activeLoading ? 'Đang tải' : 'Làm mới'}</button></div></div>{error && <div className="error-box"><span>{error}</span><button onClick={() => { if (isViewingMachineSlots && selectedMachine) void loadMachineSlots(selectedMachine); else void load() }}>Thử lại</button></div>}{notice && <div className="notice">✓ {notice}</div>}{page === 'dashboard' ? <Dashboard data={dashboard} operational={operationalReport} period={dashboardPeriod} setPeriod={setDashboardPeriod} principal={principal} /> : page === 'tenants' && !platform ? <section className="panel">{activeLoading ? <div className="empty"><span className="spinner" /> Đang tải hồ sơ thương hiệu…</div> : activeBrand ? <div className="brand-profile-card"><div className="brand-profile-head"><div className="brand-profile-identity">{activeBrand.logoUrl ? <img className="brand-profile-logo" src={activeBrand.logoUrl} alt={activeBrand.name} /> : <div className="brand-profile-logo">{activeBrand.name.slice(0, 1).toUpperCase()}</div>}<div><h2>{activeBrand.name}</h2><span className={`badge ${activeBrand.status.toLowerCase()}`}>{display(activeBrand.status, 'status')}</span></div></div>{can(principal, ['BRAND_PROFILE_EDIT']) && <button className="primary" onClick={() => setTenantEditor(activeBrand)}>Chỉnh sửa thông tin thương hiệu</button>}</div><div className="brand-profile-grid"><div className="brand-profile-item"><span>Mã thương hiệu</span><strong>{activeBrand.code}</strong></div><div className="brand-profile-item"><span>ID hệ thống</span><strong>#{activeBrand.id}</strong></div><div className="brand-profile-item"><span>Email liên hệ</span><strong>{activeBrand.contactEmail || '—'}</strong></div><div className="brand-profile-item"><span>Số điện thoại</span><strong>{activeBrand.contactPhone || '—'}</strong></div><div className="brand-profile-item full"><span>Mô tả thương hiệu</span><strong>{activeBrand.description || 'Chưa cập nhật mô tả.'}</strong></div><div className="brand-profile-item full"><span>Nội dung hiển thị trên Kiosk</span><strong>{activeBrand.kioskContent || 'Chưa cập nhật nội dung Kiosk.'}</strong></div></div></div> : <div className="empty">Không tìm thấy hồ sơ thương hiệu.</div>}</section> : <>{page === 'transactions' && <ReportingTools filters={transactionFilters} apply={setTransactionFilters} canExport={can(principal, ['REPORT_EXPORT'])} tenantId={tenantId} />}{page === 'orders' && <OrderOverview counts={orderCounts} selected={orderKind} select={(kind) => { setOrderKind(kind); setOrderStatusFilter('') }} />}{page === 'inventory' && <section className="panel toolbar"><nav className="order-tabs" aria-label="Phân loại tồn kho">{([['ALL', 'Tất cả', inventoryUnseen.batches + inventoryUnseen.bottles + inventoryUnseen.movements], ['BATCH', 'Lô hàng', inventoryUnseen.batches], ['BOTTLE', 'Chai nước hoa', inventoryUnseen.bottles], ['MOVEMENT', 'Biến động kho', inventoryUnseen.movements]] as const).map(([key, label, unseen]) => <button type="button" key={key} className={inventoryKind === key ? 'active' : ''} onClick={() => { setInventoryKind(key); if (key === 'ALL') markInventoryKindsSeen(['BATCH', 'BOTTLE', 'MOVEMENT'], rows); else markInventoryKindsSeen([key], rows) }}>{label}{unseen > 0 && <small>+{unseen}</small>}</button>)}</nav>{lowStockBottleCount > 0 && <span className="badge error">⚠ {lowStockBottleCount} chai gần hết / hết / hết hạn</span>}</section>}<section className="panel"><div className="toolbar"><label className="search">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm trong dữ liệu đã tải…" /></label><div className="toolbar-filters">{page === 'orders' && <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span>Trạng thái:</span><select aria-label="Lọc trạng thái" value={orderStatusFilter} onChange={(event) => setOrderStatusFilter(event.target.value)}>{orderKind === 'REVIEW' ? <><option value="">Mọi trạng thái đối soát</option><option value="OPEN">Đang mở</option><option value="RESOLVED">Đã xử lý</option></> : orderKind === 'PAYMENT' ? <><option value="">Mọi trạng thái thanh toán</option><option value="PENDING">Đang chờ</option><option value="PAID">Đã thanh toán</option><option value="FAILED">Thất bại</option><option value="EXPIRED">Hết hạn</option><option value="REFUNDED">Đã hoàn tiền</option></> : <><option value="">{orderKind === 'ORDER' ? 'Mọi trạng thái đơn' : 'Mọi trạng thái'}</option><option value="PENDING">Đang chờ</option><option value="PAID">Đã thanh toán</option><option value="FAILED">Thất bại</option><option value="EXPIRED">Hết hạn</option><option value="CANCELLED">Đã hủy</option><option value="REFUNDED">Đã hoàn tiền</option></>}</select></label>}{page === 'alerts' && <><select aria-label="Lọc mức độ cảnh báo" value={alertSeverityFilter} onChange={(event) => setAlertSeverityFilter(event.target.value)}><option value="">Mọi mức độ</option><option value="LOW">Thấp</option><option value="MEDIUM">Trung bình</option><option value="HIGH">Cao</option><option value="CRITICAL">Nghiêm trọng</option></select><select aria-label="Lọc trạng thái cảnh báo" value={alertStatusFilter} onChange={(event) => setAlertStatusFilter(event.target.value)}><option value="">Mọi trạng thái</option><option value="OPEN">Đang mở</option><option value="ACKNOWLEDGED">Đã xác nhận</option><option value="ASSIGNED">Đã phân công</option><option value="ESCALATED">Đã chuyển cấp</option><option value="RESOLVED">Đã xử lý</option></select></>}{page === 'maintenance' && <label className="switch"><input type="checkbox" checked={onlyMyTickets} onChange={(event) => setOnlyMyTickets(event.target.checked)} />Chỉ phiếu được giao cho tôi</label>}<span>{filtered.length} bản ghi</span></div></div>{activeLoading ? <div className="empty"><span className="spinner" /> Đang tải dữ liệu thực…</div> : <Table rows={filtered} columns={visibleColumns} action={action} />}</section></>}</div></main>
     {showProduct && tenantId && <ProductForm tenantId={tenantId} close={() => setShowProduct(false)} saved={() => void load()} />}
     {productEditor && productEditor !== 'new' && tenantId && <ProductForm tenantId={tenantId} product={productEditor} close={() => setProductEditor(null)} saved={() => { setNotice('Đã cập nhật đầy đủ thông tin sản phẩm.'); void load() }} />}
     {tenantEditor && <TenantForm tenant={tenantEditor === 'new' ? undefined : tenantEditor} platform={platform} close={() => setTenantEditor(null)} saved={() => { setNotice('Đã lưu thông tin thương hiệu.'); void refreshTenants(); void load() }} />}
     {userEditor && <UserForm account={userEditor === 'new' ? undefined : userEditor} principal={principal} platform={platform} tenants={tenants} selectedTenantId={tenantId} close={() => setUserEditor(null)} saved={() => { setNotice('Đã lưu tài khoản và phân quyền.'); void load() }} />}
     {productPriceEditor && <ProductPriceForm product={productPriceEditor} close={() => setProductPriceEditor(null)} saved={() => { setNotice('Đã cập nhật giá sản phẩm.'); void load() }} />}
-    {campaignEditor && tenantId && <CampaignForm campaign={campaignEditor === 'new' ? undefined : campaignEditor} tenantId={tenantId} products={catalogProducts} close={() => setCampaignEditor(null)} saved={() => { setNotice('Đã lưu chiến dịch.'); void load() }} />}
+    {campaignEditor && tenantId && <CampaignForm campaign={campaignEditor === 'new' ? undefined : campaignEditor} tenantId={tenantId} products={catalogProducts} close={() => setCampaignEditor(null)} saved={(_saved, message) => { setNotice(message || 'Đã lưu chiến dịch.'); void load() }} />}
     {showLocation && tenantId && <LocationForm tenantId={tenantId} close={() => setShowLocation(false)} saved={(location) => { setLocations((current) => [...current, location]); setNotice('Đã tạo địa điểm.') }} />}
     {machineEditor && tenantId && <MachineForm machine={machineEditor === 'new' ? undefined : machineEditor} tenantId={tenantId} locations={locations} close={() => setMachineEditor(null)} saved={() => { setNotice('Đã lưu máy.'); void load() }} />}
-    {slotEditor && selectedMachine && <SlotForm slot={slotEditor === 'new' ? undefined : slotEditor} machineId={selectedMachine.id} close={() => setSlotEditor(null)} saved={() => { setNotice('Đã lưu đầu phun.'); void loadMachineSlots(selectedMachine) }} />}
-    {showInventoryForm && tenantId && <InventoryForm tenantId={tenantId} principal={principal} batches={inventoryBatches} bottles={inventoryBottles} close={() => setShowInventoryForm(false)} saved={() => { setNotice('Đã hoàn thành nghiệp vụ tồn kho.'); void load() }} />}
-    {showInventoryWorkflow && tenantId && <InventoryWorkflowForm tenantId={tenantId} principal={principal} bottles={inventoryBottles} close={() => setShowInventoryWorkflow(false)} saved={() => { setNotice('Đã ghi nhận refill/lắp/thay chai.'); void load() }} />}
-    {inventoryDisposeTarget && <InventoryDisposeForm target={inventoryDisposeTarget} principal={principal} close={() => setInventoryDisposeTarget(null)} saved={(message) => { setNotice(message); void load() }} />}
+    {slotEditor && selectedMachine && <SlotForm slot={slotEditor === 'new' ? undefined : slotEditor} machineId={selectedMachine.id} tenantId={Number(selectedMachine.tenantId)} principal={principal} products={catalogProducts} bottles={inventoryBottles} activeInstallation={slotEditor === 'new' ? null : (machineInstallations.find((inst) => inst.slotId === slotEditor.id) ?? null)} close={() => setSlotEditor(null)} saved={(_savedSlot, message) => { setNotice(message || 'Đã lưu đầu phun.'); void loadMachineSlots(selectedMachine) }} />}
+    {showInventoryForm && tenantId && <InventoryForm tenantId={tenantId} principal={principal} batches={inventoryBatches} bottles={inventoryBottles} initialProductId={inventoryInitialProductId} close={() => { setShowInventoryForm(false); setInventoryInitialProductId(undefined) }} saved={(message) => { clearApiCache(); setNotice(message || 'Đã hoàn thành nghiệp vụ kho.'); void load() }} />}
+    {showInventoryWorkflow && (selectedMachine ? Number(selectedMachine.tenantId) : tenantId) && <InventoryWorkflowForm tenantId={selectedMachine ? Number(selectedMachine.tenantId) : (tenantId as number)} principal={principal} bottles={inventoryBottles} prefill={inventoryWorkflowPrefill} close={() => { setShowInventoryWorkflow(false); setInventoryWorkflowPrefill(undefined) }} saved={() => { clearApiCache(); setNotice('Đã ghi nhận nạp thêm / lắp / thay chai.'); if (isViewingMachineSlots && selectedMachine) void loadMachineSlots(selectedMachine); else void load() }} />}
+    {inventoryDisposeTarget && <InventoryDisposeForm target={inventoryDisposeTarget} principal={principal} close={() => setInventoryDisposeTarget(null)} saved={(message) => { clearApiCache(); setNotice(message); void load() }} />}
     {maintenanceEditor && tenantId && <MaintenanceForm ticket={maintenanceEditor === 'new' ? undefined : maintenanceEditor} prefill={maintenanceEditor === 'new' ? maintenancePrefill : undefined} tenantId={tenantId} principal={principal} close={() => { setMaintenanceEditor(null); setMaintenancePrefill(undefined) }} saved={() => { setNotice('Đã lưu phiếu bảo trì.'); setMaintenancePrefill(undefined); void load() }} />}
     {maintenanceWorkflow && <MaintenanceWorkflowForm ticket={maintenanceWorkflow} tenantId={maintenanceWorkflow.tenantId || tenantId || principal.tenantId || 1} principal={principal} close={() => setMaintenanceWorkflow(null)} saved={() => { setNotice('Đã cập nhật quy trình bảo trì.'); void load() }} />}
   </div>

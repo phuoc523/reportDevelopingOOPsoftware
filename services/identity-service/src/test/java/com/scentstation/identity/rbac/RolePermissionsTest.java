@@ -32,7 +32,7 @@ class RolePermissionsTest {
         assertEquals(37, Permission.values().length);
         assertEquals(8, RolePermissions.matrix().size());
         assertEquals(37, RolePermissions.matrix().get(Role.PLATFORM_SUPER_ADMIN).size());
-        assertEquals(25, RolePermissions.matrix().get(Role.BRAND_ADMIN).size());
+        assertEquals(26, RolePermissions.matrix().get(Role.BRAND_ADMIN).size());
         assertEquals(14, RolePermissions.matrix().get(Role.OPERATIONS_MANAGER).size());
         assertEquals(6, RolePermissions.matrix().get(Role.TECHNICIAN).size());
         assertEquals(7, RolePermissions.matrix().get(Role.INVENTORY_STAFF).size());
@@ -43,10 +43,11 @@ class RolePermissionsTest {
 
     @Test void highRiskPermissionsRequirePlatformDelegation() {
         for (Permission permission : Set.of(Permission.REFUND_APPROVE, Permission.INVENTORY_ADJUST,
-                Permission.DIAGNOSTIC_SPRAY, Permission.MACHINE_CONFIGURE, Permission.DEVICE_ACCESS_REVOKE)) {
+                Permission.DIAGNOSTIC_SPRAY, Permission.DEVICE_ACCESS_REVOKE)) {
             assertFalse(RolePermissions.allowed(Set.of(Role.BRAND_ADMIN), Set.of(), permission));
             assertFalse(RolePermissions.mayBrandDelegate(permission));
         }
+        assertTrue(RolePermissions.allowed(Set.of(Role.BRAND_ADMIN), Set.of(), Permission.MACHINE_CONFIGURE));
         assertFalse(RolePermissions.allowed(Set.of(Role.TECHNICIAN), Set.of(Permission.TENANT_MANAGE),
             Permission.TENANT_MANAGE));
     }

@@ -29,10 +29,14 @@ import com.scentstation.operation.inventory.installation.dto.request.RemoveBottl
 import com.scentstation.operation.inventory.installation.exception.ActiveInstallationNotFoundException;
 import com.scentstation.operation.inventory.installation.dto.request.ReplaceBottleRequest;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class BottleInstallationService {
+
+    private static final BigDecimal DEFAULT_CALIBRATION_ML = new BigDecimal("0.120");
 
     private final BottleRepository bottleRepository;
     private final BottleInstallationRepository bottleInstallationRepository;
@@ -40,6 +44,14 @@ public class BottleInstallationService {
     private final BottleInstallationMapper bottleInstallationMapper;
     private final MachineSlotClient machineSlotClient;
     private final InventoryAuditService auditService;
+
+    @Transactional(readOnly = true)
+    public List<BottleInstallationResponse> getActiveInstallations(Long tenantId, Long machineId) {
+        List<BottleInstallation> items = machineId != null
+                ? bottleInstallationRepository.findAllByTenantIdAndMachineIdAndActiveTrue(tenantId, machineId)
+                : bottleInstallationRepository.findAllByTenantIdAndActiveTrue(tenantId);
+        return items.stream().map(bottleInstallationMapper::toResponse).toList();
+    }
 
     // Lắp chai vào slot trống, đổi trạng thái chai và ghi lịch sử INSTALL.
     @Transactional
@@ -78,6 +90,10 @@ public class BottleInstallationService {
                 bottleInstallationRepository.save(installation);
 
         bottle.setStatus(BottleStatus.INSTALLED);
+        if (bottle.getCalibratedConsumptionPerSpray() == null
+                || bottle.getCalibratedConsumptionPerSpray().compareTo(BigDecimal.ZERO) <= 0) {
+            bottle.setCalibratedConsumptionPerSpray(DEFAULT_CALIBRATION_ML);
+        }
         bottleRepository.save(bottle);
 
         saveMovement(
@@ -227,6 +243,10 @@ public class BottleInstallationService {
                 bottleInstallationRepository.save(newInstallation);
 
         newBottle.setStatus(BottleStatus.INSTALLED);
+        if (newBottle.getCalibratedConsumptionPerSpray() == null
+                || newBottle.getCalibratedConsumptionPerSpray().compareTo(BigDecimal.ZERO) <= 0) {
+            newBottle.setCalibratedConsumptionPerSpray(DEFAULT_CALIBRATION_ML);
+        }
         bottleRepository.save(newBottle);
 
         saveReplaceMovement(

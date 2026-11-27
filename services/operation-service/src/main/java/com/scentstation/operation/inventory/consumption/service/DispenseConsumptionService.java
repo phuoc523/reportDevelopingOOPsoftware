@@ -77,6 +77,11 @@ public class DispenseConsumptionService {
         if (request.getResult() == DispenseResult.SUCCESS) {
             long remainingSprays = response.getQuantityAfter().divide(dose, 0, java.math.RoundingMode.DOWN).longValue();
             if (remainingSprays <= 5) {
+                if (response.getQuantityAfter().compareTo(BigDecimal.ZERO) > 0
+                        && bottle.getStatus() == BottleStatus.INSTALLED) {
+                    bottle.setStatus(BottleStatus.NEARLY_EMPTY);
+                    bottleRepository.save(bottle);
+                }
                 events.publishEvent(new InventoryLowStockEvent(
                         request.getTenantId(), request.getCommandId(), request.getMachineId(), request.getSlotId(),
                         bottle.getId(), response.getQuantityAfter(), remainingSprays));

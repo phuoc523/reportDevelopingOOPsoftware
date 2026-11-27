@@ -28,7 +28,7 @@ const platformOnly = new Set<Permission>([
 ])
 const highRisk = new Set<Permission>([
   'REFUND_APPROVE', 'INVENTORY_ADJUST', 'DIAGNOSTIC_SPRAY',
-  'MACHINE_CONFIGURE', 'DEVICE_ACCESS_REVOKE',
+  'DEVICE_ACCESS_REVOKE',
 ])
 
 export const brandDelegablePermissions = permissions.filter((permission) =>

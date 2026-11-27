@@ -109,4 +109,19 @@ public class CampaignController {
                 )
         );
     }
+
+    // Xóa một chiến dịch thuộc tenant.
+    @DeleteMapping("/{campaignId}")
+    public ResponseEntity<Void> deleteCampaign(
+            @PathVariable
+            @Positive
+            Long campaignId,
+
+            @RequestParam
+            @Positive
+            Long tenantId
+    ) {
+        campaignService.deleteCampaign(tenantId, campaignId);
+        return ResponseEntity.noContent().build();
+    }
 }

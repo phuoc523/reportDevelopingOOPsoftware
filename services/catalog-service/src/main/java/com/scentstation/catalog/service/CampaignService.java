@@ -142,6 +142,13 @@ public class CampaignService {
                 request.getDiscountValue()
         );
 
+        if (request.getProductId() != null && !request.getProductId().equals(campaign.getProductId())) {
+            productRepository
+                    .findByIdAndTenantId(request.getProductId(), verifiedTenantId)
+                    .orElseThrow(() -> new ProductNotFoundException(request.getProductId()));
+            campaign.setProductId(request.getProductId());
+        }
+
         campaignMapper.updateEntity(
                 request,
                 campaign
@@ -153,6 +160,18 @@ public class CampaignService {
         return campaignMapper.toResponse(
                 updatedCampaign
         );
+    }
+
+    // Xóa chiến dịch thuộc trusted tenant.
+    @Transactional
+    public void deleteCampaign(
+            Long tenantId,
+            Long campaignId
+    ) {
+        currentActorContext.requirePermission(CatalogPermissions.CAMPAIGN_MANAGE);
+        Long verifiedTenantId = currentActorContext.requireTenant(tenantId);
+        Campaign campaign = findCampaign(verifiedTenantId, campaignId);
+        campaignRepository.delete(campaign);
     }
 
     // Tìm campaign theo id và tenant hoặc báo lỗi nếu không tồn tại.

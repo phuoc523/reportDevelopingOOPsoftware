@@ -11,8 +11,7 @@ public final class RolePermissions {
     private static final Map<Role, Set<Permission>> MATRIX = new EnumMap<>(Role.class);
     private static final Set<Permission> HIGH_RISK = Set.of(
         Permission.REFUND_APPROVE, Permission.INVENTORY_ADJUST,
-        Permission.DIAGNOSTIC_SPRAY, Permission.MACHINE_CONFIGURE,
-        Permission.DEVICE_ACCESS_REVOKE);
+        Permission.DIAGNOSTIC_SPRAY, Permission.DEVICE_ACCESS_REVOKE);
     private static final Set<Permission> PLATFORM_ONLY = Set.of(
         Permission.TENANT_MANAGE, Permission.PLATFORM_CONFIG_MANAGE,
         Permission.PLATFORM_ROLE_MANAGE, Permission.PLATFORM_AUDIT_READ,
@@ -25,7 +24,7 @@ public final class RolePermissions {
             Permission.BRAND_USER_MANAGE, Permission.BRAND_ROLE_MANAGE,
             Permission.CATALOG_READ, Permission.CATALOG_MANAGE, Permission.CAMPAIGN_MANAGE,
             Permission.LOCATION_READ, Permission.LOCATION_MANAGE,
-            Permission.MACHINE_READ, Permission.MACHINE_CONTROL,
+            Permission.MACHINE_READ, Permission.MACHINE_CONTROL, Permission.MACHINE_CONFIGURE,
             Permission.ORDER_READ, Permission.ORDER_REVIEW, Permission.REFUND_REQUEST,
             Permission.INVENTORY_READ, Permission.INVENTORY_MANAGE,
             Permission.MAINTENANCE_READ, Permission.MAINTENANCE_MANAGE,

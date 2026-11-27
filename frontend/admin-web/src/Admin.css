@@ -60,6 +60,22 @@ aside nav button.active { background: rgba(255,255,255,.11); color: #fff; box-sh
 .header-actions select { padding: 8px 10px; max-width: 260px; }
 .header-actions button,.heading-actions button,.actions button,.error-box button,.modal-actions button { border: 1px solid #d7d6cf; background: #fff; color: #36443d; border-radius: 8px; padding: 8px 11px; transition: .16s ease; }
 .header-actions button:hover,.heading-actions button:hover,.actions button:hover,.modal-actions button:hover { border-color: #9eb0a7; background: #f8faf8; }
+.profile-trigger { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 6px!important; border-radius: 999px!important; font-weight: 650; }
+.profile-trigger.active { border-color: var(--emerald-700)!important; background: #eef5f1!important; color: var(--emerald-950)!important; }
+.profile-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--emerald-900); color: #e8cf91; display: grid; place-items: center; font-size: 11px; font-weight: 750; flex: 0 0 auto; }
+.profile-trigger small { display: block; font-size: 10px; font-weight: 500; color: var(--muted); line-height: 1.1; }
+.brand-profile-card { padding: 28px; display: grid; gap: 22px; }
+.brand-profile-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid #eeece6; padding-bottom: 20px; }
+.brand-profile-identity { display: flex; align-items: center; gap: 16px; }
+.brand-profile-logo { width: 64px; height: 64px; border-radius: 14px; object-fit: cover; border: 1px solid var(--line); background: #f4f1e8; display: grid; place-items: center; font: italic 28px Georgia,serif; color: var(--emerald-900); }
+.brand-profile-identity h2 { margin: 0 0 6px; font-size: 24px; color: #1d3229; }
+.brand-profile-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.brand-profile-item { padding: 14px 16px; border: 1px solid #ebe8e0; border-radius: 10px; background: #fdfcf9; display: grid; gap: 6px; }
+.brand-profile-item.full { grid-column: 1/-1; }
+.brand-profile-item span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+.brand-profile-item strong { font-size: 14px; color: var(--ink); font-weight: 600; white-space: normal; line-height: 1.5; }
+.slot-sync-box { padding: 12px 14px; border: 1px solid #d5e2db; border-radius: 10px; background: #f4f9f6; font-size: 12px; color: #284b3d; line-height: 1.55; }
+.slot-sync-box strong { color: #163329; }
 .notification-center { position: relative; }
 .notification-trigger { position: relative; width: 39px; height: 39px; padding: 0!important; display: grid; place-items: center; font-size: 22px; color: #23483a!important; }
 .notification-trigger:disabled { opacity: .45; cursor: not-allowed; }

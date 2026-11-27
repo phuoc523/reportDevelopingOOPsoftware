@@ -52,4 +52,17 @@ public interface BottleInstallationRepository
             Long tenantId,
             Long machineId
     );
+
+    // Trả các installation đang active tại một máy.
+    List<BottleInstallation>
+    findAllByTenantIdAndMachineIdAndActiveTrue(
+            Long tenantId,
+            Long machineId
+    );
+
+    // Trả toàn bộ installation đang active trong tenant.
+    List<BottleInstallation>
+    findAllByTenantIdAndActiveTrue(
+            Long tenantId
+    );
 }
