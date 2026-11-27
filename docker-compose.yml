@@ -1,6 +1,27 @@
 # Local backend stack. Each business service owns its database.
 name: scentstation-local
 services:
+  redis:
+    image: redis:7.4-alpine
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+    command:
+      - sh
+      - -c
+      - 'if [ -n "$${REDIS_PASSWORD}" ]; then exec redis-server --port "$${REDIS_PORT}" --appendonly yes --requirepass "$${REDIS_PASSWORD}"; else exec redis-server --port "$${REDIS_PORT}" --appendonly yes; fi'
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'if [ -n "$${REDIS_PASSWORD}" ]; then redis-cli -p "$${REDIS_PORT}" -a "$${REDIS_PASSWORD}" ping | grep -q PONG; else redis-cli -p "$${REDIS_PORT}" ping | grep -q PONG; fi'
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - redis-internal
+
   api-gateway:
     build:
       context: .
@@ -8,9 +29,19 @@ services:
       args:
         SERVICE: api-gateway
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${API_GATEWAY_PORT:-8080}:8080"
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CONNECT_TIMEOUT: "${REDIS_CONNECT_TIMEOUT:-2s}"
+      REDIS_TIMEOUT: "${REDIS_TIMEOUT:-2s}"
+      REDIS_CACHE_TTL: "${REDIS_CACHE_TTL:-60s}"
       IDENTITY_SERVICE_URL: http://identity-service:8081
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}"
+      GATEWAY_RATE_LIMIT_ENABLED: "${GATEWAY_RATE_LIMIT_ENABLED:-true}"
+      GATEWAY_RATE_LIMIT_REQUESTS_PER_MINUTE: "${GATEWAY_RATE_LIMIT_REQUESTS_PER_MINUTE:-120}"
+      GATEWAY_RATE_LIMIT_WINDOW: "${GATEWAY_RATE_LIMIT_WINDOW:-1m}"
       CATALOG_SERVICE_URL: http://catalog-service:8082
       ORDER_SERVICE_URL: http://order-service:8083
       MACHINE_SERVICE_URL: http://machine-service:8084
@@ -21,6 +52,36 @@ services:
       CORS_ALLOWED_ORIGIN_3: http://localhost:7515
       CORS_ALLOWED_ORIGIN_4: http://127.0.0.1:7515
       NOTIFICATION_SERVICE_URL: http://notification-service:8087
+    depends_on:
+      redis:
+        condition: service_healthy
+      identity-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      machine-service:
+        condition: service_healthy
+      operation-service:
+        condition: service_healthy
+      reporting-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8080/actuator/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - default
+      - redis-internal
 
   identity-service:
     build:
@@ -29,14 +90,37 @@ services:
       args:
         SERVICE: identity-service
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CONNECT_TIMEOUT: "${REDIS_CONNECT_TIMEOUT:-2s}"
+      REDIS_TIMEOUT: "${REDIS_TIMEOUT:-2s}"
+      REDIS_CACHE_TTL: "${REDIS_CACHE_TTL:-60s}"
+      IDENTITY_CACHE_TTL: "${IDENTITY_CACHE_TTL:-60s}"
+      IDENTITY_CACHE_ENABLED: "true"
       DB_URL: "jdbc:mysql://identity-db:3306/scentstation_identity?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       DB_USERNAME: "identity_app"
       DB_PASSWORD: "identity_local_password"
-      JWT_SECRET: "${JWT_SECRET:-U2NlbnRTdGF0aW9uRGV2ZWxvcG1lbnRLZXlGb3JKV1QyMDI2IQ==}"
-      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
+      JWT_SECRET: "${JWT_SECRET:?Set JWT_SECRET in .env}"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}"
     depends_on:
+      redis:
+        condition: service_healthy
       identity-db:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8081/api/auth/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - default
+      - redis-internal
 
   catalog-service:
     build:
@@ -45,15 +129,38 @@ services:
       args:
         SERVICE: catalog-service
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CONNECT_TIMEOUT: "${REDIS_CONNECT_TIMEOUT:-2s}"
+      REDIS_TIMEOUT: "${REDIS_TIMEOUT:-2s}"
+      REDIS_CACHE_TTL: "${REDIS_CACHE_TTL:-60s}"
+      CATALOG_PRODUCT_LIST_TTL: "${CATALOG_PRODUCT_LIST_TTL:-60s}"
+      CATALOG_CACHE_ENABLED: "true"
       CATALOG_DB_URL: "jdbc:mysql://catalog-db:3306/scentstation_catalog?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       CATALOG_DB_USERNAME: "catalog_app"
       CATALOG_DB_PASSWORD: "catalog_local_password"
       SPRING_PROFILES_ACTIVE: "local"
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
-      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}"
     depends_on:
+      redis:
+        condition: service_healthy
       catalog-db:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8082/actuator/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - default
+      - redis-internal
 
   order-service:
     build:
@@ -62,6 +169,14 @@ services:
       args:
         SERVICE: order-service
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CONNECT_TIMEOUT: "${REDIS_CONNECT_TIMEOUT:-2s}"
+      REDIS_TIMEOUT: "${REDIS_TIMEOUT:-2s}"
+      REDIS_CACHE_TTL: "${REDIS_CACHE_TTL:-60s}"
+      ORDER_STATUS_METADATA_TTL: "${ORDER_STATUS_METADATA_TTL:-5m}"
+      ORDER_CACHE_ENABLED: "true"
       DB_URL: "jdbc:mysql://order-db:3306/order_db?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       DB_USERNAME: "order_user"
       DB_PASSWORD: "order_local_password"
@@ -70,27 +185,98 @@ services:
       PAYMENT_MOCK_WEB_BASE_URL: "${PAYMENT_MOCK_WEB_BASE_URL:-http://localhost:3000/mock-payment}"
       PAYMENT_CALLBACK_TOKEN: "${PAYMENT_CALLBACK_TOKEN:-local-mock-callback-token}"
       JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Ho_Chi_Minh"
-      REPORTING_SERVICE_URL: "http://reporting-service:8086"
-      REPORTING_SYNC_ENABLED: "true"
-      REPORTING_SYNC_API_KEY: "${REPORTING_SYNC_API_KEY:-local-reporting-sync-key}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      ORDER_KAFKA_ENABLED: "true"
+      ORDER_KAFKA_PAYMENT_TOPIC: "payment-events.v1"
+      ORDER_KAFKA_DISPENSE_TOPIC: "dispense-events.v1"
+      ORDER_OUTBOX_POLL_INTERVAL_MS: "${ORDER_OUTBOX_POLL_INTERVAL_MS:-1000}"
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
-      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}"
     depends_on:
+      redis:
+        condition: service_healthy
       order-db:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8083/actuator/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - default
+      - redis-internal
 
   mock-payment-web:
     build:
       context: .
       dockerfile: infra/docker/mock-payment-web.Dockerfile
+      args:
+        VITE_ORDER_SERVICE_URL: ""
     environment:
-      VITE_ORDER_SERVICE_URL: "${ORDER_SERVICE_URL:-http://localhost:8083}"
+      # Keep browser requests on localhost:3000 and proxy them to the Gateway
+      # inside Docker. This avoids exposing Order Service or relying on CORS.
+      VITE_ORDER_SERVICE_URL: ""
+      MOCK_PAYMENT_PROXY_TARGET: "http://api-gateway:8080"
       VITE_PAYMENT_CALLBACK_TOKEN: "${PAYMENT_CALLBACK_TOKEN:-local-mock-callback-token}"
       VITE_MOCK_PAYMENT_WEB_BASE_URL: "${PAYMENT_MOCK_WEB_BASE_URL:-http://localhost:3000/mock-payment}"
     ports:
       - "${MOCK_PAYMENT_WEB_PORT:-3000}:3000"
     depends_on:
       - order-service
+      - api-gateway
+
+  mock-payment-web-https:
+    profiles: ["https"]
+    build:
+      context: .
+      dockerfile: infra/docker/mock-payment-web-https.Dockerfile
+      args:
+        VITE_ORDER_SERVICE_URL: ""
+    ports:
+      - "3443:3443"
+    volumes:
+      - ./infra/docker/tls:/etc/nginx/certs:ro
+    depends_on:
+      - order-service
+      - api-gateway
+
+  mqtt-broker:
+    image: eclipse-mosquitto:2.0.22
+    environment:
+      MQTT_MACHINE_SERVICE_PASSWORD: "${MQTT_MACHINE_SERVICE_PASSWORD:?Set MQTT_MACHINE_SERVICE_PASSWORD in .env}"
+      MQTT_DEVICE_9101_PASSWORD: "${MQTT_DEVICE_9101_PASSWORD:?Set MQTT_DEVICE_9101_PASSWORD in .env}"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        mkdir -p /mosquitto/secrets
+        mosquitto_passwd -b -c /mosquitto/secrets/passwd machine-service "$${MQTT_MACHINE_SERVICE_PASSWORD}"
+        mosquitto_passwd -b /mosquitto/secrets/passwd device-ss-demo-9101 "$${MQTT_DEVICE_9101_PASSWORD}"
+        chown mosquitto:mosquitto /mosquitto/secrets/passwd
+        chmod 600 /mosquitto/secrets/passwd
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
+    ports:
+      - "${MOSQUITTO_PORT:-1883}:1883"
+    volumes:
+      - ./infra/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./infra/mosquitto/acl:/mosquitto/config/acl:ro
+      - mqtt-data:/mosquitto/data
+    tmpfs:
+      - /mosquitto/secrets:mode=1777
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 1883"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
 
   machine-service:
     build:
@@ -99,19 +285,53 @@ services:
       args:
         SERVICE: machine-service
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CONNECT_TIMEOUT: "${REDIS_CONNECT_TIMEOUT:-2s}"
+      REDIS_TIMEOUT: "${REDIS_TIMEOUT:-2s}"
+      REDIS_CACHE_TTL: "${REDIS_CACHE_TTL:-60s}"
+      MACHINE_LOCATION_LIST_TTL: "${MACHINE_LOCATION_LIST_TTL:-60s}"
+      MACHINE_CACHE_ENABLED: "true"
       MACHINE_DB_URL: "jdbc:mysql://machine-db:3306/scentstation_machine?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       MACHINE_DB_USERNAME: "machine_app"
       MACHINE_DB_PASSWORD: "machine_local_password"
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
-      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
       MACHINE_NOTIFICATION_KAFKA_ENABLED: "true"
       MACHINE_NOTIFICATION_KAFKA_TOPIC: "machine-alert.v1"
+      MACHINE_COMMAND_SIMULATION_ENABLED: "false"
+      MACHINE_MQTT_ENABLED: "true"
+      MACHINE_MQTT_BROKER_URL: "tcp://mqtt-broker:1883"
+      MACHINE_MQTT_USERNAME: "machine-service"
+      MACHINE_MQTT_PASSWORD: "${MQTT_MACHINE_SERVICE_PASSWORD:?Set MQTT_MACHINE_SERVICE_PASSWORD in .env}"
+      MACHINE_MQTT_CLIENT_ID: "machine-service"
+      MACHINE_MQTT_HEARTBEAT_TIMEOUT_MS: "${MACHINE_MQTT_HEARTBEAT_TIMEOUT_MS:-15000}"
+      MACHINE_MQTT_CONNECTIVITY_CHECK_INTERVAL_MS: "${MACHINE_MQTT_CONNECTIVITY_CHECK_INTERVAL_MS:-5000}"
+      MACHINE_MQTT_COMMAND_RETRY_INTERVAL_MS: "${MACHINE_MQTT_COMMAND_RETRY_INTERVAL_MS:-3000}"
     depends_on:
+      redis:
+        condition: service_healthy
       machine-db:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+      mqtt-broker:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8084/actuator/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - default
+      - redis-internal
 
   notification-service:
     build:
@@ -122,11 +342,21 @@ services:
     ports:
       - "127.0.0.1:8087:8087"
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CONNECT_TIMEOUT: "${REDIS_CONNECT_TIMEOUT:-2s}"
+      REDIS_TIMEOUT: "${REDIS_TIMEOUT:-2s}"
+      REDIS_CACHE_TTL: "${REDIS_CACHE_TTL:-60s}"
+      NOTIFICATION_RATE_LIMIT_ENABLED: "${NOTIFICATION_RATE_LIMIT_ENABLED:-true}"
+      NOTIFICATION_RATE_LIMIT_REQUESTS: "${NOTIFICATION_RATE_LIMIT_REQUESTS:-120}"
+      NOTIFICATION_RATE_LIMIT_WINDOW: "${NOTIFICATION_RATE_LIMIT_WINDOW:-1m}"
       NOTIFICATION_DB_URL: "jdbc:mysql://notification-db:3306/scentstation_notification?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
       NOTIFICATION_DB_USERNAME: "notification_app"
       NOTIFICATION_DB_PASSWORD: "notification_local_password"
       NOTIFICATION_IDENTITY_URL: "http://identity-service:8081"
-      NOTIFICATION_IDENTITY_INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
+      NOTIFICATION_IDENTITY_INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}"
+      NOTIFICATION_MONITORING_DEFAULT_TENANT_ID: "${NOTIFICATION_MONITORING_DEFAULT_TENANT_ID:-1}"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
       NOTIFICATION_KAFKA_ENABLED: "true"
       NOTIFICATION_KAFKA_MACHINE_ALERT_TOPIC: "machine-alert.v1"
@@ -136,7 +366,7 @@ services:
       NOTIFICATION_KAFKA_DEAD_LETTER_TOPIC: "machine-alert.v1.DLT"
       # Base compose stays operational without Firebase credentials. The Firebase overlay
       # explicitly enables FCM and requires a mounted service-account file.
-      NOTIFICATION_FIREBASE_ENABLED: "false"
+      NOTIFICATION_FIREBASE_ENABLED: "${NOTIFICATION_FIREBASE_ENABLED:-false}"
       NOTIFICATION_FIREBASE_PROJECT_ID: "${NOTIFICATION_FIREBASE_PROJECT_ID:-}"
       NOTIFICATION_FIREBASE_CREDENTIALS_PATH: "${NOTIFICATION_FIREBASE_CREDENTIALS_PATH:-}"
       NOTIFICATION_FIREBASE_POLL_INTERVAL: "${NOTIFICATION_FIREBASE_POLL_INTERVAL:-5s}"
@@ -145,18 +375,27 @@ services:
       NOTIFICATION_FIREBASE_INITIAL_BACKOFF: "${NOTIFICATION_FIREBASE_INITIAL_BACKOFF:-10s}"
       NOTIFICATION_FIREBASE_DELIVERY_LEASE: "${NOTIFICATION_FIREBASE_DELIVERY_LEASE:-5m}"
     depends_on:
+      redis:
+        condition: service_healthy
       notification-db:
         condition: service_healthy
       identity-service:
-        condition: service_started
+        condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/actuator/health/readiness | grep -q '\"status\":\"UP\"'"]
+      test:
+        [
+          "CMD-SHELL",
+          'wget -qO- http://localhost:8087/actuator/health/readiness | grep -q ''"status":"UP"''',
+        ]
       interval: 10s
       timeout: 5s
       retries: 20
       start_period: 30s
+    networks:
+      - default
+      - redis-internal
 
   operation-service:
     build:
@@ -165,15 +404,48 @@ services:
       args:
         SERVICE: operation-service
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CONNECT_TIMEOUT: "${REDIS_CONNECT_TIMEOUT:-2s}"
+      REDIS_TIMEOUT: "${REDIS_TIMEOUT:-2s}"
+      REDIS_CACHE_TTL: "${REDIS_CACHE_TTL:-60s}"
+      OPERATION_CHECKLIST_TTL: "${OPERATION_CHECKLIST_TTL:-5s}"
+      OPERATION_CACHE_ENABLED: "true"
       OPERATION_DB_URL: "jdbc:mysql://operation-db:3306/scentstation_operation?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       OPERATION_DB_USERNAME: "operation_app"
       OPERATION_DB_PASSWORD: "operation_local_password"
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
-      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
+      MACHINE_SERVICE_BASE_URL: "http://machine-service:8084"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      OPERATION_KAFKA_ENABLED: "true"
+      OPERATION_KAFKA_DISPENSE_TOPIC: "dispense-events.v1"
+      OPERATION_KAFKA_DISPENSE_GROUP: "${OPERATION_KAFKA_DISPENSE_GROUP:-operation-dispense-v1}"
+      OPERATION_KAFKA_DISPENSE_DLT: "dispense-events.v1.DLT"
+      OPERATION_KAFKA_RETRY_ATTEMPTS: "${OPERATION_KAFKA_RETRY_ATTEMPTS:-5}"
+      OPERATION_KAFKA_RETRY_BACKOFF_MS: "${OPERATION_KAFKA_RETRY_BACKOFF_MS:-2000}"
       SPRING_PROFILES_ACTIVE: "docker-local"
     depends_on:
+      redis:
+        condition: service_healthy
       operation-db:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8085/actuator/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - default
+      - redis-internal
 
   reporting-service:
     build:
@@ -182,6 +454,15 @@ services:
       args:
         SERVICE: reporting-service
     environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "${REDIS_PORT:-6379}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      REDIS_CONNECT_TIMEOUT: "${REDIS_CONNECT_TIMEOUT:-2s}"
+      REDIS_TIMEOUT: "${REDIS_TIMEOUT:-2s}"
+      REDIS_CACHE_TTL: "${REDIS_CACHE_TTL:-60s}"
+      REPORTING_DASHBOARD_RATE_LIMIT_ENABLED: "${REPORTING_DASHBOARD_RATE_LIMIT_ENABLED:-true}"
+      REPORTING_DASHBOARD_RATE_LIMIT_REQUESTS: "${REPORTING_DASHBOARD_RATE_LIMIT_REQUESTS:-120}"
+      REPORTING_DASHBOARD_RATE_LIMIT_WINDOW: "${REPORTING_DASHBOARD_RATE_LIMIT_WINDOW:-1m}"
       DB_URL: "jdbc:mysql://reporting-db:3306/scentstation_reporting?allowPublicKeyRetrieval=true&sslMode=DISABLED"
       DB_USERNAME: "reporting_app"
       DB_PASSWORD: "reporting_local_password"
@@ -189,14 +470,38 @@ services:
       MACHINE_SERVICE_URL: "http://machine-service:8084"
       OPERATION_SERVICE_URL: "http://operation-service:8085"
       JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Ho_Chi_Minh"
-      REPORTING_SYNC_API_KEY: "${REPORTING_SYNC_API_KEY:-local-reporting-sync-key}"
+      REPORTING_SYNC_API_KEY: "${REPORTING_SYNC_API_KEY:?Set REPORTING_SYNC_API_KEY in .env}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+      REPORTING_KAFKA_ENABLED: "true"
+      REPORTING_KAFKA_PAYMENT_TOPIC: "payment-events.v1"
+      REPORTING_KAFKA_GROUP_ID: "${REPORTING_KAFKA_GROUP_ID:-reporting-payment-v1}"
+      REPORTING_KAFKA_RETRY_ATTEMPTS: "${REPORTING_KAFKA_RETRY_ATTEMPTS:-5}"
+      REPORTING_KAFKA_RETRY_BACKOFF_MS: "${REPORTING_KAFKA_RETRY_BACKOFF_MS:-2000}"
+      REPORTING_KAFKA_DEAD_LETTER_TOPIC: "payment-events.v1.DLT"
       IDENTITY_SERVICE_URL: "http://identity-service:8081"
-      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:-local-internal-service-key}"
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}"
     ports:
       - "127.0.0.1:8086:8086"
     depends_on:
+      redis:
+        condition: service_healthy
       reporting-db:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:8086/api/reporting/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - default
+      - redis-internal
 
   identity-db:
     image: mysql:8.4
@@ -208,7 +513,11 @@ services:
     volumes:
       - identity-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      test:
+        [
+          "CMD-SHELL",
+          'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u "$$MYSQL_USER" "$$MYSQL_DATABASE" -e ''SELECT 1''',
+        ]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -223,7 +532,11 @@ services:
     volumes:
       - catalog-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      test:
+        [
+          "CMD-SHELL",
+          'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u "$$MYSQL_USER" "$$MYSQL_DATABASE" -e ''SELECT 1''',
+        ]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -238,7 +551,11 @@ services:
     volumes:
       - order-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      test:
+        [
+          "CMD-SHELL",
+          'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u "$$MYSQL_USER" "$$MYSQL_DATABASE" -e ''SELECT 1''',
+        ]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -253,7 +570,11 @@ services:
     volumes:
       - machine-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      test:
+        [
+          "CMD-SHELL",
+          'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u "$$MYSQL_USER" "$$MYSQL_DATABASE" -e ''SELECT 1''',
+        ]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -268,7 +589,11 @@ services:
     volumes:
       - operation-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      test:
+        [
+          "CMD-SHELL",
+          'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u "$$MYSQL_USER" "$$MYSQL_DATABASE" -e ''SELECT 1''',
+        ]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -283,7 +608,11 @@ services:
     volumes:
       - reporting-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_PASSWORD\" mysql -h 127.0.0.1 -u \"$$MYSQL_USER\" \"$$MYSQL_DATABASE\" -e 'SELECT 1'"]
+      test:
+        [
+          "CMD-SHELL",
+          'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u "$$MYSQL_USER" "$$MYSQL_DATABASE" -e ''SELECT 1''',
+        ]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -298,7 +627,11 @@ services:
     volumes:
       - notification-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root --password=$$MYSQL_ROOT_PASSWORD --silent"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -u root --password=$$MYSQL_ROOT_PASSWORD --silent",
+        ]
       interval: 5s
       timeout: 5s
       retries: 30
@@ -324,7 +657,11 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list >/dev/null 2>&1"]
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:29092 --list >/dev/null 2>&1",
+        ]
       interval: 5s
       timeout: 10s
       retries: 30
@@ -343,7 +680,119 @@ services:
         --partitions 1 --replication-factor 1 &&
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
         --create --if-not-exists --topic machine-alert.v1.DLT
-        --partitions 1 --replication-factor 1
+        --partitions 1 --replication-factor 1 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
+        --create --if-not-exists --topic payment-events.v1
+        --partitions 3 --replication-factor 1 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
+        --create --if-not-exists --topic payment-events.v1.DLT
+        --partitions 3 --replication-factor 1 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
+        --create --if-not-exists --topic dispense-events.v1
+        --partitions 3 --replication-factor 1 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
+        --create --if-not-exists --topic dispense-events.v1.DLT
+        --partitions 3 --replication-factor 1
+
+  nifi:
+    image: apache/nifi:2.4.0
+    ports:
+      - "127.0.0.1:8443:8443"
+    environment:
+      NIFI_WEB_HTTPS_PORT: "8443"
+      SINGLE_USER_CREDENTIALS_USERNAME: "${NIFI_USERNAME:?Set NIFI_USERNAME in .env}"
+      SINGLE_USER_CREDENTIALS_PASSWORD: "${NIFI_PASSWORD:?Set NIFI_PASSWORD in .env}"
+    volumes:
+      - nifi-conf:/opt/nifi/nifi-current/conf
+      - nifi-database-repository:/opt/nifi/nifi-current/database_repository
+      - nifi-flowfile-repository:/opt/nifi/nifi-current/flowfile_repository
+      - nifi-content-repository:/opt/nifi/nifi-current/content_repository
+      - nifi-provenance-repository:/opt/nifi/nifi-current/provenance_repository
+      - nifi-state:/opt/nifi/nifi-current/state
+      - nifi-logs:/opt/nifi/nifi-current/logs
+      - "C:/Nifi/drivers:/opt/nifi/nifi-current/drivers:ro"
+      - "C:/Nifi/output:/opt/nifi/nifi-current/output"
+    restart: unless-stopped
+    networks:
+      - default
+
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    profiles: ["monitoring"]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
+      - --web.enable-lifecycle
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9091}:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      alertmanager:
+        condition: service_started
+    restart: unless-stopped
+
+  alertmanager-secret-init:
+    image: busybox:1.37.0
+    profiles: ["monitoring"]
+    environment:
+      INTERNAL_SERVICE_KEY: "${INTERNAL_SERVICE_KEY:?Set INTERNAL_SERVICE_KEY in .env}"
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        umask 077;
+        printf '%s' "$$INTERNAL_SERVICE_KEY" > /run/scentstation-secrets/internal-service-key;
+        chown 65534:65534 /run/scentstation-secrets/internal-service-key;
+        chmod 0400 /run/scentstation-secrets/internal-service-key
+    volumes:
+      - alertmanager-secrets:/run/scentstation-secrets
+    restart: "no"
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    profiles: ["monitoring"]
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-secrets:/run/scentstation-secrets:ro
+      - alertmanager-data:/alertmanager
+    depends_on:
+      alertmanager-secret-init:
+        condition: service_completed_successfully
+      notification-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    profiles: ["monitoring"]
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        test -n "$$GF_SECURITY_ADMIN_PASSWORD" ||
+        { echo 'GRAFANA_ADMIN_PASSWORD must be set before enabling the monitoring profile' >&2; exit 1; };
+        exec /run.sh
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3001}:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
 
 volumes:
   identity-data:
@@ -353,4 +802,23 @@ volumes:
   operation-data:
   reporting-data:
   notification-data:
+  nifi-conf:
+  nifi-database-repository:
+  nifi-flowfile-repository:
+  nifi-content-repository:
+  nifi-provenance-repository:
+  nifi-state:
+  nifi-logs:
+  mqtt-data:
   kafka-data:
+  prometheus-data:
+  grafana-data:
+  alertmanager-data:
+  alertmanager-secrets:
+
+networks:
+  default:
+    name: scentstation-backend
+  redis-internal:
+    name: scentstation-redis
+    internal: true
