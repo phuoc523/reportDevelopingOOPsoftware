@@ -16,6 +16,9 @@ Maven 3.9.9 và Java 21 chạy trong container dùng một lần, 2 CPU và 2 Gi
 | Cấu hình Compose | `docker compose config --quiet` thành công | Không có diff Compose. |
 | Frontend | Admin Web có lỗi có sẵn ở ca `MACHINE_CONFIGURE`. | Admin Web 7/8, Kiosk 4/4, Mock Payment 4/4 và build thành công trong bản sao tạm. |
 
+Lượt [GitHub CI đầu tiên](https://github.com/phuoc523/reportDevelopingOOPsoftware/actions/runs/46120501398) trên commit `702337e` đạt 8/9 job. Catalog, Order, Operation, Reporting, Identity, Gateway và hai build frontend đều thành công. Machine Service có một lỗi trong `MachineSecurityIntegrationTest.technicianUnassignedMachineIsBlocked` (chờ 403, nhận 200), tái hiện khi chạy module có source giống baseline. Phần Machine dành cho chủ module.
+
+CI ban đầu bỏ qua ba ca Redis vì Docker API 1.32 do client Testcontainers dùng thấp hơn mức CI chấp nhận (1.40). Hai module Người 1 chuyển test dependency lên [Testcontainers 1.21.4](https://github.com/testcontainers/testcontainers-java/releases/tag/1.21.4) để xử lý tương thích Docker.
 JWT cũ thiếu `userId` sẽ yêu cầu đăng nhập lại sau khi triển khai. Khi đang chờ duyệt, màn hình người dùng nhận vai trò hiệu lực `STAFF`. Vai trò được đề nghị vẫn nằm trong danh sách quản trị để xử lý. Một tài khoản đã được duyệt cần đăng nhập lại để nhận phiên mới.
 
 Giới hạn đang cấu hình cho Gateway, Identity, Identity MySQL và Redis lần lượt là 512, 512, 384 và 192 MiB (tổng 1.600 MiB). Đây là giới hạn Compose của bốn thành phần, chưa phải benchmark tải cho toàn hệ thống. Runner sử dụng profile kiểm thử riêng với giới hạn 2 GiB và chạy hai module tuần tự. [Lệnh chạy demo và test](../identity-platform.md#demo-và-kiểm-thử).
@@ -41,7 +44,7 @@ Các đường dẫn dưới đây tương đối với `services/identity-servi
 | Thao tác | File | Lý do |
 |---|---|---|
 | Sửa | `README.md` | Thay mô tả chưa triển khai bằng chức năng và tài liệu đang dùng. |
-| Sửa | `pom.xml` | Gỡ starter Spring Cache và thuộc tính Spring Cloud không dùng. |
+| Sửa | `pom.xml` | Gỡ starter Spring Cache và thuộc tính Spring Cloud không dùng. Cập nhật Testcontainers để chạy test Redis trên CI. |
 | Sửa | `IdentityServiceApplication.java` | Gỡ `@EnableCaching` vì cache hồ sơ dùng Redis template trực tiếp. |
 | Sửa | `src/main/resources/application.yml` | Gỡ cấu hình Spring Cache rỗng, giữ cấu hình Redis đang dùng. |
 | Sửa | `AccountAdminService.java` | Xóa vai trò đề nghị, grants và scopes khi từ chối. |
@@ -67,7 +70,7 @@ Các đường dẫn dưới đây tương đối với `services/api-gateway`.
 | Thao tác | File | Lý do |
 |---|---|---|
 | Sửa | `README.md` | Thay mô tả placeholder bằng đường dẫn và chức năng hiện tại. |
-| Sửa | `pom.xml` | Gỡ Spring Cache starter không có người dùng. |
+| Sửa | `pom.xml` | Gỡ Spring Cache starter không có người dùng. Cập nhật Testcontainers để chạy test Redis trên CI. |
 | Sửa | `ApiGatewayApplication.java` | Gỡ `@EnableCaching` vì rate limiter dùng Redis reactive trực tiếp. |
 | Sửa | `src/main/resources/application.yml` | Gỡ phần Spring Cache dư thừa, giữ cấu hình Redis và rate limit. |
 | Sửa | `GatewayRateLimitFilter.java` | Giữ 503 cho lỗi limiter, chuyển lỗi downstream qua cơ chế Gateway bình thường. |
