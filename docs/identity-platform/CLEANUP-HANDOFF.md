@@ -10,15 +10,17 @@ Maven 3.9.9 và Java 21 chạy trong container dùng một lần, 2 CPU và 2 Gi
 
 | Hạng mục | Baseline | Sau cleanup |
 |---|---|---|
-| Identity Service | 49 đạt, 2 lỗi ở `AccessPolicyTest`, 2 bỏ qua | 53 đạt, 0 lỗi, 2 bỏ qua |
-| API Gateway | 15 đạt, 0 lỗi, 1 bỏ qua | 16 đạt, 0 lỗi, 1 bỏ qua |
+| Identity Service | 49 đạt, 2 lỗi ở `AccessPolicyTest`, 2 bỏ qua | Local 53 đạt, 2 bỏ qua. CI 55/55 đạt. |
+| API Gateway | 15 đạt, 0 lỗi, 1 bỏ qua | Local 16 đạt, 1 bỏ qua. CI 17/17 đạt. |
 | Smoke trên stack có sẵn | 4/5 phép kiểm đạt. Gateway và Identity health trả 200, `/api/auth/me` thiếu token trả 401, POST introspection qua Gateway trả 404. `GET /api/auth/tenants` trả 401 thay vì 200. | Chưa triển khai source cleanup vào stack demo để giữ nguyên dữ liệu và container hiện hành. |
 | Cấu hình Compose | `docker compose config --quiet` thành công | Không có diff Compose. |
-| Frontend | Admin Web có lỗi có sẵn ở ca `MACHINE_CONFIGURE`. | Admin Web 7/8, Kiosk 4/4, Mock Payment 4/4 và build thành công trong bản sao tạm. |
+| Frontend | Admin Web có lỗi có sẵn ở ca `MACHINE_CONFIGURE`. | Admin Web 7/8, Kiosk 4/4, Mock Payment 4/4. Cả ba build thành công từ lockfile trong bản sao tạm. |
 
 Lượt [GitHub CI đầu tiên](https://github.com/phuoc523/reportDevelopingOOPsoftware/actions/runs/46120501398) trên commit `702337e` đạt 8/9 job. Catalog, Order, Operation, Reporting, Identity, Gateway và hai build frontend đều thành công. Machine Service có một lỗi trong `MachineSecurityIntegrationTest.technicianUnassignedMachineIsBlocked` (chờ 403, nhận 200), tái hiện khi chạy module có source giống baseline. Phần Machine dành cho chủ module.
 
-CI ban đầu bỏ qua ba ca Redis vì Docker API 1.32 do client Testcontainers dùng thấp hơn mức CI chấp nhận (1.40). Hai module Người 1 chuyển test dependency lên [Testcontainers 1.21.4](https://github.com/testcontainers/testcontainers-java/releases/tag/1.21.4) để xử lý tương thích Docker.
+CI ban đầu bỏ qua ba ca Redis vì Docker API 1.32 do client Testcontainers dùng thấp hơn mức CI chấp nhận (1.40). Hai module Người 1 chuyển test dependency lên [Testcontainers 1.21.4](https://github.com/testcontainers/testcontainers-java/releases/tag/1.21.4). Lượt [GitHub CI sau sửa](https://github.com/phuoc523/reportDevelopingOOPsoftware/actions/runs/46120878549) trên commit `d92ae1b` chạy đủ ba ca Redis thành công. Lượt này tiếp tục đạt 8/9 job với cùng lỗi Machine ngoài phạm vi cleanup.
+
+Notification Service và Device Simulator nằm ngoài ma trận CI. Các lượt chạy local riêng chưa hoàn tất do timeout và lỗi HTTP 500 của Docker Desktop Linux Engine. Thử nghiệm Redis tạm cho baseline cũng dừng trước khi có kết quả. Các mục này chưa được xác nhận.
 JWT cũ thiếu `userId` sẽ yêu cầu đăng nhập lại sau khi triển khai. Khi đang chờ duyệt, màn hình người dùng nhận vai trò hiệu lực `STAFF`. Vai trò được đề nghị vẫn nằm trong danh sách quản trị để xử lý. Một tài khoản đã được duyệt cần đăng nhập lại để nhận phiên mới.
 
 Giới hạn đang cấu hình cho Gateway, Identity, Identity MySQL và Redis lần lượt là 512, 512, 384 và 192 MiB (tổng 1.600 MiB). Đây là giới hạn Compose của bốn thành phần, chưa phải benchmark tải cho toàn hệ thống. Runner sử dụng profile kiểm thử riêng với giới hạn 2 GiB và chạy hai module tuần tự. [Lệnh chạy demo và test](../identity-platform.md#demo-và-kiểm-thử).
