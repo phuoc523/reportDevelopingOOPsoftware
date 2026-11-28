@@ -1,11 +1,33 @@
 package com.scentstation.identity.rbac;
 
 import com.scentstation.identity.entity.Role;
+import com.scentstation.identity.entity.User;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class RolePermissionsTest {
+    @Test
+    void pendingStaffHasNoEffectiveOperationalRoleGrantsOrScopes() {
+        User user = new User("staff", "staff@example.com", "hash", "Staff", Role.OPERATIONS_MANAGER);
+        user.setTenantId(9L);
+        user.setPermissionGrants(Set.of(Permission.REPORT_READ));
+        user.setLocationIds(Set.of(2L));
+        user.setMachineIds(Set.of(3L));
+        user.setPendingApproval(true);
+
+        var actor = AccountPrincipal.from(user);
+        assertEquals(Set.of(Role.STAFF), actor.roles());
+        assertTrue(actor.grants().isEmpty());
+        assertTrue(actor.locationIds().isEmpty());
+        assertTrue(actor.machineIds().isEmpty());
+        assertFalse(RolePermissions.allowed(actor.roles(), actor.grants(), Permission.MACHINE_CONTROL));
+
+        long pendingVersion = user.getTokenVersion();
+        user.setPendingApproval(false);
+        assertTrue(user.getTokenVersion() > pendingVersion);
+        assertTrue(AccountPrincipal.from(user).grants().contains(Permission.MACHINE_CONTROL));
+    }
     @Test
     void effectivePermissionsProjectsRoleMatrixForDownstreamServices() {
         Set<Permission> brandAdmin = RolePermissions.effectivePermissions(

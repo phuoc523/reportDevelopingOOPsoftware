@@ -20,6 +20,6 @@ class JwtServiceSecurityTest {
             .signWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(SECRET)))
             .compact();
 
-        assertEquals(-1L, new JwtService(SECRET, 60_000).extractTokenVersion(token));
+        assertEquals(-1L, new JwtService(SECRET, 60_000).readSession(token).tokenVersion());
     }
 }

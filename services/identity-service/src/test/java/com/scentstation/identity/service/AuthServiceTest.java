@@ -3,9 +3,16 @@ package com.scentstation.identity.service;
 import com.scentstation.identity.dto.AuthResponse;
 import com.scentstation.identity.dto.LoginRequest;
 import com.scentstation.identity.dto.RegisterRequest;
+import com.scentstation.identity.dto.StaffRoleRequest;
 import com.scentstation.identity.entity.Role;
 import com.scentstation.identity.entity.User;
 import com.scentstation.identity.repository.UserRepository;
+import com.scentstation.identity.audit.AuditService;
+import com.scentstation.identity.rbac.AccessPolicy;
+import com.scentstation.identity.rbac.AccountPrincipal;
+import com.scentstation.identity.tenant.TenantRepository;
+import java.util.Set;
+import org.springframework.http.HttpStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,7 +36,8 @@ class AuthServiceTest {
         users = mock(UserRepository.class);
         passwordEncoder = mock(PasswordEncoder.class);
         jwtService = mock(JwtService.class);
-        authService = new AuthService(users, passwordEncoder, jwtService);
+        authService = new AuthService(users, passwordEncoder, jwtService,
+                mock(AuditService.class), mock(AccessPolicy.class), mock(TenantRepository.class));
     }
 
     @Test
@@ -109,5 +117,25 @@ class AuthServiceTest {
                 && user.getEmail().equals("alice@example.com")
                 && user.getPassword().equals("hashed-password")
                 && user.getRole() == Role.CUSTOMER));
+    }
+
+    @Test
+    void assignedStaffCannotResubmitAndChangeTenant() {
+        var access = mock(AccessPolicy.class);
+        var tenants = mock(TenantRepository.class);
+        authService = new AuthService(users, passwordEncoder, jwtService,
+                mock(AuditService.class), access, tenants);
+        User user = new User("operator", "operator@example.com", "hash", "Operator", Role.OPERATIONS_MANAGER);
+        user.setTenantId(9L);
+        when(access.current()).thenReturn(new AccountPrincipal(7L, "operator", 9L,
+                Set.of(Role.OPERATIONS_MANAGER), Set.of(), Set.of(), Set.of()));
+        when(users.findByIdForUpdate(7L)).thenReturn(Optional.of(user));
+
+        var failure = assertThrows(ResponseStatusException.class,
+                () -> authService.submitStaffRoleRequest(new StaffRoleRequest(10L, Role.TECHNICIAN)));
+        assertEquals(HttpStatus.FORBIDDEN, failure.getStatusCode());
+        assertEquals(9L, user.getTenantId());
+        verify(users, never()).save(any());
+        verifyNoInteractions(tenants, jwtService);
     }
 }

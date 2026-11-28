@@ -19,6 +19,7 @@ for dashboard, payment synchronization, and replay.
 Vietnamese integration notes: [Tích hợp Reporting](docs/reporting-integration.md).
 Shared Redis setup, cache boundaries, and verification steps are in the
 [Redis guide](docs/redis/README.md).
+The [Identity and Platform guide](docs/identity-platform.md) includes the one-command PowerShell demo and verification.
 Kafka topics, outbox guarantees, DLT handling and remaining synchronous boundaries
 are documented in [Kafka integration](docs/kafka-integration.md).
 
