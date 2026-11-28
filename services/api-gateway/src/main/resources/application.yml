@@ -4,12 +4,6 @@ server:
 spring:
   application:
     name: api-gateway
-  cache:
-    type: redis
-    redis:
-      time-to-live: ${REDIS_CACHE_TTL:60s}
-      cache-null-values: false
-      key-prefix: "scentstation:api-gateway:spring-cache:v1:"
   data:
     redis:
       host: ${REDIS_HOST:localhost}

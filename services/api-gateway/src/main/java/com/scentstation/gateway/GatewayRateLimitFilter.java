@@ -8,7 +8,6 @@ import java.util.HexFormat;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.dao.DataAccessException;
-import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
@@ -56,6 +55,8 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
         }
         return identityResolver.resolve(exchange)
                 .flatMap(identity -> store.increment(redisKey(identity), window))
+                .onErrorResume(DataAccessException.class, ignored -> unavailable(exchange))
+                .onErrorResume(RateLimitIdentityUnavailableException.class, ignored -> unavailable(exchange))
                 .flatMap(count -> {
                     if (count <= requestLimit) {
                         return chain.filter(exchange);
@@ -64,13 +65,7 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
                     exchange.getResponse().getHeaders().set("Retry-After",
                             Long.toString(Math.max(1, window.toSeconds())));
                     return exchange.getResponse().setComplete();
-                })
-                .onErrorResume(RedisConnectionFailureException.class,
-                        ignored -> serviceUnavailable(exchange))
-                .onErrorResume(DataAccessException.class,
-                        ignored -> serviceUnavailable(exchange))
-                .onErrorResume(RateLimitIdentityUnavailableException.class,
-                        ignored -> serviceUnavailable(exchange));
+                });
     }
 
     private boolean shouldBypass(ServerWebExchange exchange) {
@@ -90,11 +85,8 @@ public class GatewayRateLimitFilter implements GlobalFilter, Ordered {
         }
     }
 
-    private Mono<Void> serviceUnavailable(ServerWebExchange exchange) {
-        if (!exchange.getResponse().isCommitted()) {
-            exchange.getResponse().setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
-            return exchange.getResponse().setComplete();
-        }
-        return Mono.empty();
+    private Mono<Long> unavailable(ServerWebExchange exchange) {
+        exchange.getResponse().setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
+        return exchange.getResponse().setComplete().then(Mono.empty());
     }
 }

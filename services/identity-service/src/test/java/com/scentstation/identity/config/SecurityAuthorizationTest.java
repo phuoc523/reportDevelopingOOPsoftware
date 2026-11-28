@@ -15,6 +15,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -40,18 +41,19 @@ class SecurityAuthorizationTest {
         token("suspended-brand-token", "suspended", Role.BRAND_ADMIN);
         var suspended = new User("suspended", "suspended@example.com", "hash", "suspended", Role.BRAND_ADMIN);
         suspended.setTenantId(19L);
+        ReflectionTestUtils.setField(suspended, "id", 1L);
         when(users.findByUsername("suspended")).thenReturn(Optional.of(suspended));
         var tenant = new Tenant("blocked", "Blocked Brand");
         tenant.setStatus(Tenant.Status.SUSPENDED);
-        when(tenants.findById(19L)).thenReturn(Optional.of(tenant));
-        when(jwtService.extractUsername("invalid-role-token")).thenThrow(new IllegalArgumentException("invalid"));
+        when(tenants.findStatusById(19L)).thenReturn(Optional.of(tenant.getStatus()));
+        when(jwtService.readSession("invalid-role-token")).thenThrow(new IllegalArgumentException("invalid"));
     }
 
     void token(String token, String username, Role role) {
-        when(jwtService.extractUsername(token)).thenReturn(username);
-        when(jwtService.extractTokenVersion(token)).thenReturn(0L);
-        when(users.findByUsername(username)).thenReturn(Optional.of(
-            new User(username, username + "@example.com", "hash", username, role)));
+        when(jwtService.readSession(token)).thenReturn(new JwtService.Session(username, 1L, 0L));
+        User user = new User(username, username + "@example.com", "hash", username, role);
+        ReflectionTestUtils.setField(user, "id", 1L);
+        when(users.findByUsername(username)).thenReturn(Optional.of(user));
     }
 
     @Test void legacyAdminCannotAccessAdminEndpoint() throws Exception {

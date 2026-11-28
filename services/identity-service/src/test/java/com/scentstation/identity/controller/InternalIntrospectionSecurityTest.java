@@ -44,9 +44,10 @@ class InternalIntrospectionSecurityTest {
         token("stale-token", stale);
         token("locked-token", user("locked", true, false, null));
         token("suspended-token", user("suspended", false, false, 9L));
+        when(jwtService.readSession("old-account-token")).thenReturn(new JwtService.Session("valid", 99L, 0L));
         Tenant suspended = new Tenant("suspended", "Suspended");
         suspended.setStatus(Tenant.Status.SUSPENDED);
-        when(tenants.findById(9L)).thenReturn(Optional.of(suspended));
+        when(tenants.findStatusById(9L)).thenReturn(Optional.of(suspended.getStatus()));
     }
 
     @Test
@@ -80,7 +81,7 @@ class InternalIntrospectionSecurityTest {
 
     @Test
     void staleLockedAndSuspendedActorsAreUnauthorized() throws Exception {
-        for (String token : new String[] {"stale-token", "locked-token", "suspended-token"}) {
+        for (String token : new String[] {"stale-token", "locked-token", "suspended-token", "old-account-token"}) {
             mockMvc.perform(post("/internal/auth/introspect")
                     .header("Authorization", "Bearer " + token)
                     .header("X-Internal-Service-Key", "private-key"))
@@ -89,8 +90,7 @@ class InternalIntrospectionSecurityTest {
     }
 
     private void token(String token, User user) {
-        when(jwtService.extractUsername(token)).thenReturn(user.getUsername());
-        when(jwtService.extractTokenVersion(token)).thenReturn(0L);
+        when(jwtService.readSession(token)).thenReturn(new JwtService.Session(user.getUsername(), user.getId(), 0L));
         when(users.findByUsername(user.getUsername())).thenReturn(Optional.of(user));
     }
 

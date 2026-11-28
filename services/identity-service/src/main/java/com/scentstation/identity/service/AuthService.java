@@ -14,13 +14,13 @@ import com.scentstation.identity.entity.Role;
 import com.scentstation.identity.entity.User;
 import com.scentstation.identity.repository.UserRepository;
 import com.scentstation.identity.rbac.AccessPolicy;
+import com.scentstation.identity.rbac.RolePermissions;
 import com.scentstation.identity.tenant.Tenant;
 import com.scentstation.identity.tenant.TenantRepository;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -39,7 +39,6 @@ public class AuthService {
     private final AccessPolicy access;
     private final TenantRepository tenantRepository;
 
-    @Autowired
     public AuthService(UserRepository users, PasswordEncoder encoder, JwtService jwt,
                        AuditService audit, AccessPolicy access, TenantRepository tenantRepository) {
         this.users = users; this.passwordEncoder = encoder;
@@ -47,15 +46,7 @@ public class AuthService {
         this.tenantRepository = tenantRepository;
     }
 
-    /** Retained for existing isolated unit tests. */
-    AuthService(UserRepository users, PasswordEncoder encoder, JwtService jwt) {
-        this.users = users; this.passwordEncoder = encoder;
-        this.jwtService = jwt; this.audit = null; this.access = null;
-        this.tenantRepository = null;
-    }
-
     public List<PublicTenantSummary> listActiveTenants() {
-        if (tenantRepository == null) return List.of();
         return tenantRepository.findAll().stream()
             .filter(t -> t.getStatus() == Tenant.Status.ACTIVE)
             .map(t -> new PublicTenantSummary(t.getId(), t.getCode(), t.getName()))
@@ -68,13 +59,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "Chỉ được đăng ký các vai trò nhân viên: Quản lý vận hành, Kỹ thuật viên hoặc Nhân viên kho.");
         }
-        if (tenantRepository != null) {
-            Tenant tenant = tenantRepository.findById(request.tenantId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Thương hiệu không tồn tại."));
-            if (tenant.getStatus() != Tenant.Status.ACTIVE) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thương hiệu hiện đang tạm ngưng.");
-            }
-        }
+        requireActiveTenant(request.tenantId());
         String username = request.username().trim();
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         if (users.existsByUsername(username))
@@ -130,20 +115,18 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "Chỉ được đề nghị các vai trò: Quản lý vận hành, Kỹ thuật viên hoặc Nhân viên kho.");
         }
-        User user = users.findById(actor.id()).orElseThrow(() ->
+        User user = users.findByIdForUpdate(actor.id()).orElseThrow(() ->
             new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid session"));
-        if (tenantRepository != null) {
-            Tenant tenant = tenantRepository.findById(request.tenantId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Thương hiệu không tồn tại."));
-            if (tenant.getStatus() != Tenant.Status.ACTIVE) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thương hiệu hiện đang tạm ngưng.");
-            }
+        if (!user.isActive() || user.isLocked() || user.isPendingApproval()
+            || user.getTenantId() != null
+            || !RolePermissions.effectiveRoles(user.getRoles(), user.getRole()).equals(Set.of(Role.STAFF))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "Only unassigned staff may request a role");
         }
+        requireActiveTenant(request.tenantId());
         user.setTenantId(request.tenantId());
         user.setRoles(Set.of(request.requestedRole()));
         user.setPendingApproval(true);
-        user.setActive(true);
-        user.setLocked(false);
         users.save(user);
         if (audit != null) {
             audit.record(user.getId(), request.tenantId(), "STAFF_ROLE_REQUEST_SUBMITTED", "USER",
@@ -239,6 +222,14 @@ public class AuthService {
 
     private AuthResponse response(User user) {
         return new AuthResponse(jwtService.generateToken(user), "Bearer", user.getId(),
-            user.getUsername(), user.getRole().name());
+            user.getUsername(), (user.isPendingApproval() ? Role.STAFF : user.getRole()).name());
+    }
+
+    private void requireActiveTenant(Long tenantId) {
+        Tenant.Status status = tenantRepository.findStatusById(tenantId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Thương hiệu không tồn tại."));
+        if (status != Tenant.Status.ACTIVE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Thương hiệu hiện đang tạm ngưng.");
+        }
     }
 }

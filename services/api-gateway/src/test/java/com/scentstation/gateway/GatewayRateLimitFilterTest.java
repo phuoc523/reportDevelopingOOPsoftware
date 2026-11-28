@@ -2,6 +2,7 @@ package com.scentstation.gateway;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,6 +56,17 @@ class GatewayRateLimitFilterTest {
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exchange.getResponse().getStatusCode());
         assertTrue(!forwarded.get());
+    }
+
+    @Test
+    void errorsFromForwardedRequestsAreHandledByTheGatewayRatherThanTheLimiter() {
+        var filter = new GatewayRateLimitFilter(
+                exchange -> Mono.just("identity:12:8"),
+                (key, window) -> Mono.just(1L),
+                true, 2, Duration.ofMinutes(1));
+        var exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/orders").build());
+        assertThrows(RedisConnectionFailureException.class, () -> filter.filter(exchange,
+                ignored -> Mono.error(new RedisConnectionFailureException("Downstream failure"))).block());
     }
 
     @Test

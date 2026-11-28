@@ -1,116 +1,33 @@
-﻿# Identity Service và API Gateway
-
-## Thành phần
-
-- **Identity Service:** Spring Boot, Spring Security, Spring Data JPA, MySQL.
-- **Xác thực:** JWT Bearer Token; mật khẩu được lưu dưới dạng BCrypt hash.
-- **Vai trò:** `ADMIN`, `STAFF`, `CUSTOMER`. Đăng ký công khai luôn tạo tài khoản `CUSTOMER`; không cho phép người dùng tự đăng ký quyền quản trị.
-- **API Gateway:** Sử dụng cổng `8080`, định tuyến các request `/api/auth/**` và `/api/admin/**` đến Identity Service tại cổng `8081`.
-
-## API
-
-- `POST /api/auth/register`: Đăng ký tài khoản.
-
-  ```json
-  {
-    "username": "demo",
-    "email": "demo@example.com",
-    "password": "Password123",
-    "fullName": "Demo User"
-  }
-  ```
-
-- `POST /api/auth/login`: Đăng nhập.
-
-  ```json
-  {
-    "username": "demo",
-    "password": "Password123"
-  }
-  ```
-
-- `GET /api/auth/health`: Kiểm tra trạng thái hoạt động của Identity Service.
-
-Đăng ký và đăng nhập trả về JWT trong trường `token`. Khi gọi API cần xác thực, gửi token qua header:
-
-```http
-Authorization: Bearer <token>
-```
-
-## Chạy local
-
-1. Cài đặt Java 17 trở lên, Maven và MySQL; bảo đảm MySQL đang chạy.
-2. Tạo database `scentstation_identity` hoặc cấu hình JDBC để có thể tạo database nếu được hỗ trợ.
-3. Thiết lập các biến môi trường `DB_USERNAME` và `DB_PASSWORD`. Không sử dụng mật khẩu mặc định trong môi trường ngoài local.
-4. Trong thư mục `services/identity-service`, chạy:
-
-   ```powershell
-   mvn spring-boot:run
-   ```
-
-5. Mở terminal khác, chuyển đến thư mục `services/api-gateway` và chạy:
-
-   ```powershell
-   mvn spring-boot:run
-   ```
-
-6. Gửi request thông qua API Gateway tại `http://localhost:8080`.
-
-## Lưu ý bảo mật
-
-- Thay `JWT_SECRET` bằng secret Base64 ngẫu nhiên, đủ mạnh trong môi trường triển khai.
-- Cấu hình CORS theo đúng origin của frontend.
-- Tài khoản `ADMIN` và `STAFF` phải được tạo thông qua quy trình quản trị đáng tin cậy. Không cho phép người dùng tự chọn role trong endpoint đăng ký công khai.
-- Cấu hình JPA `ddl-auto: update` chỉ phù hợp cho phát triển local. Môi trường thực tế nên sử dụng công cụ migration cơ sở dữ liệu.
 # Identity Service và API Gateway
 
-## 1. Thành phần
+Identity quản lý tài khoản, JWT, phê duyệt nhân viên, vai trò, phạm vi thương hiệu và nhật ký. Gateway định tuyến API công khai, xử lý CORS và giới hạn lưu lượng. Cấu hình local mặc định dùng Gateway tại cổng 8080 và Identity tại cổng 8081.
 
-- **Identity Service:** Sử dụng Spring Boot, Spring Security, Spring Data JPA và MySQL.
-- **Xác thực:** Sử dụng JWT Bearer Token; mật khẩu được mã hóa bằng BCrypt trước khi lưu vào cơ sở dữ liệu.
-- **Vai trò:** ADMIN, STAFF, CUSTOMER. Đăng ký công khai luôn tạo tài khoản CUSTOMER; tài khoản có quyền cao hơn phải được quản trị viên cấp quyền.
-- **API Gateway:** Chạy tại cổng 8080, định tuyến các request `/api/auth/**` và `/api/admin/**` đến Identity Service tại cổng 8081.
+## Demo và kiểm thử
 
-## 2. API
+Tại thư mục gốc, với Docker Desktop và stack ScentStation đã chạy:
 
-- `POST /api/auth/register`: Đăng ký tài khoản.
-- `POST /api/auth/login`: Đăng nhập và nhận JWT.
-- `GET /api/auth/health`: Kiểm tra trạng thái Identity Service.
-
-Ví dụ dữ liệu đăng ký:
-
-```json
-{
-  "username": "demo",
-  "email": "demo@example.com",
-  "password": "Password123",
-  "fullName": "Demo User"
-}
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Test-IdentityPlatform.ps1
 ```
 
-Ví dụ dữ liệu đăng nhập:
+Lệnh chạy Maven với Java 21 trong container giới hạn 2 CPU và 2 GiB, sau đó thử các endpoint chỉ đọc qua Gateway. Dùng `-TestsOnly` nếu stack chưa chạy, hoặc `-SmokeOnly` để kiểm tra riêng stack đang chạy. `-GatewayUrl` cho phép trỏ tới cổng local khác. Testcontainers Redis yêu cầu chạy Maven bên ngoài container trong môi trường có Docker khả dụng. Runner giới hạn bộ nhớ dành cho bước test, còn mức sử dụng của full stack phụ thuộc các profile đang chạy.
 
-```json
-{
-  "username": "demo",
-  "password": "Password123"
-}
-```
+## Tài khoản và phiên
 
-Các API yêu cầu xác thực sử dụng JWT trong header `Authorization: Bearer <token>`.
+| Endpoint | Hành vi |
+|---|---|
+| `POST /api/auth/register` | Tạo khách hàng và cấp JWT. |
+| `POST /api/auth/register-staff-account` | Tạo tài khoản nhân viên chưa gán thương hiệu, với vai trò `STAFF` và quyền rỗng. |
+| `POST /api/auth/staff-role-request` | Nhân viên chưa gán gửi một yêu cầu cho thương hiệu đang hoạt động và nhận JWT chờ duyệt. |
+| `POST /api/auth/register-staff` | Luồng trực tiếp tạo tài khoản chờ duyệt chưa kích hoạt. |
+| `POST /api/auth/login` | Đăng nhập bằng tên và mật khẩu. |
+| `GET /api/auth/me` | Trả về vai trò và quyền đang có hiệu lực. |
+| `POST /api/auth/change-username`, `change-password`, `logout` | Quản lý thông tin và phiên. |
 
-## 3. Cách chạy local
+Quản trị viên xử lý yêu cầu theo các route `approve-registration` và `reject-registration` trên tài nguyên tài khoản. Tài khoản chờ duyệt có vai trò hiệu lực `STAFF`, quyền và phạm vi vận hành rỗng. Quản trị viên vẫn xem được vai trò được đề nghị trong danh sách tài khoản. Khi duyệt, phiên chờ duyệt bị thu hồi và nhân viên đăng nhập lại để nhận quyền. Khi từ chối, tài khoản bị khóa và yêu cầu vai trò, quyền tường minh, phạm vi máy và địa điểm bị gỡ.
 
-1. Cài đặt Java 17 trở lên, Maven và khởi động MySQL.
-2. Tạo cơ sở dữ liệu `scentstation_identity` hoặc cấu hình quyền tạo cơ sở dữ liệu phù hợp.
-3. Thiết lập các biến môi trường `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`.
-4. Thiết lập `JWT_SECRET` bằng secret đủ mạnh và đúng định dạng Base64.
-5. Khởi động Identity Service tại cổng 8081 và API Gateway tại cổng 8080.
+JWT được ký bằng secret đã cấu hình. Identity đối chiếu chữ ký, thời hạn, định danh tài khoản và phiên bản phiên với trạng thái hiện hành. Sau khi triển khai, người dùng có JWT cũ thiếu `userId` cần đăng nhập lại một lần. Dữ liệu duyệt, trạng thái khóa, vai trò và phạm vi đến từ Identity. Các dịch vụ nội bộ lấy principal qua `POST /internal/auth/introspect` với bearer token và khóa liên dịch vụ.
 
-## 4. Lưu ý bảo mật
+## Phạm vi thương hiệu và Redis
 
-- Không sử dụng secret JWT mặc định trong môi trường triển khai thực tế.
-- Không sử dụng mật khẩu cơ sở dữ liệu mặc định trong môi trường triển khai thực tế.
-- Đăng ký công khai chỉ tạo tài khoản CUSTOMER.
-- Kiểm tra quyền truy cập đối với từng vai trò ADMIN, STAFF và CUSTOMER.
-- Cấu hình `spring.jpa.hibernate.ddl-auto: update` phù hợp cho phát triển local; cân nhắc sử dụng công cụ migration khi triển khai ổn định.
+Identity đối chiếu trạng thái tenant từ MySQL trên các yêu cầu xác thực có tenant. Cache Redis lưu snapshot hồ sơ hiển thị theo mã định danh tenant. Gateway dùng Redis để đếm yêu cầu theo principal đã xác minh hoặc địa chỉ kết nối cho người dùng ẩn danh. Xem [hành vi của Gateway](redis/gateway.md), [quy ước API](api-conventions.md) và [UML Identity](../architecture/identity-service/README.md).

@@ -229,6 +229,10 @@ public class AccountAdminService {
         u.setPendingApproval(false);
         u.setActive(false);
         u.setLocked(true);
+        u.setRoles(Set.of(Role.STAFF));
+        u.setPermissionGrants(Set.of());
+        u.setLocationIds(Set.of());
+        u.setMachineIds(Set.of());
         users.save(u);
         audit.record(access.current().id(), u.getTenantId(), "STAFF_REGISTRATION_REJECTED", "USER", id(u),
             "PENDING_APPROVAL", "REJECTED");

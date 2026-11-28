@@ -1,6 +1,7 @@
 package com.scentstation.identity.config;
 
 import com.scentstation.identity.rbac.AccountPrincipal;
+import com.scentstation.identity.entity.User;
 import com.scentstation.identity.repository.UserRepository;
 import com.scentstation.identity.service.JwtService;
 import com.scentstation.identity.tenant.Tenant;
@@ -26,12 +27,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         this.jwtService = jwtService; this.users = users; this.tenants = tenants;
     }
 
-    private boolean permittedTenant(com.scentstation.identity.entity.User user) {
+    private boolean permittedTenant(User user) {
         // Public kiosk customers may have no tenant. Assigned staff must not
         // keep using JWTs issued before their tenant was suspended.
         if (user.getTenantId() == null) return true;
-        return tenants.findById(user.getTenantId())
-            .map(t -> t.getStatus() == Tenant.Status.ACTIVE).orElse(false);
+        return tenants.findStatusById(user.getTenantId()).orElse(null) == Tenant.Status.ACTIVE;
     }
 
     @Override
@@ -42,11 +42,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 String token = header.substring(7);
-                String username = jwtService.extractUsername(token); // verifies signature and expiry
-                long tokenVersion = jwtService.extractTokenVersion(token);
-                if (username != null && !username.isBlank()) {
+                var session = jwtService.readSession(token);
+                String username = session.username();
+                if (session.userId() > 0 && session.tokenVersion() >= 0 && username != null && !username.isBlank()) {
                     users.findByUsername(username)
-                        .filter(u -> u.isActive() && !u.isLocked() && u.getTokenVersion() == tokenVersion
+                        .filter(u -> Long.valueOf(session.userId()).equals(u.getId())
+                            && u.isActive() && !u.isLocked() && u.getTokenVersion() == session.tokenVersion()
                             && permittedTenant(u))
                         .ifPresent(u -> {
                             AccountPrincipal actor = AccountPrincipal.from(u);

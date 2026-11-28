@@ -44,7 +44,11 @@ public class RedisTenantProfileCache implements TenantProfileCache {
             return null;
         }
         try {
-            return objectMapper.readValue(json, TenantProfileSnapshot.class);
+            TenantProfileSnapshot profile = objectMapper.readValue(json, TenantProfileSnapshot.class);
+            if (profile == null || !tenantId.equals(profile.id())) {
+                throw new IllegalStateException("Tenant profile cache key mismatch");
+            }
+            return profile;
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Unable to deserialize tenant profile cache", exception);
         }

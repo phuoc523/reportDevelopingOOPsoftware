@@ -30,8 +30,13 @@ end
 
 == Service-to-service authorization ==
 Caller -> JwtFilter : POST /internal/auth/introspect\nBearer JWT + service key
-JwtFilter -> JwtService : validate subject and tokenVersion
+JwtFilter -> JwtService : verify signature, expiry and read session
 JwtFilter -> DB : load current user
+JwtFilter -> DB : check live tenant status when assigned
+note right of JwtFilter
+Pending staff has role STAFF.
+Effective grants and operational scopes are empty.
+end note
 JwtFilter -> Internal : authenticated request
 Internal -> Internal : constant-time service-key check
 alt invalid service key
@@ -41,5 +46,13 @@ else valid key
   AccessPolicy --> Internal : AccountPrincipal
   Internal --> Caller : AccountPrincipal
 end
+
+== Staff approval ==
+actor "Brand administrator" as Admin
+participant "AccountAdminService" as Accounts
+Admin -> Accounts : approve registration for own brand
+Accounts -> DB : clear pending flag and revoke existing JWTs
+Client -> AuthController : log in again
+AuthController --> Client : JWT with approved role
 
 @enduml

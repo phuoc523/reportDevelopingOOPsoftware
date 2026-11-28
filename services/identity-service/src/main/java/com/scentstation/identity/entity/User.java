@@ -84,7 +84,12 @@ public class User {
     public void setTenantId(Long tenantId) { this.tenantId = tenantId; }
     public void setActive(boolean active) { this.active = active; revokeSessions(); }
     public void setLocked(boolean locked) { this.locked = locked; revokeSessions(); }
-    public void setPendingApproval(boolean pendingApproval) { this.pendingApproval = pendingApproval; }
+    public void setPendingApproval(boolean pendingApproval) {
+        if (this.pendingApproval != pendingApproval) {
+            this.pendingApproval = pendingApproval;
+            revokeSessions();
+        }
+    }
     public void setPassword(String hash) { this.password = hash; revokeSessions(); }
     public void setUsername(String username) { this.username = username; revokeSessions(); }
     public void setEmail(String email) { this.email = email; }
